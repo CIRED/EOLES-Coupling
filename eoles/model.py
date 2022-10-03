@@ -69,7 +69,7 @@ class ModelEOLES():
         self.epsilon = data_static["epsilon"]
         if existing_capa is not None:
             self.existing_capa = existing_capa
-        else:
+        else:  # default value
             self.existing_capa = data_static["existing_capa"]
         self.capa_max = data_static["capa_max"]
         self.fix_capa = data_static["fix_capa"]
@@ -98,8 +98,7 @@ class ModelEOLES():
         self.first_month = self.miscellaneous['first_month']
 
         self.hours_by_months = {1: 744, 2: 672, 3: 744, 4: 720, 5: 744, 6: 720, 7: 744, 8: 744, 9: 720, 10: 744,
-                                11: 720,
-                                12: 744}
+                                11: 720, 12: 744}  # question: pas de problème avec les années bissextiles ?
 
         self.months_hours = {1: range(0, self.hours_by_months[self.first_month])}
         self.month_hours = define_month_hours(self.first_month, self.nb_years, self.months_hours, self.hours_by_months)
@@ -218,7 +217,6 @@ class ModelEOLES():
     def define_constraints(self):
         def generation_vre_constraint_rule(model, h, vre):
             """Get constraint on variables renewable profiles generation."""
-
             return model.gene[vre, h] == model.capacity[vre] * self.load_factors[vre, h]
 
         def generation_capacity_constraint_rule(model, h, tec):
@@ -262,12 +260,10 @@ class ModelEOLES():
 
         def lake_reserve_constraint_rule(model, month):
             """Get constraint on maximum monthly lake generation."""
-
             return sum(model.gene['lake', hour] for hour in self.months_hours[month]) <= self.lake_inflows[month] * 1000
 
         def stored_capacity_constraint(model, h, storage_tecs):
             """Get constraint on maximum energy that is stored in storage units"""
-
             return model.stored[storage_tecs, h] <= model.energy_capacity[storage_tecs]
 
         def storage_capacity_1_constraint_rule(model, h, storage_tecs):
@@ -282,14 +278,11 @@ class ModelEOLES():
 
         def biogas_constraint_rule(model):
             """Get constraint on biogas."""
-
             gene_biogas = sum(model.gene['biogas1', hour] + model.gene['biogas2', hour] for hour in model.h)
-
             return gene_biogas <= self.miscellaneous['max_biogas'] * 1000
 
         def hydrogen_balance_constraint_rule(model, h):
             """Get constraint on hydrogen's balance."""
-
             gene_e_h = model.gene['electrolysis', h] + model.gene['hydrogen', h]
             dem_sto = model.gene['h2_ccgt', h] / self.miscellaneous['eta_h2_ccgt'] + self.H2_demand[h] + model.storage[
                 'hydrogen', h] + \
@@ -299,7 +292,6 @@ class ModelEOLES():
 
         def methane_balance_constraint_rule(model, h):
             """Get constraint on methane's balance."""
-
             gene_methane = model.gene['methanation', h] + model.gene['biogas1', h] + model.gene['biogas2', h] + \
                            model.gene[
                                'pyrogazification', h] + model.gene['methane', h]
@@ -311,14 +303,12 @@ class ModelEOLES():
 
         def reserves_constraint_rule(model, h):
             """Get constraint on frr reserves"""
-
             res_req = sum(self.epsilon[vre] * model.capacity[vre] for vre in model.vre)
             load_req = self.demand[h] * self.miscellaneous['load_uncertainty'] * (1 + self.miscellaneous['delta'])
             return sum(model.reserve[frr, h] for frr in model.frr) == res_req + load_req
 
         def adequacy_constraint_rule(model, h):
             """Get constraint for 'supply/demand relation'"""
-
             storage = sum(model.storage[str, h] for str in model.str if (str != "hydrogen" and str != "methane"))
             gene_electrolysis = model.gene['electrolysis', h] / self.miscellaneous['eta_electrolysis']
             return sum(model.gene[balance, h] for balance in model.balance) >= (
@@ -326,7 +316,6 @@ class ModelEOLES():
 
         def ramping_nuc_up_constraint_rule(model, h):
             """Sets an upper ramping limit for nuclear flexibility"""
-
             old_h = model.h.last() if h == 0 else h - 1
             return model.gene['nuc', h] - model.gene['nuc', old_h] + model.reserve['nuc', h] - model.reserve[
                 'nuc', old_h] <= \
@@ -556,9 +545,18 @@ def calculate_annuities_storage_capex(miscellaneous, storage_capex, construction
 
 
 def define_month_hours(first_month, nb_years, months_hours, hours_by_months):
+    """
+    Calculates range of hours for each month
+    :param first_month: int
+    :param nb_years: int
+    :param months_hours: dict
+    :param hours_by_months: dict
+    :return:
+    Dict containing the range of hours for each month considered in the model
+    """
     j = first_month + 1
     for i in range(2, 12 * nb_years + 1):
-        hour = months_hours[i - 1][-1] + 1
+        hour = months_hours[i - 1][-1] + 1  # get the first hour for a given month
         months_hours[i] = range(hour, hour + hours_by_months[j])
         j += 1
         if j == 13:
