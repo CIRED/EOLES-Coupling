@@ -5,7 +5,7 @@ Power system components.
 import pandas as pd
 import json
 import os
-from utils import get_pandas
+from eoles.utils import get_pandas
 from pyomo.environ import (
     ConcreteModel,
     RangeSet,
@@ -437,7 +437,7 @@ class ModelEOLES():
         self.opt = SolverFactory(solver_name)
         logger.info("Solving model using %s", self.opt.name)
         self.solver_results = self.opt.solve(self.model,
-                                             options={'Presolve': 2, 'LogFile': "grblogfile_pre_" + self.name})
+                                             options={'Presolve': 2, 'LogFile': "eoles/outputs/logfile_" + self.name})
 
         status = self.solver_results["Solver"][0]["Status"]
         termination_condition = self.solver_results["Solver"][0]["Termination condition"]

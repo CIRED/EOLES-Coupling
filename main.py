@@ -3,7 +3,7 @@ import json
 from eoles.utils import write_output, plot_capacities  # Ecrire plutôt quelque chose avec un package parent ?
 
 if __name__ == '__main__':
-    with open('config.json') as file:
+    with open('eoles/inputs/config.json') as file:
         config = json.load(file)
     m = ModelEOLES(name="test", config=config, nb_years=1)
     m.build_model()
