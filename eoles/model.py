@@ -114,7 +114,7 @@ class ModelEOLES():
         self.model.tec = \
             Set(initialize=["offshore_f", "offshore_g", "onshore", "pv_g", "pv_c", "river", "lake", "biogas1",
                             "biogas2", "ocgt", "ccgt", "nuc", "h2_ccgt", "phs", "battery1", "battery4",
-                            "methanation", "pyrogazification", "electrolysis", "hydrogen", "methane"])
+                            "methanation", "pyrogazification", "electrolysis", "natural_gas", "hydrogen", "methane"])
         # Power plants. Only used to calculate sum of generation.
         self.model.gen = \
             Set(initialize=["offshore_f", "offshore_g", "onshore", "pv_g", "pv_c", "river", "lake", "ocgt", "ccgt",
@@ -293,8 +293,7 @@ class ModelEOLES():
         def methane_balance_constraint_rule(model, h):
             """Get constraint on methane's balance."""
             gene_methane = model.gene['methanation', h] + model.gene['biogas1', h] + model.gene['biogas2', h] + \
-                           model.gene[
-                               'pyrogazification', h] + model.gene['methane', h]
+                           model.gene['pyrogazification', h] + model.gene['methane', h] + model.gene["natural_gas"]
             dem_sto = model.gene['ocgt', h] / self.miscellaneous['eta_ocgt'] + model.gene['ccgt', h] / \
                       self.miscellaneous[
                           'eta_ccgt'] + \
