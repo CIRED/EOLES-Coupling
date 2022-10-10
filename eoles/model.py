@@ -36,7 +36,7 @@ logger.addHandler(console_handler)
 
 
 class ModelEOLES():
-    def __init__(self, name, config, nb_years, existing_capa=None, residential=True, social_cost_of_carbon=0, hourly_heat_elec=None,
+    def __init__(self, name, config, path, nb_years, existing_capa=None, residential=True, social_cost_of_carbon=0, hourly_heat_elec=None,
                  hourly_heat_gas=None):
         """
 
@@ -51,6 +51,7 @@ class ModelEOLES():
         """
         self.name = name
         self.config = config
+        self.path = path
         self.model = ConcreteModel()
         # Dual Variable, used to get the marginal value of an equation.
         self.model.dual = Suffix(direction=Suffix.IMPORT)
@@ -444,7 +445,8 @@ class ModelEOLES():
         self.opt = SolverFactory(solver_name)
         logger.info("Solving model using %s", self.opt.name)
         self.solver_results = self.opt.solve(self.model,
-                                             options={'Presolve': 2, 'LogFile': "eoles/outputs/logfile_" + self.name})
+                                             options={'Presolve': 2, 'LogFile': self.path + "/logfile_" + self.name})
+        # TODO: à modifier pour utiliser un objet Path, ce sera plus propre
 
         status = self.solver_results["Solver"][0]["Status"]
         termination_condition = self.solver_results["Solver"][0]["Termination condition"]
