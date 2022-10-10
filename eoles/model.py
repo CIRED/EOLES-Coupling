@@ -36,7 +36,7 @@ logger.addHandler(console_handler)
 
 
 class ModelEOLES():
-    def __init__(self, name, config, nb_years, existing_capa=None, residential=False, social_cost_of_carbon=0, hourly_heat_elec=None,
+    def __init__(self, name, config, nb_years, existing_capa=None, residential=True, social_cost_of_carbon=0, hourly_heat_elec=None,
                  hourly_heat_gas=None):
         """
 
@@ -58,7 +58,7 @@ class ModelEOLES():
         self.scc = social_cost_of_carbon
 
         if not residential:
-            assert(hourly_heat_elec is not None, "Hourly heat profile should be provided to the model")
+            assert hourly_heat_elec is not None, "Hourly heat profile should be provided to the model"
 
         # loading exogeneous variable data
         data_variable = read_input_variable(config, residential=residential)

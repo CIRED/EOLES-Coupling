@@ -2,6 +2,7 @@ from importlib import resources
 from pathlib import Path
 import pandas as pd
 import os
+import json
 from matplotlib import pyplot as plt
 
 
@@ -10,6 +11,12 @@ def get_pandas(path, func=lambda x: pd.read_csv(x)):
     path = Path(path)
     with resources.path(str(path.parent).replace('/', '.'), path.name) as df:
         return func(df)
+
+
+def get_config() -> dict:
+    with resources.path('eoles.inputs', 'config.json') as f:
+        with open(f) as file:
+            return json.load(file)
 
 
 def write_output(results, folder):
