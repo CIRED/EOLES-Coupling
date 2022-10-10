@@ -36,7 +36,8 @@ logger.addHandler(console_handler)
 
 
 class ModelEOLES():
-    def __init__(self, name, config, nb_years, existing_capa=None, social_cost_of_carbon=0):
+    def __init__(self, name, config, nb_years, existing_capa=None, social_cost_of_carbon=0, hourly_heat_elec=None,
+                 hourly_heat_gas=None):
         """
 
         :param name: str
