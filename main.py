@@ -6,8 +6,8 @@ if __name__ == '__main__':
     with open('eoles/inputs/config.json') as file:
         config = json.load(file)
     m = ModelEOLES(name="test", config=config, nb_years=1, social_cost_of_carbon=100)
-    # m.build_model()
-    # solver_results, status, termination_condition = m.solve(solver_name="gurobi")
+    m.build_model()
+    solver_results, status, termination_condition = m.solve(solver_name="gurobi")
     # write_output(m.results, folder="outputs/test2006_3")
 
     # plot_capacities(m.capacities)

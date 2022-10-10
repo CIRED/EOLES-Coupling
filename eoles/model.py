@@ -296,7 +296,7 @@ class ModelEOLES():
         def methane_balance_constraint_rule(model, h):
             """Constraint on methane's balance. Methane production must satisfy CCGT and OCGT plants and CH4 demand"""
             gene_methane = model.gene['methanation', h] + model.gene['biogas1', h] + model.gene['biogas2', h] + \
-                           model.gene['pyrogazification', h] + model.gene['methane', h] + model.gene["natural_gas"]
+                           model.gene['pyrogazification', h] + model.gene['methane', h] + model.gene["natural_gas", h]
             dem_sto = model.gene['ocgt', h] / self.miscellaneous['eta_ocgt'] + model.gene['ccgt', h] / \
                       self.miscellaneous['eta_ccgt'] + self.CH4_demand[h] + model.storage['methane', h]
             return gene_methane == dem_sto
