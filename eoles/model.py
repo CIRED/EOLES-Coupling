@@ -178,7 +178,6 @@ class ModelEOLES():
                 return (None, None)
 
             # Hourly energy generation in GWh/h
-
         self.model.gene = \
             Var(((tec, h) for tec in self.model.tec for h in self.model.h), within=NonNegativeReals, initialize=0)
 
@@ -216,32 +215,29 @@ class ModelEOLES():
 
     def define_constraints(self):
         def generation_vre_constraint_rule(model, h, vre):
-            """Get constraint on variables renewable profiles generation."""
+            """Cnstraint on variables renewable profiles generation."""
             return model.gene[vre, h] == model.capacity[vre] * self.load_factors[vre, h]
 
         def generation_capacity_constraint_rule(model, h, tec):
-            """Get constraint on maximum power for non-VRE technologies."""
-
+            """Constraint on maximum power for non-VRE technologies."""
             return model.capacity[tec] >= model.gene[tec, h]
 
         def battery1_capacity_constraint_rule(model):
-            """Get constraint on capacity of battery1."""
+            """Constraint on capacity of battery 1h."""
             # TODO: check that the constraint is ok
             return model.capacity['battery1'] == model.energy_capacity['battery1']
 
         def battery4_capacity_constraint_rule(model):
-            """Get constraint on capacity of battery4."""
+            """Constraint on capacity of battery 4h."""
             # TODO: check that the constraint is ok
             return model.capacity['battery4'] == model.energy_capacity['battery4'] / 4
 
         def frr_capacity_constraint_rule(model, h, frr):
-            """Get constraint on maximum generation including reserves"""
-
+            """Constraint on maximum generation including reserves"""
             return model.capacity[frr] >= model.gene[frr, h] + model.reserve[frr, h]
 
         def storing_constraint_rule(model, h, storage_tecs):
-            """Get constraint on storing."""
-
+            """Constraint on energy storage consistency."""
             hPOne = h + 1 if h < (self.last_hour - 1) else 0
             charge = model.storage[storage_tecs, h] * self.eta_in[storage_tecs]
             discharge = model.gene[storage_tecs, h] / self.eta_out[storage_tecs]
@@ -249,8 +245,7 @@ class ModelEOLES():
             return model.stored[storage_tecs, hPOne] == model.stored[storage_tecs, h] + flux
 
         def storage_constraint_rule(model, storage_tecs):
-            """Get constraint on stored energy to be equal at the end than at the start."""
-
+            """Constraint on stored energy to be equal at the end than at the start."""
             first = model.stored[storage_tecs, self.first_hour]
             last = model.stored[storage_tecs, self.last_hour - 1]
             charge = model.storage[storage_tecs, self.last_hour - 1] * self.eta_in[storage_tecs]
@@ -259,30 +254,32 @@ class ModelEOLES():
             return first == last + flux
 
         def lake_reserve_constraint_rule(model, month):
-            """Get constraint on maximum monthly lake generation."""
+            """Constraint on maximum monthly lake generation. Total generation from lake over a month cannot exceed
+            a certain given value."""
             return sum(model.gene['lake', hour] for hour in self.months_hours[month]) <= self.lake_inflows[month] * 1000
 
         def stored_capacity_constraint(model, h, storage_tecs):
-            """Get constraint on maximum energy that is stored in storage units"""
+            """Constraint on maximum energy that is stored in storage units"""
             return model.stored[storage_tecs, h] <= model.energy_capacity[storage_tecs]
 
-        def storage_capacity_1_constraint_rule(model, h, storage_tecs):
-            """Get constraint on the capacity with hourly charging relationship of storage"""
-            # TODO: check that the constraint is ok: STORAGE plus petit que capacité de charge
+        def storage_charging_capacity_constraint_rule(model, h, storage_tecs):
+            """Constraint on the capacity with hourly charging relationship of storage. Energy entering the battery
+            during one hour cannot exceed the charging capacity."""
             return model.storage[storage_tecs, h] <= model.charging_capacity[storage_tecs]
 
         def battery_capacity_constraint_rule(model, battery):
-            """Get constraint on battery's capacity."""
+            """Constraint on battery's capacity: battery charging capacity equals battery discharging capacity."""
             # TODO: check that the constraint is ok: charging capacity = capacity ?
             return model.charging_capacity[battery] == model.capacity[battery]
 
         def biogas_constraint_rule(model):
-            """Get constraint on biogas."""
+            """Constraint on biogas. The annual power production from biogas is limited to a certain amount."""
             gene_biogas = sum(model.gene['biogas1', hour] + model.gene['biogas2', hour] for hour in model.h)
-            return gene_biogas <= self.miscellaneous['max_biogas'] * 1000
+            return gene_biogas <= self.miscellaneous['max_biogas'] * 1000  # max biogas yearly energy expressed in TWh
 
         def hydrogen_balance_constraint_rule(model, h):
-            """Get constraint on hydrogen's balance."""
+            """Constraint on hydrogen's balance. Hydrogen production must satisfy CCGT-H2 plants, H2 demand and
+            methanation demand."""
             gene_e_h = model.gene['electrolysis', h] + model.gene['hydrogen', h]
             dem_sto = model.gene['h2_ccgt', h] / self.miscellaneous['eta_h2_ccgt'] + self.H2_demand[h] + model.storage[
                 'hydrogen', h] + \
@@ -291,46 +288,42 @@ class ModelEOLES():
             return gene_e_h == dem_sto
 
         def methane_balance_constraint_rule(model, h):
-            """Get constraint on methane's balance."""
+            """Constraint on methane's balance. Methane production must satisfy CCGT and OCGT plants and CH4 demand"""
             gene_methane = model.gene['methanation', h] + model.gene['biogas1', h] + model.gene['biogas2', h] + \
                            model.gene['pyrogazification', h] + model.gene['methane', h] + model.gene["natural_gas"]
             dem_sto = model.gene['ocgt', h] / self.miscellaneous['eta_ocgt'] + model.gene['ccgt', h] / \
-                      self.miscellaneous[
-                          'eta_ccgt'] + \
-                      self.CH4_demand[h] + model.storage['methane', h]
+                      self.miscellaneous['eta_ccgt'] + self.CH4_demand[h] + model.storage['methane', h]
             return gene_methane == dem_sto
 
         def reserves_constraint_rule(model, h):
-            """Get constraint on frr reserves"""
+            """Constraint on frr reserves"""
             res_req = sum(self.epsilon[vre] * model.capacity[vre] for vre in model.vre)
             load_req = self.demand[h] * self.miscellaneous['load_uncertainty'] * (1 + self.miscellaneous['delta'])
             return sum(model.reserve[frr, h] for frr in model.frr) == res_req + load_req
 
         def adequacy_constraint_rule(model, h):
-            """Get constraint for 'supply/demand relation'"""
-            storage = sum(model.storage[str, h] for str in model.str if (str != "hydrogen" and str != "methane"))
-            gene_electrolysis = model.gene['electrolysis', h] / self.miscellaneous['eta_electrolysis']
+            """Constraint for supply/demand electricity relation'"""
+            storage = sum(model.storage[str, h] for str in model.str if (str != "hydrogen" and str != "methane"))  # need in electricity storage
+            gene_electrolysis = model.gene['electrolysis', h] / self.miscellaneous['eta_electrolysis']  # need in electricity conversion
             return sum(model.gene[balance, h] for balance in model.balance) >= (
                     self.demand[h] + storage + gene_electrolysis)
 
         def ramping_nuc_up_constraint_rule(model, h):
-            """Sets an upper ramping limit for nuclear flexibility"""
-            old_h = model.h.last() if h == 0 else h - 1
-            return model.gene['nuc', h] - model.gene['nuc', old_h] + model.reserve['nuc', h] - model.reserve[
-                'nuc', old_h] <= \
+            """Constraint setting an upper ramping limit for nuclear flexibility"""
+            previous_h = model.h.last() if h == 0 else h - 1
+            return model.gene['nuc', h] - model.gene['nuc', previous_h] + model.reserve['nuc', h] - model.reserve[
+                'nuc', previous_h] <= \
                    self.miscellaneous['hourly_ramping_nuc'] * model.capacity['nuc']
 
         def ramping_nuc_down_constraint_rule(model, h):
-            """Sets a lower ramping limit for nuclear flexibility"""
-
-            old_h = model.h.last() if h == 0 else h - 1
-            return model.gene['nuc', old_h] - model.gene['nuc', h] + model.reserve['nuc', old_h] - model.reserve[
+            """Constraint setting a lower ramping limit for nuclear flexibility"""
+            previous_h = model.h.last() if h == 0 else h - 1
+            return model.gene['nuc', previous_h] - model.gene['nuc', h] + model.reserve['nuc', previous_h] - model.reserve[
                 'nuc', h] <= \
                    self.miscellaneous['hourly_ramping_nuc'] * model.capacity['nuc']
 
         def methanation_constraint_rule(model, h):
-            """Get constraint on CO2's balance from methanization"""
-
+            """Constraint on CO2 balance from methanization"""
             return model.gene['methanation', h] / self.miscellaneous['eta_methanation'] <= (
                     model.gene['biogas1', h] + model.gene['biogas2', h]) * self.miscellaneous[
                        'percentage_co2_from_methanization']
@@ -363,7 +356,7 @@ class ModelEOLES():
             Constraint(self.model.h, self.model.str, rule=stored_capacity_constraint)
 
         self.model.storage_capacity_1_constraint = \
-            Constraint(self.model.h, self.model.str, rule=storage_capacity_1_constraint_rule)
+            Constraint(self.model.h, self.model.str, rule=storage_charging_capacity_constraint_rule)
 
         self.model.battery_capacity_constraint = \
             Constraint(self.model.battery, rule=battery_capacity_constraint_rule)
@@ -460,9 +453,9 @@ def read_input_variable(config):
     """Reads data defined at the hourly scale"""
     load_factors = get_pandas(config["load_factors"],
                               lambda x: pd.read_csv(x, index_col=[0, 1], header=None).squeeze("columns"))
-    demand = get_pandas(config["demand"], lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))
+    demand = get_pandas(config["demand"], lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # GW
     lake_inflows = get_pandas(config["lake_inflows"],
-                              lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))
+                              lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # GWh
     o = dict()
     o["load_factors"] = load_factors
     o["demand"] = demand
@@ -474,33 +467,33 @@ def read_input_static(config):
     """Read static data"""
     epsilon = get_pandas(config["epsilon"], lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))
     existing_capa = get_pandas(config["existing_capa"],
-                               lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))
+                               lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # GW
     capa_max = get_pandas(config["capa_max"],
-                          lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))
+                          lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # GW
     fix_capa = get_pandas(config["fix_capa"],
-                          lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))
+                          lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # GW
     lifetime = get_pandas(config["lifetime"],
-                          lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))
+                          lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # years
     construction_time = get_pandas(config["construction_time"],
-                                   lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))
+                                   lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # years
     capex = get_pandas(config["capex"],
-                       lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))
+                       lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # M€/GWh
     storage_capex = get_pandas(config["storage_capex"],
-                               lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))
+                               lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # M€/GWh
     fOM = get_pandas(config["fOM"],
-                     lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))
+                     lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # M€/GW/year
     vOM = get_pandas(config["vOM"],
-                     lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))
+                     lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # M€/GWh
     charging_capex = get_pandas(config["charging_capex"],
-                                lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))
+                                lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # M€/GW/year
     charging_opex = get_pandas(config["charging_opex"],
-                               lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))
+                               lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # M€/GWh
     eta_in = get_pandas(config["eta_in"],
                         lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))
     eta_out = get_pandas(config["eta_out"],
                          lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))
     capacity_ex = get_pandas(config["capacity_ex"],
-                             lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))
+                             lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # GWh
     miscellaneous = get_pandas(config["miscellaneous"],
                                lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))
     o = dict()
@@ -524,7 +517,6 @@ def read_input_static(config):
 
 
 def calculate_annuities_capex(miscellaneous, capex, construction_time, lifetime):
-    # TODO: a checker, il y a peut-être un problème ici dans le rounding
     annuities = construction_time.copy()
     for i in annuities.index:
         annuities.at[i] = miscellaneous["discount_rate"] * capex[i] * (
@@ -534,7 +526,6 @@ def calculate_annuities_capex(miscellaneous, capex, construction_time, lifetime)
 
 
 def calculate_annuities_storage_capex(miscellaneous, storage_capex, construction_time, lifetime):
-    # TODO: a checker, il y a peut-être un problème ici dans le rounding
     storage_annuities = storage_capex.copy()
     for i in storage_annuities.index:
         storage_annuities.at[i] = miscellaneous["discount_rate"] * storage_capex[i] * (
