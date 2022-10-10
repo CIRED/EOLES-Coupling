@@ -64,6 +64,8 @@ class ModelEOLES():
         data_variable = read_input_variable(config, residential=residential)
         self.load_factors = data_variable["load_factors"]
         self.demand1y = data_variable["demand"]
+        self.hourly_heat_elec = hourly_heat_elec
+        self.hourly_heat_gas = hourly_heat_gas
         if not residential:
             self.demand1y = self.demand1y + hourly_heat_elec  # we add electricity demand from heating
 
@@ -71,10 +73,15 @@ class ModelEOLES():
         self.H2_demand = {}
         self.CH4_demand = {}
 
-        # concatenate demand data
+        # concatenate electricity demand data
         self.demand = self.demand1y
-        for i in range(nb_years - 1):
+        for i in range(self.nb_years - 1):
             self.demand = pd.concat([self.demand, self.demand1y], ignore_index=True)
+
+        if self.hourly_heat_gas is not None:  # we provide gas data
+            self.demand_gas = self.hourly_heat_gas
+            for i in range(self.nb_years - 1):
+                self.demand_gas = pd.concat([self.demand_gas, self.hourly_heat_gas], ignore_index=True)
 
         # loading exogeneous static data
         data_static = read_input_static(self.config)
@@ -162,8 +169,12 @@ class ModelEOLES():
             self.H2_demand[hour] = self.miscellaneous['H2_demand']
 
         # Set the methane demand for each hour
-        for hour in self.model.h:
-            self.CH4_demand[hour] = self.miscellaneous['CH4_demand']
+        if self.hourly_heat_gas is None:
+            for hour in self.model.h:
+                self.CH4_demand[hour] = self.miscellaneous['CH4_demand']
+        else:
+            for hour in self.model.h:
+                self.CH4_demand[hour] = self.demand_gas[hour]   # a bit redundant, could be removed
 
     def define_variables(self):
 
