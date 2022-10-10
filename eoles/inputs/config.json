@@ -2,6 +2,7 @@
   "input_years": 2006,
   "load_factors": "eoles/inputs/vre_profiles_2006.csv",
   "demand": "eoles/inputs/demand2050_RTE.csv",
+  "demand_no_residential": "eoles/inputs/demand2050_RTE_no_residential.csv",
   "lake_inflows": "eoles/inputs/lake_2006.csv",
   "epsilon": "eoles/inputs/reserve_requirements_new.csv",
   "existing_capa": "eoles/inputs/existing_capas_elec_new.csv",

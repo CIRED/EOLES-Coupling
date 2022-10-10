@@ -36,7 +36,7 @@ logger.addHandler(console_handler)
 
 
 class ModelEOLES():
-    def __init__(self, name, config, nb_years, existing_capa=None, social_cost_of_carbon=0, hourly_heat_elec=None,
+    def __init__(self, name, config, nb_years, existing_capa=None, residential=False, social_cost_of_carbon=0, hourly_heat_elec=None,
                  hourly_heat_gas=None):
         """
 
@@ -44,6 +44,8 @@ class ModelEOLES():
         :param config: dict
         :param nb_years: int
         :param existing_capa: pd.Series
+        :param residential: bool
+            Indicates whether we want to include residential heating demand in the profile demand
         :param social_cost_of_carbon: int
             Social cost of carbon used to calculate emissions
         """
@@ -55,10 +57,16 @@ class ModelEOLES():
         self.nb_years = nb_years
         self.scc = social_cost_of_carbon
 
+        if not residential:
+            assert(hourly_heat_elec is not None, "Hourly heat profile should be provided to the model")
+
         # loading exogeneous variable data
-        data_variable = read_input_variable(config)
+        data_variable = read_input_variable(config, residential=residential)
         self.load_factors = data_variable["load_factors"]
         self.demand1y = data_variable["demand"]
+        if not residential:
+            self.demand1y = self.demand1y + hourly_heat_elec  # we add electricity demand from heating
+
         self.lake_inflows = data_variable["lake_inflows"]
         self.H2_demand = {}
         self.CH4_demand = {}
@@ -456,11 +464,15 @@ class ModelEOLES():
                         'supply_elec': self.supply_elec, 'use_elec': self.use_elec}
 
 
-def read_input_variable(config):
+def read_input_variable(config, residential=True):
     """Reads data defined at the hourly scale"""
     load_factors = get_pandas(config["load_factors"],
                               lambda x: pd.read_csv(x, index_col=[0, 1], header=None).squeeze("columns"))
-    demand = get_pandas(config["demand"], lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # GW
+    if residential:
+        demand = get_pandas(config["demand"], lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # GW
+    else:
+        demand = get_pandas(config["demand_no_residential"],
+                            lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # GW
     lake_inflows = get_pandas(config["lake_inflows"],
                               lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # GWh
     o = dict()
@@ -555,6 +567,14 @@ def update_ngas_cost(vOM_init, scc, emission_rate=0.2295):
     vOM in M€/GWh
     """
     return vOM_init + scc*emission_rate/1000
+
+
+def create_hourly_residential_demand_profile(total_consumption):
+    """Calculates hourly profile from Doudard (2018) and total consumption."""
+    percentage_hourly_residential_heating = get_pandas("inputs/percentage_hourly_residential_heating_profile.csv",
+               lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))
+    hourly_residential_heating = percentage_hourly_residential_heating * total_consumption
+    return hourly_residential_heating
 
 
 def define_month_hours(first_month, nb_years, months_hours, hours_by_months):

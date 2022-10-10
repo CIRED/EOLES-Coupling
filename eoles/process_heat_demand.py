@@ -30,17 +30,17 @@ if __name__ == '__main__':
     monthly_profile = [0.24, 0.18, 0.15, 0.05, 0.01, 0, 0, 0, 0, 0.03, 0.12, 0.22]
     days_by_month = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
 
-    percentage_hourly_profile = []
+    percentage_hourly_residential_profile = []
     for i in range(len(days_by_month)):
         month_profile = []
         for j in range(days_by_month[i]):
             month_profile = month_profile + daily_profile
         rescale_month_profile = [p / (days_by_month[i]) * monthly_profile[i] for p in month_profile]
-        percentage_hourly_profile = percentage_hourly_profile + rescale_month_profile  # we rescale to the number of hours in the month, and to the percentage of the month
+        percentage_hourly_residential_profile = percentage_hourly_residential_profile + rescale_month_profile  # we rescale to the number of hours in the month, and to the percentage of the month
 
-    percentage_hourly_profile = pd.Series(percentage_hourly_profile)
+    percentage_hourly_residential_profile = pd.Series(percentage_hourly_residential_profile)
     total_residential_heating = 33 * 1e3
-    hourly_residential_heating = total_residential_heating * percentage_hourly_profile
+    hourly_residential_heating = total_residential_heating * percentage_hourly_residential_profile
 
     demand_elec_RTE_no_residential_heating = demand_elec_RTE - hourly_residential_heating
 
@@ -48,4 +48,5 @@ if __name__ == '__main__':
     plt.show()
 
     demand_elec_RTE_no_residential_heating.to_csv("inputs/demand2050_RTE_no_residential_heating.csv", header=False)
-    hourly_residential_heating.to_csv("inputs/hourly_residential_heating.csv", header=False)
+    hourly_residential_heating.to_csv("inputs/hourly_residential_heating_RTE.csv", header=False)
+    percentage_hourly_residential_profile.to_csv("inputs/percentage_hourly_residential_heating_profile.csv", header=False)
