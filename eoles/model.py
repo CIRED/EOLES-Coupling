@@ -413,7 +413,7 @@ class ModelEOLES():
 
     def define_objective(self):
         def objective_rule(model):
-            """Objective value in 10**3 M€"""
+            """Objective value in 10**3 M€, or Billion €"""
 
             return (sum(
                 (model.capacity[tec] - self.existing_capa[tec]) * self.annuities[tec] * self.nb_years for tec in
@@ -582,7 +582,7 @@ def update_ngas_cost(vOM_init, scc, emission_rate=0.2295):
 
 def create_hourly_residential_demand_profile(total_consumption):
     """Calculates hourly profile from Doudard (2018) and total consumption."""
-    percentage_hourly_residential_heating = get_pandas("inputs/percentage_hourly_residential_heating_profile.csv",
+    percentage_hourly_residential_heating = get_pandas("eoles/inputs/percentage_hourly_residential_heating_profile.csv",
                lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))
     hourly_residential_heating = percentage_hourly_residential_heating * total_consumption
     return hourly_residential_heating
