@@ -36,13 +36,15 @@ logger.addHandler(console_handler)
 
 
 class ModelEOLES():
-    def __init__(self, name, config, nb_years, existing_capa=None):
+    def __init__(self, name, config, nb_years, existing_capa=None, social_cost_of_carbon=0):
         """
 
         :param name: str
         :param config: dict
         :param nb_years: int
         :param existing_capa: pd.Series
+        :param social_cost_of_carbon: int
+            Social cost of carbon used to calculate emissions
         """
         self.name = name
         self.config = config
@@ -50,6 +52,7 @@ class ModelEOLES():
         # Dual Variable, used to get the marginal value of an equation.
         self.model.dual = Suffix(direction=Suffix.IMPORT)
         self.nb_years = nb_years
+        self.scc = social_cost_of_carbon
 
         # loading exogeneous variable data
         data_variable = read_input_variable(config)
@@ -91,6 +94,9 @@ class ModelEOLES():
                                                    self.lifetime)
         self.storage_annuities = calculate_annuities_storage_capex(self.miscellaneous, self.storage_capex,
                                                                    self.construction_time, self.lifetime)
+
+        # Update natural gaz vOM based on social cost of carbon
+        self.vOM.loc["natural_gas"] = update_ngas_cost(self.vOM.loc["natural_gas"], scc=self.scc)
 
         # defining needed time steps
         self.first_hour = 0
@@ -533,6 +539,21 @@ def calculate_annuities_storage_capex(miscellaneous, storage_capex, construction
                 miscellaneous["discount_rate"] * construction_time[i] + 1) / (
                                           1 - (1 + miscellaneous["discount_rate"]) ** (-lifetime[i]))
     return storage_annuities
+
+
+def update_ngas_cost(vOM_init, scc, emission_rate=0.2295):
+    """Add emission cost related to social cost of carbon to the natural gas vOM cost.
+    :param vOM_init: float
+        Initial vOM in M€/GWh
+    :param scc: int
+        €/tCO2
+    :param emission_rate: float
+        tCO2/GWh
+
+    Returns
+    vOM in M€/GWh
+    """
+    return vOM_init + scc*emission_rate/1000
 
 
 def define_month_hours(first_month, nb_years, months_hours, hours_by_months):
