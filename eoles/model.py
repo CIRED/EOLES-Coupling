@@ -387,7 +387,7 @@ class ModelEOLES():
 
     def define_objective(self):
         def objective_rule(model):
-            """Get constraint for the final objective function."""
+            """Objective value in 10**3 M€"""
 
             return (sum(
                 (model.capacity[tec] - self.existing_capa[tec]) * self.annuities[tec] * self.nb_years for tec in
@@ -482,6 +482,7 @@ def read_input_static(config):
                                lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # M€/GWh
     fOM = get_pandas(config["fOM"],
                      lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # M€/GW/year
+    # TODO: il y a des erreurs d'unités dans le choix des vOM je crois !!
     vOM = get_pandas(config["vOM"],
                      lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # M€/GWh
     charging_capex = get_pandas(config["charging_capex"],
