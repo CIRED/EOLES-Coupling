@@ -3,6 +3,8 @@ Power system components.
 """
 
 import pandas as pd
+import numpy as np
+import logging
 import json
 import os
 from eoles.utils import get_pandas
@@ -19,16 +21,6 @@ from pyomo.environ import (
     value
 )
 
-import logging
-
-LOG_FORMATTER = '%(asctime)s : %(name)s  : %(funcName)s : %(levelname)s : %(message)s'
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-# consoler handler
-console_handler = logging.StreamHandler()
-console_handler.setFormatter(logging.Formatter(LOG_FORMATTER))
-logger.addHandler(console_handler)
-
 
 # file_handler = logging.FileHandler('root_log.log')
 # file_handler.setFormatter(logging.Formatter(LOG_FORMATTER))
@@ -36,7 +28,7 @@ logger.addHandler(console_handler)
 
 
 class ModelEOLES():
-    def __init__(self, name, config, path, nb_years, existing_capa=None, residential=True, social_cost_of_carbon=0, hourly_heat_elec=None,
+    def __init__(self, name, config, path, logger, nb_years, existing_capa=None, residential=True, social_cost_of_carbon=0, hourly_heat_elec=None,
                  hourly_heat_gas=None):
         """
 
@@ -51,6 +43,7 @@ class ModelEOLES():
         """
         self.name = name
         self.config = config
+        self.logger = logger
         self.path = path
         self.model = ConcreteModel()
         # Dual Variable, used to get the marginal value of an equation.
@@ -452,7 +445,7 @@ class ModelEOLES():
 
     def solve(self, solver_name):
         self.opt = SolverFactory(solver_name)
-        logger.info("Solving model using %s", self.opt.name)
+        self.logger.info("Solving EOLES model using %s", self.opt.name)
         self.solver_results = self.opt.solve(self.model,
                                              options={'Presolve': 2, 'LogFile': self.path + "/logfile_" + self.name})
         # TODO: à modifier pour utiliser un objet Path, ce sera plus propre
@@ -461,8 +454,19 @@ class ModelEOLES():
         termination_condition = self.solver_results["Solver"][0]["Termination condition"]
 
         if status == "ok" and termination_condition == "optimal":
-            logger.info("Optimization successful")
+            self.logger.info("Optimization successful")
             self.extract_optimisation_results()
+        elif status == "warning" and termination_condition == "other":
+            self.logger.warning(
+                "WARNING! Optimization might be sub-optimal. Writing output anyway"
+            )
+            self.extract_optimisation_results()
+        else:
+            self.logger.error(
+                "Optimisation failed with status %s and terminal condition %s"
+                % (status, termination_condition)
+            )
+            self.objective = np.nan
         return self.solver_results, status, termination_condition
 
     def extract_optimisation_results(self):
