@@ -351,9 +351,18 @@ class ModelEOLES():
 
         def methanation_constraint_rule(model, h):
             """Constraint on CO2 balance from methanization"""
+            # TODO: cette contrainte actuellement est peu réaliste car c'est une contrainte horaire ! normalement
+            #  (cf Behrang, 2021) cela devrait être une contrainte sur la somme sur toutes les heures, cf contrainte suivante
             return model.gene['methanation', h] / self.miscellaneous['eta_methanation'] <= (
                     model.gene['biogas1', h] + model.gene['biogas2', h]) * self.miscellaneous[
                        'percentage_co2_from_methanization']
+
+        def methanation_CO2_constraint_rule(model):
+            """Constraint on CO2 balance from methanization, summing over all hours of the year"""
+            return sum(model.gene['methanation', h] for h in model.h) / self.miscellaneous['eta_methanation'] <= (
+                sum(model.gene['biogas1', h] + model.gene['biogas2', h] for h in model.h) * self.miscellaneous[
+                       'percentage_co2_from_methanization']
+            )
 
         self.model.generation_vre_constraint = \
             Constraint(self.model.h, self.model.vre, rule=generation_vre_constraint_rule)
@@ -410,7 +419,7 @@ class ModelEOLES():
             Constraint(self.model.h, rule=ramping_nuc_down_constraint_rule)
 
         self.model.methanation_constraint = \
-            Constraint(self.model.h, rule=methanation_constraint_rule)
+            Constraint(rule=methanation_CO2_constraint_rule)
 
     def define_objective(self):
         def objective_rule(model):
