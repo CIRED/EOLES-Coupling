@@ -14,11 +14,11 @@ phs,4
 electrolysis,2
 hydrogen,3
 h2_ccgt,2
-biogas1,1
-biogas2,1
+biogas1,2
+biogas2,2
 battery1,0.5
 battery4,0.5
 methane,0
-methanation,1
-pyrogazification,1
+methanation,2
+pyrogazification,2
 natural_gas,0

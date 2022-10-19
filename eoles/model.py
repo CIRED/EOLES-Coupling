@@ -51,8 +51,9 @@ class ModelEOLES():
         self.nb_years = nb_years
         self.scc = social_cost_of_carbon
 
-        if not residential:
-            assert hourly_heat_elec is not None, "Hourly heat profile should be provided to the model"
+        if not residential:  # residential not included in demand
+            assert hourly_heat_elec is not None, "Hourly heat profile should be provided to the model when variable " \
+                                                 "residential is set to False"
 
         # loading exogeneous variable data
         data_variable = read_input_variable(config, residential=residential)
@@ -61,7 +62,7 @@ class ModelEOLES():
         self.hourly_heat_elec = hourly_heat_elec
         self.hourly_heat_gas = hourly_heat_gas
         if not residential:
-            self.demand1y = self.demand1y + hourly_heat_elec  # we add electricity demand from heating
+            self.demand1y = self.demand1y + self.hourly_heat_elec  # we add electricity demand from heating
 
         self.lake_inflows = data_variable["lake_inflows"]
         self.H2_demand = {}
@@ -135,11 +136,6 @@ class ModelEOLES():
         self.model.gen = \
             Set(initialize=["offshore_f", "offshore_g", "onshore", "pv_g", "pv_c", "river", "lake", "ocgt", "ccgt",
                             "nuc"])
-        # Technologies producing electricity
-        self.model.gen_elec = Set(initialize=["offshore_f", "offshore_g", "onshore", "pv_g", "pv_c", "river", "lake",
-                                              "ocgt", "ccgt", "nuc", "h2_ccgt", "phs", "battery1", "battery4"])
-        # Technologies using electricity
-        self.model.use_elec = Set(initialize=["phs", "battery1", "battery4", "electrolysis"])
         # Variables Technologies
         self.model.vre = \
             Set(initialize=["offshore_f", "offshore_g", "onshore", "pv_g", "pv_c", "river"])
@@ -150,12 +146,25 @@ class ModelEOLES():
         # Storage Technologies
         self.model.str = \
             Set(initialize=["phs", "battery1", "battery4", "hydrogen", "methane"])
+        # Electricity storage Technologies
+        self.model.str_elec = \
+            Set(initialize=["phs", "battery1", "battery4"])
         # Battery Storage
         self.model.battery = \
             Set(initialize=["battery1", "battery4"])
         # Technologies for upward FRR
         self.model.frr = \
             Set(initialize=["lake", "phs", "ocgt", "ccgt", "nuc", "h2_ccgt"])
+        # Technologies producing electricity
+        self.model.elec_gene = Set(initialize=["offshore_f", "offshore_g", "onshore", "pv_g", "pv_c", "river", "lake",
+                                              "ocgt", "ccgt", "nuc", "h2_ccgt"])
+
+        # Primary energy production
+        self.model.primary_gene = Set(initialize=["offshore_f", "offshore_g", "onshore", "pv_g", "pv_c", "river",
+                                                  "lake", "nuc", "biogas1", "biogas2", "pyrogazification",
+                                                  "natural_gas"])
+        # Technologies using electricity
+        self.model.use_elec = Set(initialize=["phs", "battery1", "battery4", "electrolysis"])
 
     def define_other_demand(self):
         # Set the hydrogen demand for each hour
@@ -302,9 +311,7 @@ class ModelEOLES():
             methanation demand."""
             gene_e_h = model.gene['electrolysis', h] + model.gene['hydrogen', h]
             dem_sto = model.gene['h2_ccgt', h] / self.miscellaneous['eta_h2_ccgt'] + self.H2_demand[h] + model.storage[
-                'hydrogen', h] + \
-                      model.gene['methanation', h] * 4 / self.miscellaneous[
-                          'eta_methanation']  # 4 h2 are required to produce one CH4
+                'hydrogen', h]
             return gene_e_h == dem_sto
 
         def methane_balance_constraint_rule(model, h):
@@ -323,10 +330,10 @@ class ModelEOLES():
 
         def adequacy_constraint_rule(model, h):
             """Constraint for supply/demand electricity relation'"""
-            storage = sum(model.storage[str, h] for str in model.str if (str != "hydrogen" and str != "methane"))  # need in electricity storage
-            gene_electrolysis = model.gene['electrolysis', h] / self.miscellaneous['eta_electrolysis']  # need in electricity conversion
+            storage = sum(model.storage[str, h] for str in model.str_elec)  # need in electricity storage
+            gene_from_elec = model.gene['electrolysis', h] / self.miscellaneous['eta_electrolysis'] + model.gene['methanation', h] / self.miscellaneous['eta_methanation']  # technologies using electricity for conversion
             return sum(model.gene[balance, h] for balance in model.balance) >= (
-                    self.demand[h] + storage + gene_electrolysis)
+                    self.demand[h] + storage + gene_from_elec)
 
         def ramping_nuc_up_constraint_rule(model, h):
             """Constraint setting an upper ramping limit for nuclear flexibility"""
@@ -481,13 +488,15 @@ class ModelEOLES():
         self.spot_price = extract_spot_price(self.model)
         self.capacities = extract_capacities(self.model)
         self.energy_capacity = extract_energy_capacity(self.model)
-        self.supply_elec = extract_supply_elec(self.model, self.nb_years)
+        self.electricity_generation = extract_supply_elec(self.model, self.nb_years)
+        self.primary_generation = extract_primary_gene(self.model, self.nb_years)
         self.use_elec = extract_use_elec(self.model, self.nb_years, self.miscellaneous)
         self.summary = extract_summary(self.model, self.demand, self.H2_demand, self.CH4_demand, self.miscellaneous)
         self.results = {'objective': self.objective, 'summary': self.summary,
                         'hourly_generation': self.hourly_generation,
                         'capacities': self.capacities, 'energy_capacity': self.energy_capacity,
-                        'supply_elec': self.supply_elec, 'use_elec': self.use_elec}
+                        'supply_elec': self.electricity_generation, 'primary_generation': self.primary_generation,
+                        'use_elec': self.use_elec}
 
 
 def read_input_variable(config, residential=True):
@@ -716,12 +725,12 @@ def extract_hourly_generation(model, demand):
     hourly_generation.loc[:, "demand"] = demand
 
     for tec in list_tec:
-        hourly_generation.loc[:, tec] = value(model.gene[tec, :])
+        hourly_generation[tec] = value(model.gene[tec, :])
     for str, str_in in zip(list(model.str), list_storage_in):
-        hourly_generation.loc[:, str_in] = value(model.storage[str, :])
+        hourly_generation[str_in] = value(model.storage[str, :])
     for str, str_charge in zip(list(model.str), list_storage_charge):
-        hourly_generation.loc[:, str_charge] = value(model.stored[str, :])
-    return hourly_generation
+        hourly_generation[str_charge] = value(model.stored[str, :])
+    return hourly_generation  # GWh
 
 
 def extract_spot_price(model):
@@ -735,12 +744,22 @@ def extract_spot_price(model):
 
 def extract_supply_elec(model, nb_years):
     """Extracts yearly electricity supply per technology in TWh"""
-    list_tec = list(model.gen_elec)
+    list_tec = list(model.elec_gene)
     electricity_supply = pd.Series(index=list_tec, dtype=float)
 
     for tec in list_tec:
-        electricity_supply.loc[tec] = sum(value(model.gene[tec, hour]) for hour in model.h) / 1000 / nb_years
+        electricity_supply[tec] = sum(value(model.gene[tec, hour]) for hour in model.h) / 1000 / nb_years  # TWh
     return electricity_supply
+
+
+def extract_primary_gene(model, nb_years):
+    """Extracts yearly electricity supply per technology in TWh"""
+    list_tec = list(model.primary_gene)
+    primary_generation = pd.Series(index=list_tec, dtype=float)
+
+    for tec in list_tec:
+        primary_generation[tec] = sum(value(model.gene[tec, hour]) for hour in model.h) / 1000 / nb_years  # TWh
+    return primary_generation
 
 
 def extract_use_elec(model, nb_years, miscellaneous):
@@ -750,16 +769,9 @@ def extract_use_elec(model, nb_years, miscellaneous):
 
     for tec in list_tec:
         if tec == 'electrolysis':  # for electrolysis, we need to use the efficiency factor to obtain TWhe
-            electricity_use.loc[tec] = sum(value(model.gene[tec, hour]) for hour in model.h) / 1000 / nb_years / \
+            electricity_use[tec] = sum(value(model.gene[tec, hour]) for hour in model.h) / 1000 / nb_years / \
                                        miscellaneous['eta_electrolysis']
         else:
-            electricity_use.loc[tec] = sum(value(model.storage[tec, hour]) for hour in model.h) / 1000 / nb_years
+            electricity_use[tec] = sum(value(model.storage[tec, hour]) for hour in model.h) / 1000 / nb_years
     return electricity_use
 
-
-if __name__ == '__main__':
-    with open('config.json') as file:
-        config = json.load(file)
-    m = ModelEOLES(name="test", config=config, nb_years=1)
-    m.build_model()
-    results, status, termination_condition = m.solve(solver_name="gurobi", save_results=False)

@@ -14,11 +14,11 @@ phs,1000
 electrolysis,507
 hydrogen,350
 h2_ccgt,1100
-biogas1,0
-biogas2,0
+biogas1,370
+biogas2,370
 battery1,315
 battery4,740
 methane,0
-methanation,0
-pyrogazification,0
+methanation,700
+pyrogazification,2500
 natural_gas,0

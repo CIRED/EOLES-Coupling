@@ -14,11 +14,11 @@ phs,50
 electrolysis,24
 hydrogen,30
 h2_ccgt,40
-biogas1,30
-biogas2,30
+biogas1,20
+biogas2,20
 battery1,15
 battery4,15
 methane,30
-methanation,30
+methanation,20
 pyrogazification,20
 natural_gas,1

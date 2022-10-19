@@ -15,11 +15,20 @@ if __name__ == '__main__':
     console_handler.setFormatter(logging.Formatter(LOG_FORMATTER))
     logger.addHandler(console_handler)
 
-    m = ModelEOLES(name="test", config=config, path="eoles/outputs", logger=logger, nb_years=1, residential=True,
-                   social_cost_of_carbon=100)
+    # m_scc1000 = ModelEOLES(name="test", config=config, path="eoles/outputs", logger=logger, nb_years=1, residential=True,
+    #                social_cost_of_carbon=1000)
+    # t1 = time.time()
+    # m_scc1000.build_model()
+    # solver_results, status, termination_condition = m_scc1000.solve(solver_name="gurobi")
+    # t2 = time.time()
+    # print(f'Time : {t2 - t1: .1f}')
+
+    scc = 300
+    m_scc = ModelEOLES(name="test", config=config, path="eoles/outputs", logger=logger, nb_years=1, residential=True,
+                   social_cost_of_carbon=scc)
     t1 = time.time()
-    m.build_model()
-    solver_results, status, termination_condition = m.solve(solver_name="gurobi")
+    m_scc.build_model()
+    solver_results, status, termination_condition = m_scc.solve(solver_name="gurobi")
     t2 = time.time()
     print(f'Time : {t2 - t1: .1f}')
     # write_output(m.results, folder="outputs/test2006_3")

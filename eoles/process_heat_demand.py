@@ -3,7 +3,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 if __name__ == '__main__':
-    # First method: using Behrang hourly profiles
+    ### First method: using Behrang hourly profiles
     heat_demand = pd.read_csv("inputs/heat_demand_2050.csv", index_col=0, header=None,
                               names=["heat_type", "demand"])  # final use heat demand, ADEME, GWh-th
     # remark: this corresponds to residential + tertiary, and heating + hot water + cooking --> more stuff than simply residential heating
@@ -25,7 +25,7 @@ if __name__ == '__main__':
     # demand_elec_RTE_no_residential_heating = demand_elec_RTE - electricity_heat_demand
     # print(electricity_heat_demand.sum())
 
-    # Second method: directly using profiles from Doudard (2018)
+    ### Second method: directly using profiles from Doudard (2018)
     daily_profile = [1 / 24 for i in range(24)]
     monthly_profile = [0.24, 0.18, 0.15, 0.05, 0.01, 0, 0, 0, 0, 0.03, 0.12, 0.22]
     days_by_month = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]

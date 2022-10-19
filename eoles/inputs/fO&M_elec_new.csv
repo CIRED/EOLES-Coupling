@@ -13,12 +13,12 @@ ccgt,40
 phs,15
 battery1,11
 battery4,30
-biogas1,0
-biogas2,0
+biogas1,37
+biogas2,37
 electrolysis,12
 h2_ccgt,40
 hydrogen,2
 methane,0
-methanation,0
-pyrogazification,0
+methanation,59
+pyrogazification,225
 natural_gas,0
