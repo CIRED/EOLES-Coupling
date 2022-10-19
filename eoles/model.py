@@ -132,10 +132,6 @@ class ModelEOLES():
             Set(initialize=["offshore_f", "offshore_g", "onshore", "pv_g", "pv_c", "river", "lake", "biogas1",
                             "biogas2", "ocgt", "ccgt", "nuc", "h2_ccgt", "phs", "battery1", "battery4",
                             "methanation", "pyrogazification", "electrolysis", "natural_gas", "hydrogen", "methane"])
-        # Power plants. Only used to calculate sum of generation.
-        self.model.gen = \
-            Set(initialize=["offshore_f", "offshore_g", "onshore", "pv_g", "pv_c", "river", "lake", "ocgt", "ccgt",
-                            "nuc"])
         # Variables Technologies
         self.model.vre = \
             Set(initialize=["offshore_f", "offshore_g", "onshore", "pv_g", "pv_c", "river"])
@@ -155,9 +151,10 @@ class ModelEOLES():
         # Technologies for upward FRR
         self.model.frr = \
             Set(initialize=["lake", "phs", "ocgt", "ccgt", "nuc", "h2_ccgt"])
+
         # Technologies producing electricity
         self.model.elec_gene = Set(initialize=["offshore_f", "offshore_g", "onshore", "pv_g", "pv_c", "river", "lake",
-                                              "ocgt", "ccgt", "nuc", "h2_ccgt"])
+                                              "nuc", "ocgt", "ccgt", "h2_ccgt"])
 
         # Primary energy production
         self.model.primary_gene = Set(initialize=["offshore_f", "offshore_g", "onshore", "pv_g", "pv_c", "river",
@@ -165,6 +162,12 @@ class ModelEOLES():
                                                   "natural_gas"])
         # Technologies using electricity
         self.model.use_elec = Set(initialize=["phs", "battery1", "battery4", "electrolysis"])
+        # Gas generation technologies
+        self.model.gas_gen = Set(initialize=["biogas1", "biogas2", "pyrogazification", "natural_gas"])
+        # Power plants. Only used to calculate sum of generation.
+        self.model.gen = \
+            Set(initialize=["offshore_f", "offshore_g", "onshore", "pv_g", "pv_c", "river", "lake", "ocgt", "ccgt",
+                            "nuc"])
 
     def define_other_demand(self):
         # Set the hydrogen demand for each hour
@@ -328,7 +331,7 @@ class ModelEOLES():
             load_req = self.demand[h] * self.miscellaneous['load_uncertainty'] * (1 + self.miscellaneous['delta'])
             return sum(model.reserve[frr, h] for frr in model.frr) == res_req + load_req
 
-        def adequacy_constraint_rule(model, h):
+        def electricity_adequacy_constraint_rule(model, h):
             """Constraint for supply/demand electricity relation'"""
             storage = sum(model.storage[str, h] for str in model.str_elec)  # need in electricity storage
             gene_from_elec = model.gene['electrolysis', h] / self.miscellaneous['eta_electrolysis'] + model.gene['methanation', h] / self.miscellaneous['eta_methanation']  # technologies using electricity for conversion
@@ -409,8 +412,8 @@ class ModelEOLES():
         self.model.reserves_constraint = \
             Constraint(self.model.h, rule=reserves_constraint_rule)
 
-        self.model.adequacy_constraint = \
-            Constraint(self.model.h, rule=adequacy_constraint_rule)
+        self.model.electricity_adequacy_constraint = \
+            Constraint(self.model.h, rule=electricity_adequacy_constraint_rule)
 
         self.model.ramping_nuc_up_constraint = \
             Constraint(self.model.h, rule=ramping_nuc_up_constraint_rule)
@@ -450,7 +453,7 @@ class ModelEOLES():
         self.define_constraints()
         self.define_objective()
 
-    def solve(self, solver_name):
+    def solve(self, solver_name, quick_save=False):
         self.opt = SolverFactory(solver_name)
         self.logger.info("Solving EOLES model using %s", self.opt.name)
         self.solver_results = self.opt.solve(self.model,
@@ -484,6 +487,7 @@ class ModelEOLES():
         """
         # get value of objective function
         self.objective = self.solver_results["Problem"][0]["Upper bound"]
+        self.technical_cost, self.emissions = get_technical_cost(self.model, self.objective, self.scc)
         self.hourly_generation = extract_hourly_generation(self.model, self.demand)
         self.spot_price = extract_spot_price(self.model)
         self.capacities = extract_capacities(self.model)
@@ -491,7 +495,9 @@ class ModelEOLES():
         self.electricity_generation = extract_supply_elec(self.model, self.nb_years)
         self.primary_generation = extract_primary_gene(self.model, self.nb_years)
         self.use_elec = extract_use_elec(self.model, self.nb_years, self.miscellaneous)
-        self.summary = extract_summary(self.model, self.demand, self.H2_demand, self.CH4_demand, self.miscellaneous)
+        self.summary = extract_summary(self.model, self.demand, self.H2_demand, self.CH4_demand, self.miscellaneous,
+                                       self.annuities, self.storage_annuities, self.fOM, self.vOM, self.charging_opex,
+                                       self.charging_capex, self.nb_years)
         self.results = {'objective': self.objective, 'summary': self.summary,
                         'hourly_generation': self.hourly_generation,
                         'capacities': self.capacities, 'energy_capacity': self.energy_capacity,
@@ -596,7 +602,7 @@ def update_ngas_cost(vOM_init, scc, emission_rate=0.2295):
     :param scc: int
         €/tCO2
     :param emission_rate: float
-        tCO2/GWh
+        tCO2/TWh
 
     Returns
     vOM in M€/GWh
@@ -632,21 +638,20 @@ def define_month_hours(first_month, nb_years, months_hours, hours_by_months):
     return months_hours
 
 
-def extract_summary(model, demand, H2_demand, CH4_demand, miscellaneous):
+def extract_summary(model, demand, H2_demand, CH4_demand, miscellaneous, annuities, storage_annuities, fOM, vOM,
+                    charging_opex, charging_capex, nb_years):
     # TODO: A CHANGER !!!
     summary = {}  # final dictionary for output
-    # The whole demand in TWh
-    demand_tot = sum(demand[hour] for hour in model.h) / 1000
-    # The whole electricity demand for hydrogen in TWh
-    hydrogen_tot = sum(H2_demand[hour] for hour in model.h) / 1000
-    # The whole electricity demand for methane in TWh
-    methane_tot = sum(CH4_demand[hour] for hour in model.h) / 1000
-    # The whole generation in TWh
-    gene_tot = sum(value(model.gene[gen, hour]) for hour in model.h for gen in model.gen) / 1000
+    elec_demand_tot = sum(demand[hour] for hour in model.h) / 1000  # electricity demand in TWh
+    hydrogen_demand_tot = sum(H2_demand[hour] for hour in model.h) / 1000  # H2 demand in TWh
+    methane_demand_tot = sum(CH4_demand[hour] for hour in model.h) / 1000  # CH4 demand in TWh
+    gene_tot = sum(value(model.gene[gen, hour]) for hour in model.h for gen in model.gen) / 1000  # whole generation in TWh
+    elec_spot_price = [-1e6*model.dual[model.electricity_adequacy_constraint[h]] for h in model.h]
+    gas_spot_price = [1e6 * model.dual[model.methane_balance_constraint[h]] for h in model.h]
 
-    summary["demand_tot"] = demand_tot
-    summary["hydrogen_tot"] = hydrogen_tot
-    summary["methane_tot"] = methane_tot
+    summary["demand_tot"] = elec_demand_tot
+    summary["hydrogen_tot"] = hydrogen_demand_tot
+    summary["methane_tot"] = methane_demand_tot
     summary["gene_tot"] = gene_tot
 
     # Overall yearly energy generated by the technology in TWh
@@ -657,40 +662,67 @@ def extract_summary(model, demand, H2_demand, CH4_demand, miscellaneous):
 
     summary.update(gene_per_tec)
 
-    # The whole electricity input for storage in TWh
-    nSTORAGE = {}
-    for storage in model.str:
-        for hour in model.h:
-            nSTORAGE[(storage, hour)] = value(model.storage[storage, hour])
+    sumgene_elec = sum(gene_per_tec[tec] for tec in model.elec_gene)/1000  # production in TWh
+    summary["sumgene_elec"] = sumgene_elec
 
-    # Electricity cost per MWh produced (euros/MWh)
-    lcoe_sys = value(model.objective) * 1000 / gene_tot
-    summary["lcoe_sys"] = lcoe_sys
+    G2P_bought = sum(gas_spot_price[hour] * (value(model.gene["ocgt", hour]) + value(model.gene["ccgt", hour]) + value(model.gene["h2_ccgt", hour])) for hour in model.h) / 1000
 
-    # Yearly storage related loss in % of power production and in TWh
-    str_loss_percent = 100 * (
-            sum(value(model.storage[storage, hour]) for storage in model.str for hour in model.h) -
-            sum(gene_per_tec[storage] * 1000 for storage in model.str)) / (gene_tot * 1000)
-    str_loss_TWh = gene_per_tec['electrolysis'] / miscellaneous['eta_electrolysis'] - hydrogen_tot / miscellaneous[
-        'eta_electrolysis'] - gene_per_tec[
-                       'h2_ccgt']  # TODO: je ne comprends pas pourquoi on a besoin de cette ligne alors qu'on n'en avait pas besoin avant quand on calculait en pourcentage
-    # TODO: aussi, pourquoi on ne prend pas en compte la production des centrales CCGT ? et donc la méthanation et ses pertes ?
-    for storage in model.str:
-        if storage != 'hydrogen' and storage != 'methane':
-            str_loss_TWh += sum(nSTORAGE[storage, hour] for hour in model.h) / 1000 - gene_per_tec[storage]
+    # LCOE
+    lcoe_elec = (sum(
+        (model.capacity[tec]) * (annuities[tec] + fOM[tec]) * nb_years + gene_per_tec[tec] * vOM[tec] * 1000 for tec in model.balance) +
+                 sum(
+                (model.energy_capacity[storage_tecs]) * storage_annuities[
+                    storage_tecs] * nb_years for storage_tecs in model.str_elec) +
+                 sum(
+                model.charging_capacity[storage_tecs] * (charging_opex[storage_tecs] + charging_capex[
+                    storage_tecs]) * nb_years
+                for storage_tecs in model.str_elec) + G2P_bought) / sumgene_elec
 
-    summary["str_loss_percent"] = str_loss_percent
-    summary["str_loss_TWh"] = str_loss_TWh
+    summary["lcoe_elec"] = lcoe_elec
 
-    # Load curtailment in % of power production and in TWh
-    lc_percent = (100 * (
-            gene_tot - demand_tot - hydrogen_tot / miscellaneous['eta_electrolysis']) / gene_tot) - str_loss_percent
-    lc_TWh = (gene_tot - demand_tot - hydrogen_tot / miscellaneous['eta_electrolysis']) - str_loss_TWh
+    # Pas à jour, ancienne version du code
+    # # The whole electricity input for storage in TWh
+    # nSTORAGE = {}
+    # for storage in model.str:
+    #     for hour in model.h:
+    #         nSTORAGE[(storage, hour)] = value(model.storage[storage, hour])
+    #
+    # # Electricity cost per MWh produced (euros/MWh)
+    # lcoe_sys = value(model.objective) * 1000 / gene_tot
+    # summary["lcoe_sys"] = lcoe_sys
 
-    summary["load_curtail_percent"] = lc_percent
-    summary["load_curtail_TWh"] = lc_TWh
+    # # Yearly storage related loss in % of power production and in TWh
+    # str_loss_percent = 100 * (
+    #         sum(value(model.storage[storage, hour]) for storage in model.str for hour in model.h) -
+    #         sum(gene_per_tec[storage] * 1000 for storage in model.str)) / (gene_tot * 1000)
+    # str_loss_TWh = gene_per_tec['electrolysis'] / miscellaneous['eta_electrolysis'] - hydrogen_tot / miscellaneous[
+    #     'eta_electrolysis'] - gene_per_tec[
+    #                    'h2_ccgt']  # TODO: je ne comprends pas pourquoi on a besoin de cette ligne alors qu'on n'en avait pas besoin avant quand on calculait en pourcentage
+    # # TODO: aussi, pourquoi on ne prend pas en compte la production des centrales CCGT ? et donc la méthanation et ses pertes ?
+    # for storage in model.str:
+    #     if storage != 'hydrogen' and storage != 'methane':
+    #         str_loss_TWh += sum(nSTORAGE[storage, hour] for hour in model.h) / 1000 - gene_per_tec[storage]
+    #
+    # summary["str_loss_percent"] = str_loss_percent
+    # summary["str_loss_TWh"] = str_loss_TWh
+    #
+    # # Load curtailment in % of power production and in TWh
+    # lc_percent = (100 * (
+    #         gene_tot - demand_tot - hydrogen_tot / miscellaneous['eta_electrolysis']) / gene_tot) - str_loss_percent
+    # lc_TWh = (gene_tot - demand_tot - hydrogen_tot / miscellaneous['eta_electrolysis']) - str_loss_TWh
+    #
+    # summary["load_curtail_percent"] = lc_percent
+    # summary["load_curtail_TWh"] = lc_TWh
     summary_df = pd.Series(summary)
     return summary_df
+
+
+def get_technical_cost(model, objective, scc):
+    """Returns technical cost (social cost without CO2 emissions-related cost"""
+    gene_ngas = sum(value(model.gene["natural_gas", hour]) for hour in model.h) / 1000  # TWh
+    net_emissions = gene_ngas * 0.2295
+    technical_cost = objective - net_emissions*scc/1000
+    return technical_cost, net_emissions
 
 
 def extract_capacities(model):
@@ -738,7 +770,7 @@ def extract_spot_price(model):
     list_columns = ["hour", "spot_price"]
     spot_price = pd.DataFrame(columns=list_columns)
     for h in spot_price.hour:
-        spot_price.loc[h, "spot_price"] = - 1000000 * model.dual[model.adequacy_constraint[h]]
+        spot_price.loc[h, "spot_price"] = - 1000000 * model.dual[model.electricity_adequacy_constraint[h]]
     return spot_price
 
 

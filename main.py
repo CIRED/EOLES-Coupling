@@ -34,3 +34,22 @@ if __name__ == '__main__':
     # write_output(m.results, folder="outputs/test2006_3")
 
     # plot_capacities(m.capacities)
+
+    list_scc = [100, 200, 300, 400, 500]
+    list_social_cost = []
+    list_technical_cost = []
+    list_emissions = []
+    for scc in list_scc:
+        print(f"Social cost of carbon: {scc}")
+        m_scc = ModelEOLES(name="test", config=config, path="eoles/outputs", logger=logger, nb_years=1,
+                           residential=True,
+                           social_cost_of_carbon=scc)
+        t1 = time.time()
+        m_scc.build_model()
+        _, _, _ = m_scc.solve(solver_name="gurobi")
+        t2 = time.time()
+        print(f'Time : {t2 - t1: .1f}')
+
+        list_social_cost.append(m_scc.objective)
+        list_technical_cost.append(m_scc.technical_cost)
+        list_emissions.append(m_scc.emissions)
