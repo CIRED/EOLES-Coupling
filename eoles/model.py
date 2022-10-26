@@ -28,7 +28,8 @@ from pyomo.environ import (
 
 
 class ModelEOLES():
-    def __init__(self, name, config, path, logger, nb_years, existing_capa=None, residential=True, social_cost_of_carbon=0, hourly_heat_elec=None,
+    def __init__(self, name, config, path, logger, nb_years, existing_capacity=None, existing_charging_capacity=None,
+                 existing_energy_capacity=None, residential=True, social_cost_of_carbon=0, hourly_heat_elec=None,
                  hourly_heat_gas=None):
         """
 
@@ -81,11 +82,21 @@ class ModelEOLES():
         # loading exogeneous static data
         data_static = read_input_static(self.config)
         self.epsilon = data_static["epsilon"]
-        if existing_capa is not None:
-            self.existing_capa = existing_capa
+        if existing_capacity is not None:
+            self.existing_capacity = existing_capacity
         else:  # default value
-            self.existing_capa = data_static["existing_capa"]
-        self.capa_max = data_static["capa_max"]
+            self.existing_capacity = data_static["existing_capacity"]
+        if existing_charging_capacity is not None:
+            self.existing_charging_capacity = existing_charging_capacity
+        else:  # default value
+            self.existing_charging_capacity = data_static["existing_charging_capacity"]
+        if existing_energy_capacity is not None:
+            self.existing_energy_capacity = existing_energy_capacity
+        else:  # default value
+            self.existing_energy_capacity = data_static["existing_energy_capacity"]
+        self.maximum_capacity = data_static["maximum_capacity"]
+        self.maximum_charging_capacity = data_static["maximum_charging_capacity"]
+        self.maximum_energy_capacity = data_static["maximum_energy_capacity"]
         self.fix_capa = data_static["fix_capa"]
         self.lifetime = data_static["lifetime"]
         self.construction_time = data_static["construction_time"]
@@ -184,30 +195,25 @@ class ModelEOLES():
 
     def define_variables(self):
 
-        def capa_bounds(model, i):
-            # TODO: check that the values are OK in miscellaneous
-            if i in self.capa_max.keys():
-                return (None, self.capa_max[i])
-            elif i == 'phs':
-                return (self.miscellaneous['phs_discharging_lower'],
-                        self.miscellaneous['phs_discharging_upper'])  # TODO: c'est quoi ces bornes pour PHS ??
-            else:
-                return (None, None)
-
-        def s_bounds(model, i):
-            if i == 'phs':
-                return (self.miscellaneous['phs_charging_lower'], self.miscellaneous['phs_charging_upper'])
-            else:
-                return (None, None)
-
         def capacity_bounds(model, i):
             # TODO: check that the values are OK in miscellaneous
-            if i == 'phs':
-                return (self.miscellaneous['phs_energy_lower'], self.miscellaneous['phs_energy_upper'])
-            elif i == 'hydrogen':
-                return (self.capacity_ex['hydrogen'], None)
+            if i in self.maximum_capacity.keys():
+                return self.existing_capacity[i], self.maximum_capacity[i]
             else:
-                return (None, None)
+                return self.existing_capacity[i], None
+
+        def charging_capacity_bounds(model, i):
+            # TODO: check that the values are OK in miscellaneous
+            if i in self.maximum_charging_capacity.keys():
+                return self.existing_charging_capacity[i], self.maximum_capacity[i]
+            else:
+                return self.existing_charging_capacity[i], None
+
+        def energy_capacity_bounds(model, i):
+            if i in self.maximum_energy_capacity.keys():
+                return self.existing_energy_capacity[i], self.maximum_energy_capacity[i]
+            else:
+                return self.existing_energy_capacity[i], None
 
             # Hourly energy generation in GWh/h
         self.model.gene = \
@@ -215,7 +221,7 @@ class ModelEOLES():
 
         # Overall yearly installed capacity in GW
         self.model.capacity = \
-            Var(self.model.tec, within=NonNegativeReals, bounds=capa_bounds)
+            Var(self.model.tec, within=NonNegativeReals, bounds=capacity_bounds)
 
         # Hourly electricity input of battery storage GWh  # TODO: check that unit is right
         self.model.storage = \
@@ -229,11 +235,11 @@ class ModelEOLES():
 
         # Charging power capacity of each storage technology in GW  # TODO: check the unit
         self.model.charging_capacity = \
-            Var(self.model.str, within=NonNegativeReals, bounds=capa_bounds)
+            Var(self.model.str, within=NonNegativeReals, bounds=charging_capacity_bounds)
 
         # Energy volume of storage technology in GWh
         self.model.energy_capacity = \
-            Var(self.model.str, within=NonNegativeReals, bounds=capacity_bounds)
+            Var(self.model.str, within=NonNegativeReals, bounds=energy_capacity_bounds)
 
         # Required upward frequency restoration reserve in GW
         self.model.reserve = \
@@ -429,15 +435,18 @@ class ModelEOLES():
             """Objective value in 10**3 M€, or Billion €"""
 
             return (sum(
-                (model.capacity[tec] - self.existing_capa[tec]) * self.annuities[tec] * self.nb_years for tec in
+                (model.capacity[tec] - self.existing_capacity[tec]) * self.annuities[tec] * self.nb_years for tec in
                 model.tec)
                     + sum(
-                        (model.energy_capacity[storage_tecs] - self.capacity_ex[storage_tecs]) * self.storage_annuities[
+                        (model.energy_capacity[storage_tecs] - self.existing_energy_capacity[storage_tecs]) * self.storage_annuities[
+                            storage_tecs] * self.nb_years for storage_tecs in model.str)
+                    + sum(
+                        (model.charging_capacity[storage_tecs] - self.existing_charging_capacity[storage_tecs]) *
+                        self.charging_capex[
                             storage_tecs] * self.nb_years for storage_tecs in model.str)
                     + sum(model.capacity[tec] * self.fOM[tec] * self.nb_years for tec in model.tec)
                     + sum(
-                        model.charging_capacity[storage_tecs] * (self.charging_opex[storage_tecs] + self.charging_capex[
-                            storage_tecs]) * self.nb_years
+                        model.charging_capacity[storage_tecs] * self.charging_opex[storage_tecs] * self.nb_years
                         for storage_tecs in model.str)
                     + sum(sum(model.gene[tec, h] * self.vOM[tec] for h in model.h) for tec in model.tec)
                     ) / 1000
@@ -526,9 +535,17 @@ def read_input_variable(config, residential=True):
 def read_input_static(config):
     """Read static data"""
     epsilon = get_pandas(config["epsilon"], lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))
-    existing_capa = get_pandas(config["existing_capa"],
+    existing_capacity = get_pandas(config["existing_capacity"],
                                lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # GW
-    capa_max = get_pandas(config["capa_max"],
+    existing_charging_capacity = get_pandas(config["existing_charging_capacity"],
+                               lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # GW
+    existing_energy_capacity = get_pandas(config["existing_energy_capacity"],
+                               lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # GW
+    maximum_capacity = get_pandas(config["maximum_capacity"],
+                          lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # GW
+    maximum_charging_capacity = get_pandas(config["maximum_charging_capacity"],
+                          lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # GW
+    maximum_energy_capacity = get_pandas(config["maximum_energy_capacity"],
                           lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # GW
     fix_capa = get_pandas(config["fix_capa"],
                           lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # GW
@@ -559,8 +576,12 @@ def read_input_static(config):
                                lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))
     o = dict()
     o["epsilon"] = epsilon
-    o["existing_capa"] = existing_capa
-    o["capa_max"] = capa_max
+    o["existing_capacity"] = existing_capacity
+    o["existing_charging_capacity"] = existing_charging_capacity
+    o["existing_energy_capacity"] = existing_energy_capacity
+    o["maximum_capacity"] = maximum_capacity
+    o["maximum_charging_capacity"] = maximum_charging_capacity
+    o["maximum_energy_capacity"] = maximum_energy_capacity
     o["fix_capa"] = fix_capa
     o["lifetime"] = lifetime
     o["construction_time"] = construction_time
