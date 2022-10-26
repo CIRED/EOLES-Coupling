@@ -30,8 +30,8 @@ if __name__ == '__main__':
     # print(f'Time : {t2 - t1: .1f}')
 
     scc = 100
-    m_scc = ModelEOLES(name="test", config=config, path="eoles/outputs", logger=logger, nb_years=1, residential=True,
-                   social_cost_of_carbon=scc)
+    m_scc = ModelEOLES(name="test", config=config, path="eoles/outputs", logger=logger, nb_years=1, total_demand_RTE=580*1e3,
+                       residential_heating_demand_RTE=33*1e3, residential=True, social_cost_of_carbon=scc)
     t1 = time.time()
     m_scc.build_model()
     solver_results, status, termination_condition = m_scc.solve(solver_name="gurobi")

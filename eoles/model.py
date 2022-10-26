@@ -29,16 +29,20 @@ from pyomo.environ import (
 
 class ModelEOLES():
     def __init__(self, name, config, path, logger, nb_years, existing_capacity=None, existing_charging_capacity=None,
-                 existing_energy_capacity=None, residential=True, social_cost_of_carbon=0, hourly_heat_elec=None,
-                 hourly_heat_gas=None):
+                 existing_energy_capacity=None, total_demand_RTE=645, residential_heating_demand_RTE=33,
+                 residential=True, social_cost_of_carbon=0, hourly_heat_elec=None, hourly_heat_gas=None):
         """
 
         :param name: str
         :param config: dict
         :param nb_years: int
         :param existing_capa: pd.Series
+        :param total_demand_RTE: float
+            Final electricity demand excluding P2G given in RTE scenarios
+        :param residential_heating_demand_RTE: float
+            Final residential heating demand given in RTE scenarios
         :param residential: bool
-            Indicates whether we want to include residential heating demand in the profile demand
+            Indicates whether we want to change initial RTE residential heating demand values in the profile demand
         :param social_cost_of_carbon: int
             Social cost of carbon used to calculate emissions
         """
@@ -51,18 +55,20 @@ class ModelEOLES():
         self.model.dual = Suffix(direction=Suffix.IMPORT)
         self.nb_years = nb_years
         self.scc = social_cost_of_carbon
+        self.total_demand_RTE = total_demand_RTE
+        self.residential_demand_RTE = residential_heating_demand_RTE
 
         if not residential:  # residential not included in demand
             assert hourly_heat_elec is not None, "Hourly heat profile should be provided to the model when variable " \
                                                  "residential is set to False"
 
         # loading exogeneous variable data
-        data_variable = read_input_variable(config, residential=residential)
+        data_variable = read_input_variable(config, total_demand=self.total_demand_RTE, residential=residential)
         self.load_factors = data_variable["load_factors"]
         self.demand1y = data_variable["demand"]
         self.hourly_heat_elec = hourly_heat_elec
         self.hourly_heat_gas = hourly_heat_gas
-        if not residential:
+        if not residential:  # we want to add our total value for residential heating demand
             self.demand1y = self.demand1y + self.hourly_heat_elec  # we add electricity demand from heating
 
         self.lake_inflows = data_variable["lake_inflows"]
@@ -165,7 +171,7 @@ class ModelEOLES():
 
         # Technologies producing electricity
         self.model.elec_gene = Set(initialize=["offshore_f", "offshore_g", "onshore", "pv_g", "pv_c", "river", "lake",
-                                              "nuc", "ocgt", "ccgt", "h2_ccgt"])
+                                               "nuc", "ocgt", "ccgt", "h2_ccgt"])
 
         # Primary energy production
         self.model.primary_gene = Set(initialize=["offshore_f", "offshore_g", "onshore", "pv_g", "pv_c", "river",
@@ -191,19 +197,17 @@ class ModelEOLES():
                 self.CH4_demand[hour] = self.miscellaneous['CH4_demand']
         else:
             for hour in self.model.h:
-                self.CH4_demand[hour] = self.demand_gas[hour]   # a bit redundant, could be removed
+                self.CH4_demand[hour] = self.demand_gas[hour]  # a bit redundant, could be removed
 
     def define_variables(self):
 
         def capacity_bounds(model, i):
-            # TODO: check that the values are OK in miscellaneous
             if i in self.maximum_capacity.keys():
                 return self.existing_capacity[i], self.maximum_capacity[i]
             else:
                 return self.existing_capacity[i], None
 
         def charging_capacity_bounds(model, i):
-            # TODO: check that the values are OK in miscellaneous
             if i in self.maximum_charging_capacity.keys():
                 return self.existing_charging_capacity[i], self.maximum_capacity[i]
             else:
@@ -216,6 +220,7 @@ class ModelEOLES():
                 return self.existing_energy_capacity[i], None
 
             # Hourly energy generation in GWh/h
+
         self.model.gene = \
             Var(((tec, h) for tec in self.model.tec for h in self.model.h), within=NonNegativeReals, initialize=0)
 
@@ -340,7 +345,9 @@ class ModelEOLES():
         def electricity_adequacy_constraint_rule(model, h):
             """Constraint for supply/demand electricity relation'"""
             storage = sum(model.storage[str, h] for str in model.str_elec)  # need in electricity storage
-            gene_from_elec = model.gene['electrolysis', h] / self.miscellaneous['eta_electrolysis'] + model.gene['methanation', h] / self.miscellaneous['eta_methanation']  # technologies using electricity for conversion
+            gene_from_elec = model.gene['electrolysis', h] / self.miscellaneous['eta_electrolysis'] + model.gene[
+                'methanation', h] / self.miscellaneous[
+                                 'eta_methanation']  # technologies using electricity for conversion
             return sum(model.gene[balance, h] for balance in model.balance) >= (
                     self.demand[h] + storage + gene_from_elec)
 
@@ -354,8 +361,9 @@ class ModelEOLES():
         def ramping_nuc_down_constraint_rule(model, h):
             """Constraint setting a lower ramping limit for nuclear flexibility"""
             previous_h = model.h.last() if h == 0 else h - 1
-            return model.gene['nuc', previous_h] - model.gene['nuc', h] + model.reserve['nuc', previous_h] - model.reserve[
-                'nuc', h] <= \
+            return model.gene['nuc', previous_h] - model.gene['nuc', h] + model.reserve['nuc', previous_h] - \
+                   model.reserve[
+                       'nuc', h] <= \
                    self.miscellaneous['hourly_ramping_nuc'] * model.capacity['nuc']
 
         def methanation_constraint_rule(model, h):
@@ -369,8 +377,8 @@ class ModelEOLES():
         def methanation_CO2_constraint_rule(model):
             """Constraint on CO2 balance from methanization, summing over all hours of the year"""
             return sum(model.gene['methanation', h] for h in model.h) / self.miscellaneous['eta_methanation'] <= (
-                sum(model.gene['biogas1', h] + model.gene['biogas2', h] for h in model.h) * self.miscellaneous[
-                       'percentage_co2_from_methanization']
+                    sum(model.gene['biogas1', h] + model.gene['biogas2', h] for h in model.h) * self.miscellaneous[
+                'percentage_co2_from_methanization']
             )
 
         self.model.generation_vre_constraint = \
@@ -438,7 +446,8 @@ class ModelEOLES():
                 (model.capacity[tec] - self.existing_capacity[tec]) * self.annuities[tec] * self.nb_years for tec in
                 model.tec)
                     + sum(
-                        (model.energy_capacity[storage_tecs] - self.existing_energy_capacity[storage_tecs]) * self.storage_annuities[
+                        (model.energy_capacity[storage_tecs] - self.existing_energy_capacity[storage_tecs]) *
+                        self.storage_annuities[
                             storage_tecs] * self.nb_years for storage_tecs in model.str)
                     + sum(
                         (model.charging_capacity[storage_tecs] - self.existing_charging_capacity[storage_tecs]) *
@@ -514,15 +523,18 @@ class ModelEOLES():
                         'use_elec': self.use_elec}
 
 
-def read_input_variable(config, residential=True):
+def read_input_variable(config, total_demand, initial_total_demand=580000, residential=True, residential_demand=None):
     """Reads data defined at the hourly scale"""
     load_factors = get_pandas(config["load_factors"],
                               lambda x: pd.read_csv(x, index_col=[0, 1], header=None).squeeze("columns"))
-    if residential:
-        demand = get_pandas(config["demand"], lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # GW
-    else:
-        demand = get_pandas(config["demand_no_residential"],
-                            lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # GW
+    demand = get_pandas(config["demand"], lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # GW
+    adjust_demand = (total_demand - initial_total_demand) / 8760
+    demand = demand + adjust_demand  # we adjust demand profile to obtain the correct total amount of demand
+    assert demand.sum() == total_demand
+    if not residential:  # we want to remove residential heating demand from a given RTE scenario (to add our scenario)
+        hourly_residential_heating_RTE = create_hourly_residential_demand_profile(residential_demand)
+        demand = demand - hourly_residential_heating_RTE  # we substract the residential heating profile from RTE
+
     lake_inflows = get_pandas(config["lake_inflows"],
                               lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # GWh
     o = dict()
@@ -536,17 +548,17 @@ def read_input_static(config):
     """Read static data"""
     epsilon = get_pandas(config["epsilon"], lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))
     existing_capacity = get_pandas(config["existing_capacity"],
-                               lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # GW
+                                   lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # GW
     existing_charging_capacity = get_pandas(config["existing_charging_capacity"],
-                               lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # GW
+                                            lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # GW
     existing_energy_capacity = get_pandas(config["existing_energy_capacity"],
-                               lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # GW
+                                          lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # GW
     maximum_capacity = get_pandas(config["maximum_capacity"],
-                          lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # GW
+                                  lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # GW
     maximum_charging_capacity = get_pandas(config["maximum_charging_capacity"],
-                          lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # GW
+                                           lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # GW
     maximum_energy_capacity = get_pandas(config["maximum_energy_capacity"],
-                          lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # GW
+                                         lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # GW
     fix_capa = get_pandas(config["fix_capa"],
                           lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # GW
     lifetime = get_pandas(config["lifetime"],
@@ -628,13 +640,15 @@ def update_ngas_cost(vOM_init, scc, emission_rate=0.2295):
     Returns
     vOM in M€/GWh
     """
-    return vOM_init + scc*emission_rate/1000
+    return vOM_init + scc * emission_rate / 1000
 
 
 def create_hourly_residential_demand_profile(total_consumption):
     """Calculates hourly profile from Doudard (2018) and total consumption."""
-    percentage_hourly_residential_heating = get_pandas("eoles/inputs/percentage_hourly_residential_heating_profile.csv",
-               lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))
+    percentage_hourly_residential_heating = get_pandas(
+        "eoles/inputs/percentage_hourly_residential_heating_RTE_profile.csv",
+        lambda x: pd.read_csv(x, index_col=0, header=None).squeeze(
+            "columns"))
     hourly_residential_heating = percentage_hourly_residential_heating * total_consumption
     return hourly_residential_heating
 
@@ -666,8 +680,9 @@ def extract_summary(model, demand, H2_demand, CH4_demand, miscellaneous, annuiti
     elec_demand_tot = sum(demand[hour] for hour in model.h) / 1000  # electricity demand in TWh
     hydrogen_demand_tot = sum(H2_demand[hour] for hour in model.h) / 1000  # H2 demand in TWh
     methane_demand_tot = sum(CH4_demand[hour] for hour in model.h) / 1000  # CH4 demand in TWh
-    gene_tot = sum(value(model.gene[gen, hour]) for hour in model.h for gen in model.gen) / 1000  # whole generation in TWh
-    elec_spot_price = [-1e6*model.dual[model.electricity_adequacy_constraint[h]] for h in model.h]
+    gene_tot = sum(
+        value(model.gene[gen, hour]) for hour in model.h for gen in model.gen) / 1000  # whole generation in TWh
+    elec_spot_price = [-1e6 * model.dual[model.electricity_adequacy_constraint[h]] for h in model.h]
     gas_spot_price = [1e6 * model.dual[model.methane_balance_constraint[h]] for h in model.h]
 
     summary["demand_tot"] = elec_demand_tot
@@ -683,21 +698,24 @@ def extract_summary(model, demand, H2_demand, CH4_demand, miscellaneous, annuiti
 
     summary.update(gene_per_tec)
 
-    sumgene_elec = sum(gene_per_tec[tec] for tec in model.elec_gene)/1000  # production in TWh
+    sumgene_elec = sum(gene_per_tec[tec] for tec in model.elec_gene) / 1000  # production in TWh
     summary["sumgene_elec"] = sumgene_elec
 
-    G2P_bought = sum(gas_spot_price[hour] * (value(model.gene["ocgt", hour]) + value(model.gene["ccgt", hour]) + value(model.gene["h2_ccgt", hour])) for hour in model.h) / 1000
+    G2P_bought = sum(gas_spot_price[hour] * (
+            value(model.gene["ocgt", hour]) + value(model.gene["ccgt", hour]) + value(model.gene["h2_ccgt", hour]))
+                     for hour in model.h) / 1000
 
     # LCOE
     lcoe_elec = (sum(
-        (model.capacity[tec]) * (annuities[tec] + fOM[tec]) * nb_years + gene_per_tec[tec] * vOM[tec] * 1000 for tec in model.balance) +
+        (model.capacity[tec]) * (annuities[tec] + fOM[tec]) * nb_years + gene_per_tec[tec] * vOM[tec] * 1000 for tec in
+        model.balance) +
                  sum(
-                (model.energy_capacity[storage_tecs]) * storage_annuities[
-                    storage_tecs] * nb_years for storage_tecs in model.str_elec) +
+                     (model.energy_capacity[storage_tecs]) * storage_annuities[
+                         storage_tecs] * nb_years for storage_tecs in model.str_elec) +
                  sum(
-                model.charging_capacity[storage_tecs] * (charging_opex[storage_tecs] + charging_capex[
-                    storage_tecs]) * nb_years
-                for storage_tecs in model.str_elec) + G2P_bought) / sumgene_elec
+                     model.charging_capacity[storage_tecs] * (charging_opex[storage_tecs] + charging_capex[
+                         storage_tecs]) * nb_years
+                     for storage_tecs in model.str_elec) + G2P_bought) / sumgene_elec
 
     summary["lcoe_elec"] = lcoe_elec
 
@@ -742,7 +760,7 @@ def get_technical_cost(model, objective, scc):
     """Returns technical cost (social cost without CO2 emissions-related cost"""
     gene_ngas = sum(value(model.gene["natural_gas", hour]) for hour in model.h) / 1000  # TWh
     net_emissions = gene_ngas * 0.2295
-    technical_cost = objective - net_emissions*scc/1000
+    technical_cost = objective - net_emissions * scc / 1000
     return technical_cost, net_emissions
 
 
@@ -823,8 +841,7 @@ def extract_use_elec(model, nb_years, miscellaneous):
     for tec in list_tec:
         if tec == 'electrolysis':  # for electrolysis, we need to use the efficiency factor to obtain TWhe
             electricity_use[tec] = sum(value(model.gene[tec, hour]) for hour in model.h) / 1000 / nb_years / \
-                                       miscellaneous['eta_electrolysis']
+                                   miscellaneous['eta_electrolysis']
         else:
             electricity_use[tec] = sum(value(model.storage[tec, hour]) for hour in model.h) / 1000 / nb_years
     return electricity_use
-
