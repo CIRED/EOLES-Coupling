@@ -1,6 +1,6 @@
 ﻿heat_pump,3.5
 resistive,0.9
-boiler,0.9
+gas_boiler,0.9
 electrolysis,0.8
 methanation,0.6
 ocgt,0.4
