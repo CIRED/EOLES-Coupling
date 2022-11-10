@@ -25,46 +25,79 @@ if __name__ == '__main__':
     # # demand_elec_RTE_no_residential_heating = demand_elec_RTE - electricity_heat_demand
     # # print(electricity_heat_demand.sum())
     #
-    # ### Second method: directly using profiles from Doudard (2018)
-    # daily_profile = [1 / 24 for i in range(24)]
-    # monthly_profile = [0.24, 0.18, 0.15, 0.05, 0.01, 0, 0, 0, 0, 0.03, 0.12, 0.22]
-    # days_by_month = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-    #
-    # percentage_hourly_residential_profile = []
-    # for i in range(len(days_by_month)):
-    #     month_profile = []
-    #     for j in range(days_by_month[i]):
-    #         month_profile = month_profile + daily_profile
-    #     rescale_month_profile = [p / (days_by_month[i]) * monthly_profile[i] for p in month_profile]
-    #     percentage_hourly_residential_profile = percentage_hourly_residential_profile + rescale_month_profile  # we rescale to the number of hours in the month, and to the percentage of the month
-    #
-    # percentage_hourly_residential_profile = pd.Series(percentage_hourly_residential_profile)
-    # total_residential_heating = 33 * 1e3
-    # hourly_residential_heating = total_residential_heating * percentage_hourly_residential_profile
-    #
-    # demand_elec_RTE_no_residential_heating = demand_elec_RTE - hourly_residential_heating
-    #
-    # plt.plot(np.arange(0, 8760, 1), demand_elec_RTE_no_residential_heating)
-    # plt.show()
-    #
-    # demand_elec_RTE_no_residential_heating.to_csv("inputs/demand2050_RTE_no_residential_heating.csv", header=False)
-    # hourly_residential_heating.to_csv("inputs/hourly_residential_heating_RTE.csv", header=False)
-    # percentage_hourly_residential_profile.to_csv("inputs/percentage_hourly_residential_heating_profile.csv", header=False)
-
-    ### Third method: using hourly profile from RTE
-    daily_profile = [0.035, 0.039, 0.041, 0.042, 0.046, 0.05, 0.055, 0.058, 0.053, 0.049, 0.045, 0.041, 0.037, 0.034, 0.03, 0.033, 0.037, 0.042, 0.046, 0.041, 0.037, 0.034, 0.033, 0.042]
+    ### Second method: directly using profiles from Doudard (2018)
+    demand_elec_RTE = pd.read_csv("inputs/demand2050_RTE.csv", index_col=0, header=None)
+    demand_elec_RTE = demand_elec_RTE.squeeze()
+    daily_profile = [1 / 24 for i in range(24)]
     monthly_profile = [0.24, 0.18, 0.15, 0.05, 0.01, 0, 0, 0, 0, 0.03, 0.12, 0.22]
     days_by_month = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
 
-    percentage_hourly_residential_profile = []
+    percentage_hourly_residential_profile_doudard = []
     for i in range(len(days_by_month)):
         month_profile = []
         for j in range(days_by_month[i]):
             month_profile = month_profile + daily_profile
         rescale_month_profile = [p / (days_by_month[i]) * monthly_profile[i] for p in month_profile]
-        percentage_hourly_residential_profile = percentage_hourly_residential_profile + rescale_month_profile  # we rescale to the number of hours in the month, and to the percentage of the month
+        percentage_hourly_residential_profile_doudard = percentage_hourly_residential_profile_doudard + rescale_month_profile  # we rescale to the number of hours in the month, and to the percentage of the month
 
-    percentage_hourly_residential_profile = pd.Series(percentage_hourly_residential_profile)
+    percentage_hourly_residential_profile_doudard = pd.Series(percentage_hourly_residential_profile_doudard)
+    total_residential_heating_doudard = 33 * 1e3
+    hourly_residential_heating_doudard = total_residential_heating_doudard * percentage_hourly_residential_profile_doudard
 
-    percentage_hourly_residential_profile.to_csv("inputs/percentage_hourly_residential_heating_RTE_profile.csv",
+    demand_elec_RTE_no_residential_heating = demand_elec_RTE - hourly_residential_heating_doudard
+    #
+    # plt.plot(np.arange(0, 8760, 1), demand_elec_RTE_no_residential_heating)
+    # plt.show()
+    #
+    demand_elec_RTE_no_residential_heating.to_csv("inputs/demand2050_RTE_no_residential_heating_doudard.csv", header=False)
+    hourly_residential_heating_doudard.to_csv("inputs/hourly_residential_heating_RTE2050_doudard.csv", header=False)
+    percentage_hourly_residential_profile_doudard.to_csv("inputs/percentage_hourly_residential_heating_profile_doudard.csv", header=False)
+
+    # ### Third method: using hourly profile from RTE
+    tot = 0.035 + 0.039 + 0.041 + 0.042 + 0.046 + 0.05 + 0.055 + 0.058 + 0.053 + 0.049 + 0.045 + 0.041 + 0.037 + 0.034 + 0.03 + 0.033 + 0.037 + 0.042 + 0.046 + 0.041 + 0.037 + 0.034 + 0.033
+    daily_profile = [0.035, 0.039, 0.041, 0.042, 0.046, 0.05, 0.055, 0.058, 0.053, 0.049, 0.045, 0.041, 0.037, 0.034, 0.03, 0.033, 0.037, 0.042, 0.046, 0.041, 0.037, 0.034, 0.033, 1-tot]
+    monthly_profile = [0.24, 0.18, 0.15, 0.05, 0.01, 0, 0, 0, 0, 0.03, 0.12, 0.22]
+    days_by_month = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+
+    percentage_hourly_residential_profile_RTE = []
+    for i in range(len(days_by_month)):
+        month_profile = []
+        for j in range(days_by_month[i]):
+            month_profile = month_profile + daily_profile
+        rescale_month_profile = [p / (days_by_month[i]) * monthly_profile[i] for p in month_profile]
+        percentage_hourly_residential_profile_RTE = percentage_hourly_residential_profile_RTE + rescale_month_profile  # we rescale to the number of hours in the month, and to the percentage of the month
+
+    percentage_hourly_residential_profile_RTE = pd.Series(percentage_hourly_residential_profile_RTE)
+
+    total_residential_heating_RTE = 33 * 1e3
+    hourly_residential_heating_RTE = total_residential_heating_RTE * percentage_hourly_residential_profile_RTE
+
+    hourly_residential_heating_RTE.to_csv("inputs/hourly_residential_heating_RTE2050_RTE.csv", header=False)
+
+    percentage_hourly_residential_profile_RTE.to_csv("inputs/percentage_hourly_residential_heating_profile_RTE.csv",
                                                  header=False)
+
+
+    # ### Test
+    # # The goal is to test a caricatural profile where all heating demand is concentrated on 4 hours, to see if with this profile, we get worse results.
+    # daily_profile = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1/4, 1/4, 1/4, 1/4, 0, 0, 0]
+    # monthly_profile = [0.24, 0.18, 0.15, 0.05, 0.01, 0, 0, 0, 0, 0.03, 0.12, 0.22]
+    # days_by_month = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+    #
+    # percentage_hourly_residential_profile_test = []
+    # for i in range(len(days_by_month)):
+    #     month_profile = []
+    #     for j in range(days_by_month[i]):
+    #         month_profile = month_profile + daily_profile
+    #     rescale_month_profile = [p / (days_by_month[i]) * monthly_profile[i] for p in month_profile]
+    #     percentage_hourly_residential_profile_test = percentage_hourly_residential_profile_test + rescale_month_profile  # we rescale to the number of hours in the month, and to the percentage of the month
+    #
+    # percentage_hourly_residential_profile_test = pd.Series(percentage_hourly_residential_profile_test)
+    #
+    # total_residential_heating_RTE = 33 * 1e3
+    # hourly_residential_heating_RTE = total_residential_heating_RTE * percentage_hourly_residential_profile_test
+    #
+    # hourly_residential_heating_RTE.to_csv("inputs/hourly_residential_heating_RTE2050_test.csv", header=False)
+    #
+    # percentage_hourly_residential_profile_test.to_csv("inputs/percentage_hourly_residential_heating_profile_test.csv",
+    #                                              header=False)
