@@ -25,7 +25,8 @@ if __name__ == '__main__':
     # # demand_elec_RTE_no_residential_heating = demand_elec_RTE - electricity_heat_demand
     # # print(electricity_heat_demand.sum())
     #
-    ### Second method: directly using profiles from Doudard (2018)
+
+    ########### Second method: directly using profiles from Doudard (2018)
     demand_elec_RTE = pd.read_csv("inputs/demand2050_RTE.csv", index_col=0, header=None)
     demand_elec_RTE = demand_elec_RTE.squeeze()
     daily_profile = [1 / 24 for i in range(24)]
@@ -43,20 +44,20 @@ if __name__ == '__main__':
     percentage_hourly_residential_profile_doudard = pd.Series(percentage_hourly_residential_profile_doudard)
     total_residential_heating_doudard = 33 * 1e3
     hourly_residential_heating_doudard = total_residential_heating_doudard * percentage_hourly_residential_profile_doudard
-
     demand_elec_RTE_no_residential_heating = demand_elec_RTE - hourly_residential_heating_doudard
+
     #
     # plt.plot(np.arange(0, 8760, 1), demand_elec_RTE_no_residential_heating)
     # plt.show()
     #
-    demand_elec_RTE_no_residential_heating.to_csv("inputs/demand2050_RTE_no_residential_heating_doudard.csv", header=False)
-    hourly_residential_heating_doudard.to_csv("inputs/hourly_residential_heating_RTE2050_doudard.csv", header=False)
-    percentage_hourly_residential_profile_doudard.to_csv("inputs/percentage_hourly_residential_heating_profile_doudard.csv", header=False)
+    # demand_elec_RTE_no_residential_heating.to_csv("inputs/demand2050_RTE_no_residential_heating_doudard.csv", header=False)
+    # hourly_residential_heating_doudard.to_csv("inputs/hourly_residential_heating_RTE2050_doudard.csv", header=False)
+    # percentage_hourly_residential_profile_doudard.to_csv("inputs/percentage_hourly_residential_heating_profile_doudard.csv", header=False)
 
-    # ### Third method: using hourly profile from RTE
+    ############## Third method: using hourly profile from RTE
     tot = 0.035 + 0.039 + 0.041 + 0.042 + 0.046 + 0.05 + 0.055 + 0.058 + 0.053 + 0.049 + 0.045 + 0.041 + 0.037 + 0.034 + 0.03 + 0.033 + 0.037 + 0.042 + 0.046 + 0.041 + 0.037 + 0.034 + 0.033
     daily_profile = [0.035, 0.039, 0.041, 0.042, 0.046, 0.05, 0.055, 0.058, 0.053, 0.049, 0.045, 0.041, 0.037, 0.034, 0.03, 0.033, 0.037, 0.042, 0.046, 0.041, 0.037, 0.034, 0.033, 1-tot]
-    monthly_profile = [0.24, 0.18, 0.15, 0.05, 0.01, 0, 0, 0, 0, 0.03, 0.12, 0.22]
+    monthly_profile = [0.24, 0.18, 0.15, 0.05, 0.01, 0, 0, 0, 0, 0.03, 0.12, 0.22]  # comes from Doudard et al
     days_by_month = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
 
     percentage_hourly_residential_profile_RTE = []
@@ -72,10 +73,16 @@ if __name__ == '__main__':
     total_residential_heating_RTE = 33 * 1e3
     hourly_residential_heating_RTE = total_residential_heating_RTE * percentage_hourly_residential_profile_RTE
 
-    hourly_residential_heating_RTE.to_csv("inputs/hourly_residential_heating_RTE2050_RTE.csv", header=False)
+    adjust_demand = (595 * 1e3 - 580 * 1e3) / 8760
+    demand_elec_RTE_noP2G = demand_elec_RTE + adjust_demand  # we adjust demand profile to obtain the correct total amount of demand
 
-    percentage_hourly_residential_profile_RTE.to_csv("inputs/percentage_hourly_residential_heating_profile_RTE.csv",
-                                                 header=False)
+    demand_elec_RTE_no_residential_heating = demand_elec_RTE_noP2G - hourly_residential_heating_RTE
+    demand_elec_RTE_no_residential_heating.to_csv("inputs/demand2050_RTE_no_residential_heating.csv", header=False)
+
+    # hourly_residential_heating_RTE.to_csv("inputs/hourly_residential_heating_RTE2050_RTE.csv", header=False)
+    #
+    # percentage_hourly_residential_profile_RTE.to_csv("inputs/percentage_hourly_residential_heating_profile_RTE.csv",
+    #                                              header=False)
 
 
     # ### Test

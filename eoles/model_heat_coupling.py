@@ -32,7 +32,7 @@ class ModelEOLES():
     def __init__(self, name, config, path, logger, nb_years, existing_capacity=None, existing_charging_capacity=None,
                  existing_energy_capacity=None, residential_heating_demand=33 * 1e3, total_demand_RTE=595 * 1e3,
                  residential_heating_demand_RTE=33 * 1e3,
-                 H2_demand_RTE=50 * 1e3, nb_archetype=5, social_cost_of_carbon=0):
+                 H2_demand_RTE=50 * 1e3, nb_archetype=5, social_cost_of_carbon=0, year=2050):
         """
 
         :param name: str
@@ -59,18 +59,19 @@ class ModelEOLES():
         self.model.dual = Suffix(direction=Suffix.IMPORT)
         self.nb_years = nb_years
         self.scc = social_cost_of_carbon
+        self.year = year
         self.nb_archetype = nb_archetype
         self.total_demand_RTE = total_demand_RTE
         self.residential_demand_RTE = residential_heating_demand_RTE
         self.residential_heating_demand = residential_heating_demand
 
         # loading exogeneous variable data
-        data_variable = read_input_variable(config, total_demand=self.total_demand_RTE,
-                                            residential_demand=self.residential_demand_RTE)
+        data_variable = read_input_variable(config)
         self.load_factors = data_variable["load_factors"]
         self.demand1y = data_variable["demand"]
         self.heat_demand1y = create_hourly_residential_demand_profile(self.residential_heating_demand,
                                                                       method="RTE")  # we create a profile for final heating demand
+        # TODO: modifier cette ligne pour créer une demande de chaleur à partir des archétypes
         # self.hourly_heat_gas = hourly_heat_gas
         self.total_H2_demand = H2_demand_RTE  # total annual H2 demand
 
@@ -91,7 +92,7 @@ class ModelEOLES():
                 self.demand_gas = pd.concat([self.demand_gas, self.hourly_heat_gas], ignore_index=True)
 
         # loading exogeneous static data
-        data_static = read_input_static(self.config)
+        data_static = read_input_static(self.config, self.year)
         self.epsilon = data_static["epsilon"]
         if existing_capacity is not None:
             self.existing_capacity = existing_capacity
@@ -157,7 +158,7 @@ class ModelEOLES():
         initial_techno_set = ["offshore_f", "offshore_g", "onshore", "pv_g", "pv_c", "river", "lake", "biogas1",
                               "biogas2", "ocgt", "ccgt", "nuc", "h2_ccgt", "phs", "battery1", "battery4",
                               "methanation", "pyrogazification", "electrolysis", "natural_gas", "hydrogen", "methane",
-                              "heat_pump", "gas_boiler", "resistive", "fuel_boiler", "wood"]
+                              "heat_pump", "gas_boiler", "resistive", "fuel_boiler", "wood_boiler"]
         initial_techno_set += self.linearized_renovation_costs.index.to_list()  # we get the list of archetypes including linearization
         self.model.tec = \
             Set(initialize=initial_techno_set)
@@ -388,6 +389,7 @@ class ModelEOLES():
             renov = sum(
                 model.gene[tec, h] for tec in model.renovation)  # a modifier selon l'unité des graphes de rénovation
             heat_prod = sum(model.gene[tec, h] for tec in model.heat)  # technologies producing heat, including from elec, gas, wood and fuel
+            # TODO: il faut diviser par le facteur de rendement !!
             return heat_prod >= self.heat_demand[h] - renov
 
         def electricity_adequacy_constraint_rule(model, h):
@@ -564,17 +566,11 @@ class ModelEOLES():
                         'use_elec': self.use_elec}
 
 
-def read_input_variable(config, total_demand, initial_total_demand=580000, residential=True, residential_demand=None):
+def read_input_variable(config):
     """Reads data defined at the hourly scale"""
     load_factors = get_pandas(config["load_factors"],
                               lambda x: pd.read_csv(x, index_col=[0, 1], header=None).squeeze("columns"))
-    demand = get_pandas(config["demand"], lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # GW
-    adjust_demand = (total_demand - initial_total_demand) / 8760
-    demand = demand + adjust_demand  # we adjust demand profile to obtain the correct total amount of demand
-    assert math.isclose(demand.sum(), total_demand)
-    if not residential:  # we want to remove residential heating demand from a given RTE scenario (to add our scenario)
-        hourly_residential_heating_RTE = create_hourly_residential_demand_profile(residential_demand, method="RTE")
-        demand = demand - hourly_residential_heating_RTE  # we substract the residential heating profile from RTE
+    demand = get_pandas(config["demand_no_residential"], lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # GW
 
     lake_inflows = get_pandas(config["lake_inflows"],
                               lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # GWh
@@ -585,8 +581,12 @@ def read_input_variable(config, total_demand, initial_total_demand=580000, resid
     return o
 
 
-def read_input_static(config):
-    """Read static data"""
+def read_input_static(config, year):
+    """Read static data
+    config: json file
+        Includes paths to files
+    year: int
+        Year to get capex."""
     epsilon = get_pandas(config["epsilon"], lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))
     existing_capacity = get_pandas(config["existing_capacity"],
                                    lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # GW
@@ -607,7 +607,8 @@ def read_input_static(config):
     construction_time = get_pandas(config["construction_time"],
                                    lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # years
     capex = get_pandas(config["capex"],
-                       lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # 1e6€/GW
+                       lambda x: pd.read_csv(x, index_col=0))  # 1e6€/GW
+    capex = capex[[str(year)]].squeeze()
     storage_capex = get_pandas(config["storage_capex"],
                                lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # 1e6€/GW
     # TODO: ajouter renovation index dans fOM et vOM
