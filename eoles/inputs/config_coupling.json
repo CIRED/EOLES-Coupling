@@ -25,6 +25,6 @@
   "conversion_efficiency": "eoles/inputs/conversion_efficiency.csv",
   "capacity_ex": "eoles/inputs/capacity_ex.csv",
   "miscellaneous": "eoles/inputs/miscellaneous.csv",
-  "linearized_costs": "eoles/inputs/linearized_costs.csv",
-  "threshold_linearized_costs": "eoles/inputs/threshold_linearized_costs.csv"
+  "linearized_renovation_costs": "eoles/inputs/linearized_renovation_costs.csv",
+  "threshold_linearized_renovation_costs": "eoles/inputs/threshold_linearized_renovation_costs.csv"
 }
