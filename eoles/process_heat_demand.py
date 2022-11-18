@@ -7,7 +7,7 @@ if __name__ == '__main__':
     # heat_demand = pd.read_csv("inputs/heat_demand_2050.csv", index_col=0, header=None,
     #                           names=["heat_type", "demand"])  # final use heat demand, ADEME, GWh-th
     # # remark: this corresponds to residential + tertiary, and heating + hot water + cooking --> more stuff than simply residential heating
-    # hp_cop = pd.read_csv("inputs/HP_COP.csv", index_col=0,
+    # hp_cop = pd.read_csv("inputs/hp_cop.csv", index_col=0,
     #                      header=None)  # conversion factor heat pump, depending on temperature
     # hp_cop = hp_cop.squeeze()
     # low_heat_demand = (heat_demand.loc[heat_demand.heat_type == "lowT"]).drop(columns=["heat_type"]).squeeze()

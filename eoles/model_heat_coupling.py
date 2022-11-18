@@ -32,7 +32,8 @@ from pyomo.environ import (
 
 
 class ModelEOLES():
-    def __init__(self, name, config, path, logger, nb_years, heating_demand, nb_linearize, existing_capacity=None, existing_charging_capacity=None,
+    def __init__(self, name, config, path, logger, nb_years, heating_demand, nb_linearize, linearized_renovation_costs,
+                 threshold_linearized_renovation_costs, existing_capacity=None, existing_charging_capacity=None,
                  existing_energy_capacity=None, hourly_heat_gas=None, social_cost_of_carbon=0, year=2050):
         """
 
@@ -65,10 +66,11 @@ class ModelEOLES():
         data_variable = read_input_variable(config, self.year)
         self.load_factors = data_variable["load_factors"]
         self.elec_demand1y = data_variable["demand"]
+        self.lake_inflows = data_variable["lake_inflows"]
+        self.hp_cop = data_variable["hp_cop"]
+
         self.heat_demand1y = heating_demand  # dict
         self.hourly_heat_gas = hourly_heat_gas
-
-        self.lake_inflows = data_variable["lake_inflows"]
         self.H2_demand = {}
         self.CH4_demand = {}
 
@@ -117,8 +119,10 @@ class ModelEOLES():
         self.conversion_efficiency = data_static["conversion_efficiency"]
         self.capacity_ex = data_static["capacity_ex"]
         self.miscellaneous = data_static["miscellaneous"]
-        self.linearized_renovation_costs = data_static["linearized_renovation_costs"]
-        self.threshold_linearized_renovation_costs = data_static["threshold_linearized_renovation_costs"]
+        # self.linearized_renovation_costs = data_static["linearized_renovation_costs"]
+        # self.threshold_linearized_renovation_costs = data_static["threshold_linearized_renovation_costs"]
+        self.linearized_renovation_costs = linearized_renovation_costs
+        self.threshold_linearized_renovation_costs = threshold_linearized_renovation_costs
         assert self.linearized_renovation_costs.shape == self.threshold_linearized_renovation_costs.shape  # they must be the same shape as they correspond to similar archetypes !
         self.total_H2_demand = data_static["demand_H2_RTE"]
 
@@ -404,7 +408,7 @@ class ModelEOLES():
             gene_from_elec = model.gene['electrolysis', h] / self.conversion_efficiency['electrolysis'] + model.gene[
                 'methanation', h] / self.conversion_efficiency[
                                  'methanation']  # technologies using electricity for conversion
-            heat_demand = model.gene["heat_pump", h] / self.conversion_efficiency['heat_pump'] + model.gene["resistive", h] / \
+            heat_demand = model.gene["heat_pump", h] / self.hp_cop[h] + model.gene["resistive", h] / \
                           self.conversion_efficiency['resistive']
             prod_elec = sum(model.gene[balance, h] for balance in model.elec_balance)
             return prod_elec >= (
@@ -581,10 +585,12 @@ def read_input_variable(config, year):
 
     lake_inflows = get_pandas(config["lake_inflows"],
                               lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # GWh
+    hp_cop = get_pandas(config["hp_cop"], lambda x: pd.read_csv(x, index_col=0, header=None).squeeze())  # GWh-th / GWh-e
     o = dict()
     o["load_factors"] = load_factors
     o["demand"] = demand_no_residential
     o["lake_inflows"] = lake_inflows
+    o["hp_cop"] = hp_cop
     return o
 
 
@@ -638,10 +644,10 @@ def read_input_static(config, year):
                              lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # GWh
     miscellaneous = get_pandas(config["miscellaneous"],
                                lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))
-    linearized_renovation_costs = get_pandas(config["linearized_renovation_costs"],
-                                  lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # 1e9€
-    threshold_linearized_renovation_costs = get_pandas(config["threshold_linearized_renovation_costs"],
-                                            lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))
+    # linearized_renovation_costs = get_pandas(config["linearized_renovation_costs"],
+    #                               lambda x: pd.read_csv(x, index_col=0, header=None).squeeze())  # 1e9€
+    # threshold_linearized_renovation_costs = get_pandas(config["threshold_linearized_renovation_costs"],
+    #                                         lambda x: pd.read_csv(x, index_col=0, header=None).squeeze())
     demand_H2_timesteps = get_pandas(config["demand_H2_timesteps"],
                                             lambda x: pd.read_csv(x, index_col=0).squeeze())
     demand_H2_RTE = demand_H2_timesteps[year]
@@ -668,8 +674,8 @@ def read_input_static(config, year):
     o["conversion_efficiency"] = conversion_efficiency
     o["capacity_ex"] = capacity_ex
     o["miscellaneous"] = miscellaneous
-    o["linearized_renovation_costs"] = linearized_renovation_costs
-    o["threshold_linearized_renovation_costs"] = threshold_linearized_renovation_costs
+    # o["linearized_renovation_costs"] = linearized_renovation_costs
+    # o["threshold_linearized_renovation_costs"] = threshold_linearized_renovation_costs
     o["demand_H2_RTE"] = demand_H2_RTE
     return o
 

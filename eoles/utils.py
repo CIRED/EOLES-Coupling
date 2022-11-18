@@ -5,6 +5,7 @@ import os
 import json
 from matplotlib import pyplot as plt
 from pyomo.environ import value
+import datetime
 
 
 def get_pandas(path, func=lambda x: pd.read_csv(x)):
@@ -75,7 +76,7 @@ def calculate_annuities_storage_capex(miscellaneous, storage_capex, construction
 
 
 def calculate_annuities_renovation(linearized_renovation_costs, miscellaneous):
-    """Be careful to units. Renovation costs are expressed in 1e9 € contrary to the rest of the costs !!"""
+    """Be careful to units. Renovation costs are initially expressed in 1e9 € contrary to the rest of the costs !!"""
     renovation_annuities = linearized_renovation_costs.copy()
     for archetype in linearized_renovation_costs.index:
         renovation_annuities.at[archetype] = miscellaneous["discount_rate"] * linearized_renovation_costs[archetype] * 1e3 * (
@@ -306,3 +307,18 @@ def plot_capacities(df, y_max=None):
 def plot_generation(df):
     fig, ax = plt.subplots(1, 1)
     df.plot.pie(ax=ax)
+
+
+def process_heating_need(dict_heat, climate):
+    """Transforms index of heating need into number of hours.
+    :param heating_need: pd.DataFrame
+        Includes hourly heating need
+    :param climate: int
+        Year to start counting hours"""
+    for key in dict_heat.keys():
+        heating_need = dict_heat[key]
+        new_index_hour = [int((e - datetime.datetime(climate, 1, 1, 0)).total_seconds() / 3600) for e in heating_need.index]  # transform into number of hours
+        heating_need.index = new_index_hour
+        heating_need = heating_need.sort_index(ascending=True)
+        dict_heat[key] = heating_need
+    return dict_heat

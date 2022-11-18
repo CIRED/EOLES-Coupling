@@ -19,7 +19,7 @@ electrolysis,0
 h2_ccgt,0
 hydrogen,0.005
 methane,0
-methanation,0.05
+methanation,0.005
 pyrogazification,0.032
 natural_gas,0.02354
 heat_pump,0
