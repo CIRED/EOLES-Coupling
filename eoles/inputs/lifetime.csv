@@ -22,3 +22,8 @@ methane,30
 methanation,20
 pyrogazification,20
 natural_gas,1
+heat_pump,20
+resistive,20
+gas_boiler,20
+fuel_boiler,20
+wood_boiler,20

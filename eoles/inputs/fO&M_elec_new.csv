@@ -22,3 +22,8 @@ methane,0
 methanation,59
 pyrogazification,225
 natural_gas,0
+heat_pump,36.75
+resistive,2
+gas_boiler,0.945
+fuel_boiler,0.945
+wood_boiler,0.945

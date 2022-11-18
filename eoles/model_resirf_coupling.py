@@ -8,7 +8,11 @@ import logging
 import json
 import os
 import math
-from eoles.utils import get_pandas
+from eoles.utils import get_pandas, process_RTE_demand, calculate_annuities_capex, calculate_annuities_storage_capex, \
+    update_ngas_cost, define_month_hours, calculate_annuities_renovation, get_technical_cost, extract_hourly_generation, \
+    extract_spot_price, extract_capacities, extract_energy_capacity, extract_supply_elec, extract_primary_gene, \
+    extract_use_elec
+
 from pyomo.environ import (
     ConcreteModel,
     RangeSet,
@@ -31,7 +35,7 @@ from pyomo.environ import (
 class ModelEOLES():
     def __init__(self, name, config, path, logger, nb_years, existing_capacity=None, existing_charging_capacity=None,
                  existing_energy_capacity=None, total_demand_RTE=595*1e3, residential_heating_demand_RTE=33*1e3,
-                 H2_demand_RTE=50*1e3, residential=True, social_cost_of_carbon=0, hourly_heat_elec=None, hourly_heat_gas=None,
+                 H2_demand_RTE=50*1e3, social_cost_of_carbon=0, hourly_heat_elec=None, hourly_heat_gas=None,
                  year=2050):
         """
 
@@ -63,18 +67,15 @@ class ModelEOLES():
         self.total_demand_RTE = total_demand_RTE
         self.residential_demand_RTE = residential_heating_demand_RTE
 
-        if not residential:  # residential not included in demand
-            assert hourly_heat_elec is not None, "Hourly heat profile should be provided to the model when variable " \
+        assert hourly_heat_elec is not None, "Hourly heat profile should be provided to the model when variable " \
                                                  "residential is set to False"
 
         # loading exogeneous variable data
-        data_variable = read_input_variable(config, total_demand=self.total_demand_RTE, residential=residential,
-                                            residential_demand=self.residential_demand_RTE)
+        data_variable = read_input_variable(config, self.year)
         self.load_factors = data_variable["load_factors"]
         self.demand1y = data_variable["demand"]
         self.hourly_heat_elec = hourly_heat_elec
-        if not residential:  # we add hourly profile for residential heating demand when provided
-            self.demand1y = self.demand1y + self.hourly_heat_elec  # we add electricity demand from heating
+        self.demand1y = self.demand1y + self.hourly_heat_elec  # we add electricity demand from heating
         self.hourly_heat_gas = hourly_heat_gas
         self.total_H2_demand = H2_demand_RTE
 
@@ -93,7 +94,7 @@ class ModelEOLES():
                 self.demand_gas = pd.concat([self.demand_gas, self.hourly_heat_gas], ignore_index=True)
 
         # loading exogeneous static data
-        data_static = read_input_static(self.config, self.year)
+        data_static = read_input_static(self.config)
         self.epsilon = data_static["epsilon"]
         if existing_capacity is not None:
             self.existing_capacity = existing_capacity
@@ -529,39 +530,34 @@ class ModelEOLES():
         self.energy_capacity = extract_energy_capacity(self.model)
         self.electricity_generation = extract_supply_elec(self.model, self.nb_years)
         self.primary_generation = extract_primary_gene(self.model, self.nb_years)
-        # self.use_elec = extract_use_elec(self.model, self.nb_years, self.miscellaneous)
+        self.use_elec = extract_use_elec(self.model, self.nb_years, self.miscellaneous)
         self.summary = extract_summary(self.model, self.demand, self.H2_demand, self.CH4_demand,
                                        self.annuities, self.storage_annuities, self.fOM, self.vOM, self.charging_opex,
                                        self.charging_capex, self.conversion_efficiency, self.nb_years)
         self.results = {'objective': self.objective, 'summary': self.summary,
                         'hourly_generation': self.hourly_generation,
                         'capacities': self.capacities, 'energy_capacity': self.energy_capacity,
-                        'supply_elec': self.electricity_generation, 'primary_generation': self.primary_generation}
+                        'supply_elec': self.electricity_generation, 'primary_generation': self.primary_generation,
+                        'use_elec': self.use_elec}
 
 
-def read_input_variable(config, total_demand, initial_total_demand=580000, residential=True, residential_demand=None):
+def read_input_variable(config, year):
     """Reads data defined at the hourly scale"""
     load_factors = get_pandas(config["load_factors"],
                               lambda x: pd.read_csv(x, index_col=[0, 1], header=None).squeeze("columns"))
     demand = get_pandas(config["demand"], lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # GW
-    # TODO: cette ligne pourra être modifiée comme dans model_heat_coupling à terme a priori
-    adjust_demand = (total_demand - initial_total_demand) / 8760
-    demand = demand + adjust_demand  # we adjust demand profile to obtain the correct total amount of demand
-    assert math.isclose(demand.sum(), total_demand)
-    if not residential:  # we want to remove residential heating demand from a given RTE scenario (to add our scenario)
-        hourly_residential_heating_RTE = create_hourly_residential_demand_profile(residential_demand, method="RTE")
-        demand = demand - hourly_residential_heating_RTE  # we substract the residential heating profile from RTE
+    demand_no_residential = process_RTE_demand(config, year, demand)
 
     lake_inflows = get_pandas(config["lake_inflows"],
                               lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # GWh
     o = dict()
     o["load_factors"] = load_factors
-    o["demand"] = demand
+    o["demand"] = demand_no_residential
     o["lake_inflows"] = lake_inflows
     return o
 
 
-def read_input_static(config, year):
+def read_input_static(config):
     """Read static data"""
     epsilon = get_pandas(config["epsilon"], lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))
     existing_capacity = get_pandas(config["existing_capacity"],
@@ -583,8 +579,7 @@ def read_input_static(config, year):
     construction_time = get_pandas(config["construction_time"],
                                    lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # years
     capex = get_pandas(config["capex"],
-                       lambda x: pd.read_csv(x, index_col=0))  # 1e6€/GW
-    capex = capex[[str(year)]].squeeze()  # get capex for year of interest
+                       lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # 1e6€/GW
     storage_capex = get_pandas(config["storage_capex"],
                                lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # 1e6€/GW
     fOM = get_pandas(config["fOM"],
@@ -629,76 +624,6 @@ def read_input_static(config, year):
     o["capacity_ex"] = capacity_ex
     o["miscellaneous"] = miscellaneous
     return o
-
-
-def calculate_annuities_capex(miscellaneous, capex, construction_time, lifetime):
-    annuities = construction_time.copy()
-    for i in annuities.index:
-        annuities.at[i] = miscellaneous["discount_rate"] * capex[i] * (
-                miscellaneous["discount_rate"] * construction_time[i] + 1) / (
-                                  1 - (1 + miscellaneous["discount_rate"]) ** (-lifetime[i]))
-    return annuities
-
-
-def calculate_annuities_storage_capex(miscellaneous, storage_capex, construction_time, lifetime):
-    storage_annuities = storage_capex.copy()
-    for i in storage_annuities.index:
-        storage_annuities.at[i] = miscellaneous["discount_rate"] * storage_capex[i] * (
-                miscellaneous["discount_rate"] * construction_time[i] + 1) / (
-                                          1 - (1 + miscellaneous["discount_rate"]) ** (-lifetime[i]))
-    return storage_annuities
-
-
-def update_ngas_cost(vOM_init, scc, emission_rate=0.2295):
-    """Add emission cost related to social cost of carbon to the natural gas vOM cost.
-    :param vOM_init: float
-        Initial vOM in M€/GWh
-    :param scc: int
-        €/tCO2
-    :param emission_rate: float
-        tCO2/TWh
-
-    Returns
-    vOM in M€/GWh
-    """
-    return vOM_init + scc * emission_rate / 1000
-
-
-def create_hourly_residential_demand_profile(total_consumption, method="RTE"):
-    """Calculates hourly profile from total consumption, using either the methodology from Doudard (2018) or
-    methodology from RTE."""
-    if method == "RTE":
-        percentage_hourly_residential_heating = get_pandas(
-            "eoles/inputs/percentage_hourly_residential_heating_profile_RTE.csv",
-            lambda x: pd.read_csv(x, index_col=0, header=None).squeeze(
-                "columns"))
-    else:
-        percentage_hourly_residential_heating = get_pandas(
-            "eoles/inputs/percentage_hourly_residential_heating_profile_doudard.csv",
-            lambda x: pd.read_csv(x, index_col=0, header=None).squeeze(
-                "columns"))
-    hourly_residential_heating = percentage_hourly_residential_heating * total_consumption
-    return hourly_residential_heating
-
-
-def define_month_hours(first_month, nb_years, months_hours, hours_by_months):
-    """
-    Calculates range of hours for each month
-    :param first_month: int
-    :param nb_years: int
-    :param months_hours: dict
-    :param hours_by_months: dict
-    :return:
-    Dict containing the range of hours for each month considered in the model
-    """
-    j = first_month + 1
-    for i in range(2, 12 * nb_years + 1):
-        hour = months_hours[i - 1][-1] + 1  # get the first hour for a given month
-        months_hours[i] = range(hour, hour + hours_by_months[j])
-        j += 1
-        if j == 13:
-            j = 1
-    return months_hours
 
 
 def extract_summary(model, demand, H2_demand, CH4_demand, annuities, storage_annuities, fOM, vOM,
@@ -904,90 +829,3 @@ def extract_summary(model, demand, H2_demand, CH4_demand, annuities, storage_ann
     return summary_df
 
 
-def get_technical_cost(model, objective, scc):
-    """Returns technical cost (social cost without CO2 emissions-related cost"""
-    gene_ngas = sum(value(model.gene["natural_gas", hour]) for hour in model.h) / 1000  # TWh
-    net_emissions = gene_ngas * 0.2295
-    technical_cost = objective - net_emissions * scc / 1000
-    return technical_cost, net_emissions
-
-
-def extract_capacities(model):
-    """Extracts capacities for all technology in GW"""
-    list_tec = list(model.tec)
-    capacities = pd.Series(index=list_tec, dtype=float)
-
-    for tec in list_tec:
-        capacities.loc[tec] = value(model.capacity[tec])
-
-    return capacities
-
-
-def extract_energy_capacity(model):
-    """Extracts energy capacity for all storage technology, in GWh"""
-    list_str = list(model.str)
-    energy_capacity = pd.Series(index=list_str, dtype=float)
-
-    for tec in list_str:
-        energy_capacity.loc[tec] = value(model.energy_capacity[tec])
-    return energy_capacity
-
-
-def extract_hourly_generation(model, demand):
-    """Extracts hourly defined data, including demand, generation and storage"""
-    list_tec = list(model.tec)
-    list_storage_in = [e + "_in" for e in model.str]
-    list_storage_charge = [e + "_charge" for e in model.str]
-    list_columns = ["hour", "demand"] + list_tec + list_storage_in + list_storage_charge
-    hourly_generation = pd.DataFrame(columns=list_columns)
-    hourly_generation.loc[:, "hour"] = list(model.h)
-    hourly_generation.loc[:, "demand"] = demand
-
-    for tec in list_tec:
-        hourly_generation[tec] = value(model.gene[tec, :])
-    for str, str_in in zip(list(model.str), list_storage_in):
-        hourly_generation[str_in] = value(model.storage[str, :])
-    for str, str_charge in zip(list(model.str), list_storage_charge):
-        hourly_generation[str_charge] = value(model.stored[str, :])
-    return hourly_generation  # GWh
-
-
-def extract_spot_price(model, nb_hours):
-    """Extracts spot price"""
-    spot_price = pd.DataFrame({"hour": range(nb_hours),
-                               "spot_price": [- 1000000 * model.dual[model.electricity_adequacy_constraint[h]] for h in model.h]})
-    return spot_price
-
-
-def extract_supply_elec(model, nb_years):
-    """Extracts yearly electricity supply per technology in TWh"""
-    list_tec = list(model.elec_gene)
-    electricity_supply = pd.Series(index=list_tec, dtype=float)
-
-    for tec in list_tec:
-        electricity_supply[tec] = sum(value(model.gene[tec, hour]) for hour in model.h) / 1000 / nb_years  # TWh
-    return electricity_supply
-
-
-def extract_primary_gene(model, nb_years):
-    """Extracts yearly electricity supply per technology in TWh"""
-    list_tec = list(model.primary_gene)
-    primary_generation = pd.Series(index=list_tec, dtype=float)
-
-    for tec in list_tec:
-        primary_generation[tec] = sum(value(model.gene[tec, hour]) for hour in model.h) / 1000 / nb_years  # TWh
-    return primary_generation
-
-
-def extract_use_elec(model, nb_years, miscellaneous):
-    """Extracts yearly electricity use per technology in TWh"""
-    list_tec = list(model.use_elec)
-    electricity_use = pd.Series(index=list_tec, dtype=float)
-
-    for tec in list_tec:
-        if tec == 'electrolysis':  # for electrolysis, we need to use the efficiency factor to obtain TWhe
-            electricity_use[tec] = sum(value(model.gene[tec, hour]) for hour in model.h) / 1000 / nb_years / \
-                                   miscellaneous['eta_electrolysis']
-        else:
-            electricity_use[tec] = sum(value(model.storage[tec, hour]) for hour in model.h) / 1000 / nb_years
-    return electricity_use

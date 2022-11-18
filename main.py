@@ -59,7 +59,7 @@ if __name__ == '__main__':
     residential_demand_RTE = demand_residential_timesteps.loc[2025] * 1e3
     H2_demand_RTE = demand_H2_timesteps.loc[2025] * 1e3
 
-    scc = 50
+    scc = 200
     m_scc_2025 = ModelEOLES(name="test", config=config, path="eoles/outputs", logger=logger, nb_years=1, total_demand_RTE=total_demand_RTE,
                        residential_heating_demand_RTE=residential_demand_RTE, H2_demand_RTE=H2_demand_RTE, residential=True, social_cost_of_carbon=scc)
     t1 = time.time()
