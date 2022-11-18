@@ -47,6 +47,10 @@ if __name__ == '__main__':
     linearized_renovation_costs, threshold_linearized_renovation_costs = piecewise_linearization_cost_efficiency(
         dict_cost, number_of_segments=3, plot=False)
 
+    dict_heat = {"all_stock": dict_heat["global"]* 1e-6*0.8}
+
+    # TODO: modifier le code pour que mon code puisse bien prendre en compte des fichiers de coûts qui lui sont fournis.
+
     m_scc = ModelEOLES(name="test", config=config, path="eoles/outputs", logger=logger, nb_years=1, heating_demand=dict_heat,
                        nb_linearize=3, linearized_renovation_costs=linearized_renovation_costs,
                        threshold_linearized_renovation_costs=threshold_linearized_renovation_costs,
