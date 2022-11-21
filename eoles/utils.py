@@ -35,15 +35,15 @@ def process_RTE_demand(config, year, demand):
                                             lambda x: pd.read_csv(x, index_col=0).squeeze())
     percentage_hourly_residential_heating_profile = get_pandas(config["percentage_hourly_residential_heating_profile"],
                                             lambda x: pd.read_csv(x, index_col=0, header=None).squeeze())
-    demand_noP2G_RTE = demand_noP2G_RTE_timesteps[year]
-    demand_residential_heating = demand_residential_heating_RTE_timesteps[year]
+    demand_noP2G_RTE = demand_noP2G_RTE_timesteps[year]  # in TWh
+    demand_residential_heating = demand_residential_heating_RTE_timesteps[year]  # in TWh
 
     adjust_demand = (demand_noP2G_RTE * 1e3 - 580 * 1e3) / 8760
-    demand_elec_RTE_noP2G = demand + adjust_demand  # we adjust demand profile to obtain the correct total amount of demand
+    demand_elec_RTE_noP2G = demand + adjust_demand  # we adjust demand profile to obtain the correct total amount of demand based on RTE projections without P2G
 
     hourly_residential_heating_RTE = create_hourly_residential_demand_profile(demand_residential_heating * 1e3, method="RTE")
 
-    demand_elec_RTE_no_residential_heating = demand_elec_RTE_noP2G - hourly_residential_heating_RTE
+    demand_elec_RTE_no_residential_heating = demand_elec_RTE_noP2G - hourly_residential_heating_RTE  # we remove residential electric demand
     return demand_elec_RTE_no_residential_heating
 
 
@@ -193,11 +193,11 @@ def extract_hourly_generation(model, demand):
     hourly_generation.loc[:, "demand"] = demand
 
     for tec in list_tec:
-        hourly_generation[tec] = value(model.gene[tec, :])
+        hourly_generation[tec] = value(model.gene[tec, :])  # GWh
     for str, str_in in zip(list(model.str), list_storage_in):
-        hourly_generation[str_in] = value(model.storage[str, :])
+        hourly_generation[str_in] = value(model.storage[str, :])  # GWh
     for str, str_charge in zip(list(model.str), list_storage_charge):
-        hourly_generation[str_charge] = value(model.stored[str, :])
+        hourly_generation[str_charge] = value(model.stored[str, :])  # GWh
     return hourly_generation  # GWh
 
 
@@ -320,5 +320,6 @@ def process_heating_need(dict_heat, climate):
         new_index_hour = [int((e - datetime.datetime(climate, 1, 1, 0)).total_seconds() / 3600) for e in heating_need.index]  # transform into number of hours
         heating_need.index = new_index_hour
         heating_need = heating_need.sort_index(ascending=True)
+        heating_need = heating_need*1e-6  # convert to GWh
         dict_heat[key] = heating_need
     return dict_heat

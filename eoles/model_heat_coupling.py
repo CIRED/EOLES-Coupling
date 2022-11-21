@@ -119,7 +119,7 @@ class ModelEOLES():
         self.conversion_efficiency = data_static["conversion_efficiency"]
         self.capacity_ex = data_static["capacity_ex"]
         self.miscellaneous = data_static["miscellaneous"]
-        self.linearized_renovation_costs = data_static["linearized_renovation_costs"]
+        self.linearized_renovation_costs = data_static["linearized_renovation_costs"]  # TODO: a changer
         self.threshold_linearized_renovation_costs = data_static["threshold_linearized_renovation_costs"]
         # self.linearized_renovation_costs = linearized_renovation_costs
         # self.threshold_linearized_renovation_costs = threshold_linearized_renovation_costs
@@ -181,7 +181,7 @@ class ModelEOLES():
             Set(initialize=["lake", "phs", "ocgt", "ccgt", "nuc", "h2_ccgt"])
 
         # Building archetypes
-        self.model.archetype = Set(initialize=list(self.heat_demand.keys()))  # TODO: a enlever
+        self.model.archetype = Set(initialize=list(self.heat_demand.keys()))
         # Renovation technologies including linearized costs (described as different technologies with different costs)
         # Therefore, larger set than previously
         self.model.renovation = Set(initialize=self.linearized_renovation_costs.index.to_list())
@@ -243,9 +243,6 @@ class ModelEOLES():
             if i in self.maximum_capacity.keys():  # there exists a max capacity
                 return self.existing_capacity[i], self.maximum_capacity[
                     i]  # existing capacity is always the lower bound
-            # elif i in self.model.renovation:
-            #     return 0, self.threshold_linearized_renovation_costs[
-            #         i]  # this is the maximum capacity for a given archetype, and for a given portion of the linearized cost
             else:
                 return self.existing_capacity[i], None  # in this case, only lower bound exists
 
@@ -409,10 +406,10 @@ class ModelEOLES():
                 'methanation', h] / self.conversion_efficiency[
                                  'methanation']  # technologies using electricity for conversion
             heat_demand = model.gene["heat_pump", h] / self.hp_cop[h] + model.gene["resistive", h] / \
-                          self.conversion_efficiency['resistive']
+                          self.conversion_efficiency['resistive']  # heating technologies using electricity
             prod_elec = sum(model.gene[balance, h] for balance in model.elec_balance)
             return prod_elec >= (
-                    self.elec_demand[h] + heat_demand + storage + gene_from_elec)
+                    self.elec_demand[h] + heat_demand + storage + gene_from_elec)  # this inequality allows curtailment to take place
 
         def ramping_nuc_up_constraint_rule(model, h):
             """Constraint setting an upper ramping limit for nuclear flexibility"""
