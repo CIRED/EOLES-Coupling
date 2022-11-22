@@ -34,7 +34,8 @@ from pyomo.environ import (
 class ModelEOLES():
     def __init__(self, name, config, path, logger, nb_years, heating_demand, nb_linearize, linearized_renovation_costs,
                  threshold_linearized_renovation_costs, existing_capacity=None, existing_charging_capacity=None,
-                 existing_energy_capacity=None, hourly_heat_gas=None, social_cost_of_carbon=0, year=2050):
+                 existing_energy_capacity=None, hourly_heat_gas=None, social_cost_of_carbon=0, year=2050, scenario_cost=None,
+                 hp_hourly=True, renov=None):
         """
 
         :param name: str
@@ -49,6 +50,12 @@ class ModelEOLES():
             Number of building archetypes considered in our model
         :param social_cost_of_carbon: int
             Social cost of carbon used to calculate emissions
+        :param scenario_cost: dict
+            Includes updates in cost assumptions
+        :param hp_hourly: bool
+            Indicates whether we want to consider an hourly hp cop
+        :param renov: bool
+            Indicates whether we want to allow renovation
         """
         self.name = name
         self.config = config
@@ -61,12 +68,17 @@ class ModelEOLES():
         self.scc = social_cost_of_carbon
         self.year = year
         self.nb_linearize = nb_linearize  # number of linearized segment to represent one heating archetype
+        self.renov = renov
 
         # loading exogeneous variable data
         data_variable = read_input_variable(config, self.year)
         self.load_factors = data_variable["load_factors"]
         self.elec_demand1y = data_variable["demand"]
         self.lake_inflows = data_variable["lake_inflows"]
+
+        if hp_hourly is False:
+            data_variable["hp_cop"] = pd.Series(2.8, index=data_variable["hp_cop"].index)  # we use a fixed coefficient for heat pumps
+
         self.hp_cop = data_variable["hp_cop"]
 
         self.heat_demand1y = heating_demand  # dict
@@ -89,6 +101,11 @@ class ModelEOLES():
 
         # loading exogeneous static data
         data_static = read_input_static(self.config, self.year)
+        if scenario_cost is not None:  # we update costs based on data given in scenario
+            for df in scenario_cost.keys():
+                for tec in scenario_cost[df].keys():
+                    data_static[df][tec] = scenario_cost[df][tec]
+
         self.epsilon = data_static["epsilon"]
         if existing_capacity is not None:
             self.existing_capacity = existing_capacity
@@ -125,6 +142,7 @@ class ModelEOLES():
         self.threshold_linearized_renovation_costs = threshold_linearized_renovation_costs
         assert self.linearized_renovation_costs.shape == self.threshold_linearized_renovation_costs.shape  # they must be the same shape as they correspond to similar archetypes !
         self.total_H2_demand = data_static["demand_H2_RTE"]
+
 
         # TODO: a enlever je pense, plus nécessaire
         # self.heat_demand_new = {}
@@ -296,10 +314,19 @@ class ModelEOLES():
         # Renovation rate
         self.model.renovation_rate = Var(self.model.renovation, within=NonNegativeReals, bounds=renovation_bounds)
 
-    def fix_values(self):
+    def fix_values(self, renov):
         for tec in self.model.tec:
             if tec in self.fix_capa.keys():
                 self.model.capacity[tec].fix(self.fix_capa[tec])
+        if renov is not None:  # we want to impose constraints on renovation
+            if renov == "all":  # we want to impose no renovation at all
+                for r in self.model.renovation:
+                    self.model.renovation_rate[r].fix(0)
+            else:  # we impose specific constraints on renovation
+                list_r = [f"{renov}_{i}" for i in range(self.nb_linearize)]
+                for r in list_r:
+                    self.model.renovation_rate[r].fix(0)
+
 
     def define_constraints(self):
         def generation_vre_constraint_rule(model, h, vre):
@@ -516,7 +543,7 @@ class ModelEOLES():
         self.define_sets()
         self.define_other_demand()
         self.define_variables()
-        self.fix_values()
+        self.fix_values(self.renov)
         self.define_constraints()
         self.define_objective()
 
