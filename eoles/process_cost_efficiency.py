@@ -55,6 +55,12 @@ def piecewise_linearization_cost_efficiency(dict_cost_efficiency_archetype, numb
 
         x = np.array(cost_efficiency_stock[['Consumption saved (%/initial) cumulated']]).reshape((-1,))
         y = np.array(cost_efficiency_stock[['Cost (Billion euro) cumulated']]).reshape((-1,))
+        bound_x = 1
+        x_max = np.max(x)
+        x_min = np.min(x)
+
+        if x_max < 0.4:
+            bound_x = x_max * 1.1
 
         average_k = np.max(y) / np.max(x)
 
@@ -63,31 +69,41 @@ def piecewise_linearization_cost_efficiency(dict_cost_efficiency_archetype, numb
                 {'type': 'ineq', 'fun': lambda x: x[4] - x[3]})
 
         # Attention, this only includes the option of 3 segments for the time being
+        random_init_x1 = np.random.uniform(low=0, high=bound_x, size=(n_init, 1))
+        random_init_x2 = np.random.uniform(low=0, high=bound_x, size=(n_init, 1))
+        random_init_x = np.concatenate((random_init_x1, random_init_x2), axis=1)
+        random_init_x = np.sort(random_init_x,
+                                axis=1)  # we sort to make sure that in initialization we consider increasing coefficients
         random_init_k0 = np.random.uniform(low=0, high=0.8 * average_k, size=(n_init, 1))
-        random_init_k1 = np.random.uniform(low=0.5 * average_k, high=3 * average_k, size=(n_init, 1))
+        random_init_k1 = np.random.uniform(low=0.8 * average_k, high=3 * average_k, size=(n_init, 1))
         random_init_k2 = np.random.uniform(low=1.5 * average_k, high=4 * average_k, size=(n_init, 1))
-        random_init = np.concatenate((random_init_k0, random_init_k1, random_init_k2), axis=1)
-        random_init = np.sort(random_init, axis=1)  # we sort to make sure that in initialization we consider increasing coefficients
+        random_init_k = np.concatenate((random_init_k0, random_init_k1, random_init_k2), axis=1)
+        random_init_k = np.sort(random_init_k,
+                                axis=1)  # we sort to make sure that in initialization we consider increasing coefficients
 
         loss = 1e6
         best_fit = -1
         for i in range(n_init):
-            random_init_k = random_init[i]
-            k0, k1, k2 = random_init_k[0], random_init_k[1], random_init_k[2]
+            # x0_init = random_init_x[i] + random_init_k[i]
+            x0_init = (random_init_x[i][0], random_init_x[i][1]) + (
+            random_init_k[i][0], random_init_k[i][1], random_init_k[i][2])
+            # k0, k1, k2 = random_init_k[0], random_init_k[1], random_init_k[2]
+            # x0_init = (x1_init, x2_init) + (k0, k1, k2)
             res = scipy.optimize.minimize(lambda params: mse_piecewise_linear_zero_interpolate(params, x, y),
-                                          x0=(0.3, 0.6, k0, k1, k2),
-                                          bounds=((0, 1), (0, 1), (0, None), (0, None), (0, None)),
+                                          x0=x0_init,
+                                          bounds=((0, bound_x), (0, bound_x), (0, None), (0, None), (0, None)),
                                           constraints=cons)  # optimize the linear fit
             new_loss = res["fun"]
             if new_loss < loss:
                 best_fit = i
                 loss = new_loss
 
-        random_init_k = random_init[best_fit]
-        k0, k1, k2 = random_init_k[0], random_init_k[1], random_init_k[2]
+        x0_init = (random_init_x[best_fit][0], random_init_x[best_fit][1]) + (
+            random_init_k[best_fit][0], random_init_k[best_fit][1], random_init_k[best_fit][2])
+
         res = scipy.optimize.minimize(lambda params: mse_piecewise_linear_zero_interpolate(params, x, y),
-                                      x0=(0.3, 0.6, k0, k1, k2),
-                                      bounds=((0, 1), (0, 1), (0, None), (0, None), (0, None)),
+                                      x0=x0_init,
+                                      bounds=((0, bound_x), (0, bound_x), (0, None), (0, None), (0, None)),
                                       constraints=cons)  # optimize the linear fit
 
         p = res['x']
@@ -95,9 +111,10 @@ def piecewise_linearization_cost_efficiency(dict_cost_efficiency_archetype, numb
         x0, x3 = 0, np.max(x)  # maximum value for renovation potential
 
         if plot:
-            xd = np.linspace(0, 0.8, 100)
+            xd = np.linspace(0, x_max*1.1, 100)
             plt.plot(x, y, "o")
             plt.plot(xd, piecewise_linear_zero_interpolate(xd, *p))
+            plt.title(f"Renovation costs: {archetype}")
             plt.show()
 
         cutoff_points = np.array([x0, x1, x2, x3])
@@ -114,36 +131,36 @@ def piecewise_linearization_cost_efficiency(dict_cost_efficiency_archetype, numb
 
 if __name__ == '__main__':
 
-    # Test on one sample
-    cost_efficiency_stock = pd.read_csv("inputs/cost_efficiency_stock.csv", index_col=0)
-    cost_efficiency_stock = cost_efficiency_stock.reset_index()
-    sns.lineplot(cost_efficiency_stock, x='Consumption saved (%/initial) cumulated', y='Cost (Billion euro) cumulated')
-    plt.show()
-
-    x = np.array(cost_efficiency_stock[['Consumption saved (%/initial) cumulated']]).reshape((-1,))
-    y = np.array(cost_efficiency_stock[['Cost (Billion euro) cumulated']]).reshape((-1,))
-
-    # cons = ({'type': 'ineq', 'fun': lambda x: x[1] - x[0]},
-    #         {'type': 'ineq', 'fun': lambda x: x[4] - x[3]},
-    #         {'type': 'ineq', 'fun': lambda x: x[5] - x[4]})
+    # # Test on one sample
+    # cost_efficiency_stock = pd.read_csv("inputs/cost_efficiency_stock.csv", index_col=0)
+    # cost_efficiency_stock = cost_efficiency_stock.reset_index()
+    # sns.lineplot(cost_efficiency_stock, x='Consumption saved (%/initial) cumulated', y='Cost (Billion euro) cumulated')
+    # plt.show()
     #
-    # res = scipy.optimize.minimize(lambda params: mse_piecewise_linear(params, x, y),
-    #                               x0=(0.3, 0.6, 500, 700, 800, 900), bounds=((0, 1), (0, 1), (0, None), (0, None), (0, None), (0, None)),
+    # x = np.array(cost_efficiency_stock[['Consumption saved (%/initial) cumulated']]).reshape((-1,))
+    # y = np.array(cost_efficiency_stock[['Cost (Billion euro) cumulated']]).reshape((-1,))
+    #
+    # # cons = ({'type': 'ineq', 'fun': lambda x: x[1] - x[0]},
+    # #         {'type': 'ineq', 'fun': lambda x: x[4] - x[3]},
+    # #         {'type': 'ineq', 'fun': lambda x: x[5] - x[4]})
+    # #
+    # # res = scipy.optimize.minimize(lambda params: mse_piecewise_linear(params, x, y),
+    # #                               x0=(0.3, 0.6, 500, 700, 800, 900), bounds=((0, 1), (0, 1), (0, None), (0, None), (0, None), (0, None)),
+    # #                               constraints=cons)
+    #
+    # cons = ({'type': 'ineq', 'fun': lambda x: x[1] - x[0]},
+    #         {'type': 'ineq', 'fun': lambda x: x[3] - x[2]},
+    #         {'type': 'ineq', 'fun': lambda x: x[4] - x[3]})
+    #
+    # res = scipy.optimize.minimize(lambda params: mse_piecewise_linear_zero_interpolate(params, x, y),
+    #                               x0=(0.3, 0.6, 700, 800, 900), bounds=((0, 1), (0, 1), (0, None), (0, None), (0, None)),
     #                               constraints=cons)
-
-    cons = ({'type': 'ineq', 'fun': lambda x: x[1] - x[0]},
-            {'type': 'ineq', 'fun': lambda x: x[3] - x[2]},
-            {'type': 'ineq', 'fun': lambda x: x[4] - x[3]})
-
-    res = scipy.optimize.minimize(lambda params: mse_piecewise_linear_zero_interpolate(params, x, y),
-                                  x0=(0.3, 0.6, 700, 800, 900), bounds=((0, 1), (0, 1), (0, None), (0, None), (0, None)),
-                                  constraints=cons)
-
-    p = res['x']
-    xd = np.linspace(0, 0.8, 100)
-    plt.plot(x, y, "o")
-    plt.plot(xd, piecewise_linear_zero_interpolate(xd, *p))
-    plt.show()
+    #
+    # p = res['x']
+    # xd = np.linspace(0, 0.8, 100)
+    # plt.plot(x, y, "o")
+    # plt.plot(xd, piecewise_linear_zero_interpolate(xd, *p))
+    # plt.show()
 
     # # Automize saving piecewise approximation
     # cost_efficiency_stock = pd.read_csv("inputs/cost_efficiency_stock.csv", index_col=0)
@@ -151,13 +168,25 @@ if __name__ == '__main__':
     #     "all_stock": cost_efficiency_stock
     # }
     #
-    dict_cost, dict_heat = social_planner(aggregation_archetype=['Heating system', 'Housing type'], climate=2006,
-                                          smooth=False)
+    dict_cost, dict_heat = social_planner(aggregation_archetype=['Performance', 'Housing type'], climate=2006,
+                                          smooth=False, building_stock="medium_3")
 
-    dict_cost, dict_heat = social_planner(aggregation_archetype=['Housing type'], climate=2006,
-                                          smooth=False)
+    # dict_cost, dict_heat = social_planner(aggregation_archetype=['Income owner'], climate=2006,
+    #                                       smooth=False)
     linearized_renovation_costs, threshold_linearized_renovation_costs = \
-        piecewise_linearization_cost_efficiency(dict_cost, number_of_segments=3, n_init=200, plot=True)
+        piecewise_linearization_cost_efficiency(dict_cost, number_of_segments=3, n_init=300, plot=True)
+
+    # df_heat = pd.DataFrame(dict_heat).stack().reset_index().rename(
+    #     columns={"level_0": "date", "level_1": "archetype", 0: "heat_demand"})
+    # sns.lineplot(df_heat, x="date", y="heat_demand", hue="archetype")
+    # plt.show()
+
+    df_heat = pd.DataFrame(dict_heat).stack(
+        level=[i for i in range(pd.DataFrame(dict_heat).columns.nlevels)]).reset_index()
+    df_heat["archetype"] = df_heat.apply(lambda row: row["level_1"] + ' ' + row["level_2"], axis=1)  # should be changed depending on level of multiindex
+    df_heat = df_heat.rename(columns={"level_0": "date", 0: "heat_demand"})
+    sns.lineplot(df_heat, x="date", y="heat_demand", hue="archetype")
+    plt.show()
 
     # cost_efficiency_stock = dict_cost[('Wood fuel-Performance boiler', 'Multi-family')]
     # cost_efficiency_stock = cost_efficiency_stock.reset_index()

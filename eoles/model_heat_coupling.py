@@ -119,10 +119,10 @@ class ModelEOLES():
         self.conversion_efficiency = data_static["conversion_efficiency"]
         self.capacity_ex = data_static["capacity_ex"]
         self.miscellaneous = data_static["miscellaneous"]
-        self.linearized_renovation_costs = data_static["linearized_renovation_costs"]  # TODO: a changer
-        self.threshold_linearized_renovation_costs = data_static["threshold_linearized_renovation_costs"]
-        # self.linearized_renovation_costs = linearized_renovation_costs
-        # self.threshold_linearized_renovation_costs = threshold_linearized_renovation_costs
+        # self.linearized_renovation_costs = data_static["linearized_renovation_costs"]  # TODO: a changer
+        # self.threshold_linearized_renovation_costs = data_static["threshold_linearized_renovation_costs"]
+        self.linearized_renovation_costs = linearized_renovation_costs
+        self.threshold_linearized_renovation_costs = threshold_linearized_renovation_costs
         assert self.linearized_renovation_costs.shape == self.threshold_linearized_renovation_costs.shape  # they must be the same shape as they correspond to similar archetypes !
         self.total_H2_demand = data_static["demand_H2_RTE"]
 
@@ -641,10 +641,10 @@ def read_input_static(config, year):
                              lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # GWh
     miscellaneous = get_pandas(config["miscellaneous"],
                                lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))
-    linearized_renovation_costs = get_pandas(config["linearized_renovation_costs"],
-                                  lambda x: pd.read_csv(x, index_col=0, header=None).squeeze())  # 1e9€
-    threshold_linearized_renovation_costs = get_pandas(config["threshold_linearized_renovation_costs"],
-                                            lambda x: pd.read_csv(x, index_col=0, header=None).squeeze())
+    # linearized_renovation_costs = get_pandas(config["linearized_renovation_costs"],
+    #                               lambda x: pd.read_csv(x, index_col=0, header=None).squeeze())  # 1e9€
+    # threshold_linearized_renovation_costs = get_pandas(config["threshold_linearized_renovation_costs"],
+    #                                         lambda x: pd.read_csv(x, index_col=0, header=None).squeeze())
     demand_H2_timesteps = get_pandas(config["demand_H2_timesteps"],
                                             lambda x: pd.read_csv(x, index_col=0).squeeze())
     demand_H2_RTE = demand_H2_timesteps[year]
@@ -671,10 +671,14 @@ def read_input_static(config, year):
     o["conversion_efficiency"] = conversion_efficiency
     o["capacity_ex"] = capacity_ex
     o["miscellaneous"] = miscellaneous
-    o["linearized_renovation_costs"] = linearized_renovation_costs
-    o["threshold_linearized_renovation_costs"] = threshold_linearized_renovation_costs
+    # o["linearized_renovation_costs"] = linearized_renovation_costs
+    # o["threshold_linearized_renovation_costs"] = threshold_linearized_renovation_costs
     o["demand_H2_RTE"] = demand_H2_RTE
     return o
+
+
+def lcoe_technology(model):
+    return 0
 
 
 def extract_summary(model, demand, H2_demand, CH4_demand, heat_demand, annuities, storage_annuities, fOM, vOM,
