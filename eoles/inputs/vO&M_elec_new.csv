@@ -7,14 +7,13 @@ pv_g_ns,0
 pv_c,0
 river,0
 lake,0
-nuc,0.006
+nuclear,0.006
 ocgt,0
 ccgt,0
 phs,0
 battery1,0
 battery4,0
-biogas1,0.05
-biogas2,0.05
+methanization,0.05
 electrolysis,0
 h2_ccgt,0
 hydrogen,0.005

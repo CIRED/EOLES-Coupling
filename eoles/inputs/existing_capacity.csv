@@ -8,11 +8,10 @@ onshore_V110,0
 pv_g,0
 pv_g_ns,0
 pv_c,0
-biogas1,0
-biogas2,0
+methanization,0
 ocgt,0
 ccgt,0
-nuc,0
+nuclear,0
 h2_ccgt,0
 battery1,0
 battery4,0

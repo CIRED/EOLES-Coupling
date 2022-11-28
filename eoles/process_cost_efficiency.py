@@ -295,7 +295,7 @@ if __name__ == '__main__':
     #     "all_stock": cost_efficiency_stock
     # }
     #
-    dict_cost, dict_heat = social_planner(aggregation_archetype=['Performance'], climate=2006,
+    dict_cost, dict_heat = social_planner(aggregation_archetype=['Wall class', 'Housing type'], climate=2006,
                                           smooth=False, building_stock="medium_3")
 
     # dict_cost, dict_heat = social_planner(aggregation_archetype=['Income owner'], climate=2006,

@@ -7,15 +7,14 @@ pv_g_ns,30
 pv_c,30
 river,60
 lake,70
-nuc,60
+nuclear,60
 ocgt,30
 ccgt,40
 phs,50
 electrolysis,25
 hydrogen,30
 h2_ccgt,40
-biogas1,20
-biogas2,20
+methanization,20
 battery1,15
 battery4,15
 methane,30
