@@ -11,8 +11,7 @@ import math
 from eoles.utils import get_pandas, process_RTE_demand, calculate_annuities_capex, calculate_annuities_storage_capex, \
     update_ngas_cost, define_month_hours, calculate_annuities_renovation, get_technical_cost, extract_hourly_generation, \
     extract_spot_price, extract_capacities, extract_energy_capacity, extract_supply_elec, extract_primary_gene, \
-    extract_use_elec
-
+    extract_use_elec, extract_renovation_rates, extract_heat_gene, calculate_LCOE_gene_tec, calculate_LCOE_conv_tec
 from pyomo.environ import (
     ConcreteModel,
     RangeSet,
@@ -33,24 +32,14 @@ from pyomo.environ import (
 
 
 class ModelEOLES():
-    def __init__(self, name, config, path, logger, nb_years, existing_capacity=None, existing_charging_capacity=None,
-                 existing_energy_capacity=None, total_demand_RTE=595*1e3, residential_heating_demand_RTE=33*1e3,
-                 H2_demand_RTE=50*1e3, social_cost_of_carbon=0, hourly_heat_elec=None, hourly_heat_gas=None,
-                 year=2050):
+    def __init__(self, name, config, path, logger, nb_years, hourly_heat_elec, hourly_heat_gas, existing_capacity=None, existing_charging_capacity=None,
+                 existing_energy_capacity=None, social_cost_of_carbon=0, year=2050, scenario_cost=None):
         """
 
         :param name: str
         :param config: dict
         :param nb_years: int
         :param existing_capa: pd.Series
-        :param total_demand_RTE: float
-            Final electricity demand excluding P2G given in RTE scenarios
-        :param residential_heating_demand_RTE: float
-            Final residential heating demand given in RTE scenarios
-        :param residential: bool
-            Indicates whether we want to change initial RTE residential heating demand values in the profile demand
-            When residential is False, we remove hourly residential profile summing up to total demand (RTE hypothesis)
-            and we add a new hourly residential profile summing up to specified total demand value.
         :param social_cost_of_carbon: int
             Social cost of carbon used to calculate emissions
         """
@@ -64,37 +53,41 @@ class ModelEOLES():
         self.nb_years = nb_years
         self.scc = social_cost_of_carbon
         self.year = year
-        self.total_demand_RTE = total_demand_RTE
-        self.residential_demand_RTE = residential_heating_demand_RTE
 
-        assert hourly_heat_elec is not None, "Hourly heat profile should be provided to the model when variable " \
-                                                 "residential is set to False"
+        assert hourly_heat_elec is None, "Hourly heat profile should be provided to the model when variable"
 
         # loading exogeneous variable data
         data_variable = read_input_variable(config, self.year)
         self.load_factors = data_variable["load_factors"]
-        self.demand1y = data_variable["demand"]
-        self.hourly_heat_elec = hourly_heat_elec
-        self.demand1y = self.demand1y + self.hourly_heat_elec  # we add electricity demand from heating
-        self.hourly_heat_gas = hourly_heat_gas
-        self.total_H2_demand = H2_demand_RTE
-
+        self.elec_demand1y = data_variable["demand"]
         self.lake_inflows = data_variable["lake_inflows"]
+
+        self.hourly_heat_elec_1y = hourly_heat_elec
+        self.hourly_heat_gas_1y = hourly_heat_gas
+
+        self.elec_demand1y = self.elec_demand1y + self.hourly_heat_elec_1y  # we add electricity demand from heating, may require changing if we include multiple weather years
+        self.hourly_heat_gas = hourly_heat_gas
+
         self.H2_demand = {}
         self.CH4_demand = {}
 
         # concatenate electricity demand data
-        self.demand = self.demand1y
+        self.elec_demand = self.elec_demand1y
         for i in range(self.nb_years - 1):
-            self.demand = pd.concat([self.demand, self.demand1y], ignore_index=True)
+            self.elec_demand = pd.concat([self.elec_demand, self.elec_demand1y], ignore_index=True)
 
         if self.hourly_heat_gas is not None:  # we provide gas data
-            self.demand_gas = self.hourly_heat_gas
+            self.gas_demand = self.hourly_heat_gas  # a voir s'il faut changer pour inclure éventuellement une demande fixe en plus (par exemple industrie)
             for i in range(self.nb_years - 1):
-                self.demand_gas = pd.concat([self.demand_gas, self.hourly_heat_gas], ignore_index=True)
+                self.gas_demand = pd.concat([self.gas_demand, self.hourly_heat_gas], ignore_index=True)
 
         # loading exogeneous static data
-        data_static = read_input_static(self.config)
+        data_static = read_input_static(self.config, self.year)
+        if scenario_cost is not None:  # we update costs based on data given in scenario
+            for df in scenario_cost.keys():
+                for tec in scenario_cost[df].keys():
+                    data_static[df][tec] = scenario_cost[df][tec]
+
         self.epsilon = data_static["epsilon"]
         if existing_capacity is not None:
             self.existing_capacity = existing_capacity
@@ -125,6 +118,7 @@ class ModelEOLES():
         self.conversion_efficiency = data_static["conversion_efficiency"]
         self.capacity_ex = data_static["capacity_ex"]
         self.miscellaneous = data_static["miscellaneous"]
+        self.total_H2_demand = data_static["demand_H2_RTE"]
 
         # calculate annuities
         self.annuities = calculate_annuities_capex(self.miscellaneous, self.capex, self.construction_time,
@@ -137,7 +131,7 @@ class ModelEOLES():
 
         # defining needed time steps
         self.first_hour = 0
-        self.last_hour = len(self.demand)
+        self.last_hour = len(self.elec_demand)
         self.first_month = self.miscellaneous['first_month']
 
         self.hours_by_months = {1: 744, 2: 672, 3: 744, 4: 720, 5: 744, 6: 720, 7: 744, 8: 744, 9: 720, 10: 744,
@@ -155,33 +149,37 @@ class ModelEOLES():
             RangeSet(1, 12 * self.nb_years)
         # Technologies
         self.model.tec = \
-            Set(initialize=["offshore_f", "offshore_g", "onshore", "pv_g", "pv_c", "river", "lake", "biogas1",
-                            "biogas2", "ocgt", "ccgt", "nuc", "h2_ccgt", "phs", "battery1", "battery4",
+            Set(initialize=["offshore_f", "offshore_g", "onshore", "pv_g", "pv_c", "river", "lake", "methanization",
+                            "ocgt", "ccgt", "nuclear", "h2_ccgt", "phs", "battery1", "battery4",
                             "methanation", "pyrogazification", "electrolysis", "natural_gas", "hydrogen", "methane"])
         # Variables Technologies
         self.model.vre = \
             Set(initialize=["offshore_f", "offshore_g", "onshore", "pv_g", "pv_c", "river"])
         # Electricity generating technologies
         self.model.elec_balance = \
-            Set(initialize=["offshore_f", "offshore_g", "onshore", "pv_g", "pv_c", "river", "lake", "nuc", "phs",
+            Set(initialize=["offshore_f", "offshore_g", "onshore", "pv_g", "pv_c", "river", "lake", "nuclear", "phs",
                             "battery1", "battery4", "ocgt", "ccgt", "h2_ccgt"])
 
         # Technologies for upward FRR
-        self.model.frr = Set(initialize=["lake", "phs", "ocgt", "ccgt", "nuc", "h2_ccgt"])
+        self.model.frr = Set(initialize=["lake", "phs", "ocgt", "ccgt", "nuclear", "h2_ccgt"])
 
         # Technologies producing electricity (not including storage technologies)
+        # self.model.elec_gene = Set(initialize=["offshore_f", "offshore_g", "onshore", "pv_g", "pv_c", "river", "lake",
+        #                                        "nuclear", "ocgt", "ccgt", "h2_ccgt"])
         self.model.elec_gene = Set(initialize=["offshore_f", "offshore_g", "onshore", "pv_g", "pv_c", "river", "lake",
-                                               "nuc", "ocgt", "ccgt", "h2_ccgt"])
-
+                                               "nuclear"])
         # Primary energy production
         self.model.primary_gene = Set(initialize=["offshore_f", "offshore_g", "onshore", "pv_g", "pv_c", "river",
-                                                  "lake", "nuc", "biogas1", "biogas2", "pyrogazification",
+                                                  "lake", "nuclear", "methanization", "pyrogazification",
                                                   "natural_gas"])
         # Technologies using electricity
         self.model.use_elec = Set(initialize=["phs", "battery1", "battery4", "electrolysis"])
+        # Technologies producing gas
+        self.model.gas_gene = Set(initialize=["methanization", "pyrogazification"])
 
         # Gas technologies used for balance (both CH4 and H2)
-        self.model.CH4_balance = Set(initialize=["biogas1", "biogas2", "pyrogazification", "natural_gas", "methanation", "methane"])
+        self.model.CH4_balance = Set(
+            initialize=["methanization", "pyrogazification", "natural_gas", "methanation", "methane"])
         self.model.H2_balance = Set(initialize=["electrolysis", "hydrogen"])
 
         # Conversion technologies
@@ -202,12 +200,11 @@ class ModelEOLES():
         # H2 storage
         self.model.str_H2 = Set(initialize=["hydrogen"])
 
-
     def define_other_demand(self):
         # Set the hydrogen demand for each hour
         for hour in self.model.h:
             # self.H2_demand[hour] = self.miscellaneous['H2_demand']
-            self.H2_demand[hour] = self.total_H2_demand/8760  # We make the assumption that H2 demand profile is flat
+            self.H2_demand[hour] = self.total_H2_demand / 8760  # We make the assumption that H2 demand profile is flat
 
         # Set the methane demand for each hour
         if self.hourly_heat_gas is None:
@@ -215,15 +212,16 @@ class ModelEOLES():
                 self.CH4_demand[hour] = self.miscellaneous['CH4_demand']
         else:
             for hour in self.model.h:
-                self.CH4_demand[hour] = self.demand_gas[hour]  # a bit redundant, could be removed
+                self.CH4_demand[hour] = self.gas_demand[hour]  # a bit redundant, could be removed
 
     def define_variables(self):
 
         def capacity_bounds(model, i):
-            if i in self.maximum_capacity.keys():
-                return self.existing_capacity[i], self.maximum_capacity[i]
+            if i in self.maximum_capacity.keys():  # there exists a max capacity
+                return self.existing_capacity[i], self.maximum_capacity[
+                    i]  # existing capacity is always the lower bound
             else:
-                return self.existing_capacity[i], None
+                return self.existing_capacity[i], None  # in this case, only lower bound exists
 
         def charging_capacity_bounds(model, i):
             if i in self.maximum_charging_capacity.keys():
@@ -333,32 +331,38 @@ class ModelEOLES():
             # TODO: check that the constraint is ok: charging capacity = capacity ?
             return model.charging_capacity[battery] == model.capacity[battery]
 
-        def biogas_constraint_rule(model):
-            """Constraint on biogas. The annual power production from biogas is limited to a certain amount."""
-            gene_biogas = sum(model.gene['biogas1', hour] + model.gene['biogas2', hour] for hour in model.h)
-            return gene_biogas <= self.miscellaneous['max_biogas'] * 1000  # max biogas yearly energy expressed in TWh
+        def methanization_constraint_rule(model):
+            """Constraint on methanization. The annual power production from methanization is limited to a certain amount."""
+            gene_biogas = sum(model.gene['methanization', hour] for hour in model.h)
+            return gene_biogas <= self.miscellaneous['max_methanization'] * 1000  # max biogas yearly energy expressed in TWh
+
+        def pyrogazification_constraint_rule(model):
+            """Constraint on pyrogazification. The annual power production from pyro is limited to a certain amount."""
+            gene_pyro = sum(model.gene['pyrogazification', hour] for hour in model.h)
+            return gene_pyro <= self.miscellaneous['max_pyrogazification'] * 1000  # max pyro yearly energy expressed in TWh
+
+        def reserves_constraint_rule(model, h):
+            """Constraint on frr reserves"""
+            res_req = sum(self.epsilon[vre] * model.capacity[vre] for vre in model.vre)
+            load_req = self.elec_demand[h] * self.miscellaneous['load_uncertainty'] * (1 + self.miscellaneous['delta'])
+            return sum(model.reserve[frr, h] for frr in model.frr) == res_req + load_req
 
         def hydrogen_balance_constraint_rule(model, h):
             """Constraint on hydrogen's balance. Hydrogen production must satisfy CCGT-H2 plants, H2 demand and
             methanation demand."""
             gene_e_h = model.gene['electrolysis', h] + model.gene['hydrogen', h]
-            dem_sto = model.gene['h2_ccgt', h] / self.conversion_efficiency['h2_ccgt'] + self.H2_demand[h] + model.storage[
-                'hydrogen', h]
+            dem_sto = model.gene['h2_ccgt', h] / self.conversion_efficiency['h2_ccgt'] + self.H2_demand[h] + \
+                      model.storage[
+                          'hydrogen', h]
             return gene_e_h == dem_sto
 
         def methane_balance_constraint_rule(model, h):
             """Constraint on methane's balance. Methane production must satisfy CCGT and OCGT plants and CH4 demand"""
-            gene_methane = model.gene['methanation', h] + model.gene['biogas1', h] + model.gene['biogas2', h] + \
+            gene_methane = model.gene['methanation', h] + model.gene['methanization', h] + \
                            model.gene['pyrogazification', h] + model.gene['methane', h] + model.gene["natural_gas", h]
             dem_sto = model.gene['ocgt', h] / self.conversion_efficiency['ocgt'] + model.gene['ccgt', h] / \
                       self.conversion_efficiency['ccgt'] + self.CH4_demand[h] + model.storage['methane', h]
             return gene_methane == dem_sto
-
-        def reserves_constraint_rule(model, h):
-            """Constraint on frr reserves"""
-            res_req = sum(self.epsilon[vre] * model.capacity[vre] for vre in model.vre)
-            load_req = self.demand[h] * self.miscellaneous['load_uncertainty'] * (1 + self.miscellaneous['delta'])
-            return sum(model.reserve[frr, h] for frr in model.frr) == res_req + load_req
 
         def electricity_adequacy_constraint_rule(model, h):
             """Constraint for supply/demand electricity relation'"""
@@ -367,35 +371,35 @@ class ModelEOLES():
                 'methanation', h] / self.conversion_efficiency[
                                  'methanation']  # technologies using electricity for conversion
             return sum(model.gene[balance, h] for balance in model.elec_balance) >= (
-                    self.demand[h] + storage + gene_from_elec)
+                    self.elec_demand[h] + storage + gene_from_elec)
 
-        def ramping_nuc_up_constraint_rule(model, h):
+        def ramping_nuclear_up_constraint_rule(model, h):
             """Constraint setting an upper ramping limit for nuclear flexibility"""
             previous_h = model.h.last() if h == 0 else h - 1
-            return model.gene['nuc', h] - model.gene['nuc', previous_h] + model.reserve['nuc', h] - model.reserve[
-                'nuc', previous_h] <= \
-                   self.miscellaneous['hourly_ramping_nuc'] * model.capacity['nuc']
+            return model.gene['nuclear', h] - model.gene['nuclear', previous_h] + model.reserve['nuclear', h] - model.reserve[
+                'nuclear', previous_h] <= \
+                   self.miscellaneous['hourly_ramping_nuclear'] * model.capacity['nuclear']
 
-        def ramping_nuc_down_constraint_rule(model, h):
+        def ramping_nuclear_down_constraint_rule(model, h):
             """Constraint setting a lower ramping limit for nuclear flexibility"""
             previous_h = model.h.last() if h == 0 else h - 1
-            return model.gene['nuc', previous_h] - model.gene['nuc', h] + model.reserve['nuc', previous_h] - \
+            return model.gene['nuclear', previous_h] - model.gene['nuclear', h] + model.reserve['nuclear', previous_h] - \
                    model.reserve[
-                       'nuc', h] <= \
-                   self.miscellaneous['hourly_ramping_nuc'] * model.capacity['nuc']
+                       'nuclear', h] <= \
+                   self.miscellaneous['hourly_ramping_nuclear'] * model.capacity['nuclear']
 
         def methanation_constraint_rule(model, h):
-            """Constraint on CO2 balance from methanization"""
+            """Constraint on CO2 balance from methanization. OLD VERSION."""
             # TODO: cette contrainte actuellement est peu réaliste car c'est une contrainte horaire ! normalement
             #  (cf Behrang, 2021) cela devrait être une contrainte sur la somme sur toutes les heures, cf contrainte suivante
-            return model.gene['methanation', h] / self.miscellaneous['eta_methanation'] <= (
-                    model.gene['biogas1', h] + model.gene['biogas2', h]) * self.miscellaneous[
+            return model.gene['methanation', h] / self.conversion_efficiency['methanation'] <= (
+                    model.gene['methanization', h]) * self.miscellaneous[
                        'percentage_co2_from_methanization']
 
         def methanation_CO2_constraint_rule(model):
             """Constraint on CO2 balance from methanization, summing over all hours of the year"""
             return sum(model.gene['methanation', h] for h in model.h) / self.conversion_efficiency['methanation'] <= (
-                    sum(model.gene['biogas1', h] + model.gene['biogas2', h] for h in model.h) * self.miscellaneous[
+                    sum(model.gene['methanization', h] for h in model.h) * self.miscellaneous[
                 'percentage_co2_from_methanization']
             )
 
@@ -405,56 +409,43 @@ class ModelEOLES():
         self.model.generation_capacity_constraint = \
             Constraint(self.model.h, self.model.tec, rule=generation_capacity_constraint_rule)
 
-        self.model.battery_1_capacity_constraint = \
-            Constraint(rule=battery1_capacity_constraint_rule)
+        self.model.battery_1_capacity_constraint = Constraint(rule=battery1_capacity_constraint_rule)
 
-        self.model.battery_4_capacity_constraint = \
-            Constraint(rule=battery4_capacity_constraint_rule)
+        self.model.battery_4_capacity_constraint = Constraint(rule=battery4_capacity_constraint_rule)
 
-        self.model.frr_capacity_constraint = \
-            Constraint(self.model.h, self.model.frr, rule=frr_capacity_constraint_rule)
+        self.model.frr_capacity_constraint = Constraint(self.model.h, self.model.frr, rule=frr_capacity_constraint_rule)
 
-        self.model.storing_constraint = \
-            Constraint(self.model.h, self.model.str, rule=storing_constraint_rule)
+        self.model.storing_constraint = Constraint(self.model.h, self.model.str, rule=storing_constraint_rule)
 
-        self.model.storage_constraint = \
-            Constraint(self.model.str, rule=storage_constraint_rule)
+        self.model.storage_constraint = Constraint(self.model.str, rule=storage_constraint_rule)
 
-        self.model.lake_reserve_constraint = \
-            Constraint(self.model.months, rule=lake_reserve_constraint_rule)
+        self.model.lake_reserve_constraint = Constraint(self.model.months, rule=lake_reserve_constraint_rule)
 
-        self.model.stored_capacity_constraint = \
-            Constraint(self.model.h, self.model.str, rule=stored_capacity_constraint)
+        self.model.stored_capacity_constraint = Constraint(self.model.h, self.model.str,
+                                                           rule=stored_capacity_constraint)
 
         self.model.storage_capacity_1_constraint = \
             Constraint(self.model.h, self.model.str, rule=storage_charging_capacity_constraint_rule)
 
-        self.model.battery_capacity_constraint = \
-            Constraint(self.model.battery, rule=battery_capacity_constraint_rule)
+        self.model.battery_capacity_constraint = Constraint(self.model.battery, rule=battery_capacity_constraint_rule)
 
-        self.model.biogas_constraint = \
-            Constraint(rule=biogas_constraint_rule)
+        self.model.biogas_constraint = Constraint(rule=methanization_constraint_rule)
 
-        self.model.hydrogen_balance_constraint = \
-            Constraint(self.model.h, rule=hydrogen_balance_constraint_rule)
+        self.model.pyrogazification_constraint = Constraint(rule=pyrogazification_constraint_rule)
 
-        self.model.methane_balance_constraint = \
-            Constraint(self.model.h, rule=methane_balance_constraint_rule)
+        self.model.ramping_nuclear_up_constraint = Constraint(self.model.h, rule=ramping_nuclear_up_constraint_rule)
 
-        self.model.reserves_constraint = \
-            Constraint(self.model.h, rule=reserves_constraint_rule)
+        self.model.ramping_nuclear_down_constraint = Constraint(self.model.h, rule=ramping_nuclear_down_constraint_rule)
 
-        self.model.electricity_adequacy_constraint = \
-            Constraint(self.model.h, rule=electricity_adequacy_constraint_rule)
+        self.model.methanation_constraint = Constraint(rule=methanation_CO2_constraint_rule)
 
-        self.model.ramping_nuc_up_constraint = \
-            Constraint(self.model.h, rule=ramping_nuc_up_constraint_rule)
+        self.model.reserves_constraint = Constraint(self.model.h, rule=reserves_constraint_rule)
 
-        self.model.ramping_nuc_down_constraint = \
-            Constraint(self.model.h, rule=ramping_nuc_down_constraint_rule)
+        self.model.hydrogen_balance_constraint = Constraint(self.model.h, rule=hydrogen_balance_constraint_rule)
 
-        self.model.methanation_constraint = \
-            Constraint(rule=methanation_CO2_constraint_rule)
+        self.model.methane_balance_constraint = Constraint(self.model.h, rule=methane_balance_constraint_rule)
+
+        self.model.electricity_adequacy_constraint = Constraint(self.model.h, rule=electricity_adequacy_constraint_rule)
 
     def define_objective(self):
         def objective_rule(model):
@@ -524,21 +515,21 @@ class ModelEOLES():
         # get value of objective function
         self.objective = self.solver_results["Problem"][0]["Upper bound"]
         self.technical_cost, self.emissions = get_technical_cost(self.model, self.objective, self.scc)
-        self.hourly_generation = extract_hourly_generation(self.model, self.demand)
+        self.hourly_generation = extract_hourly_generation(self.model, self.elec_demand)
         self.spot_price = extract_spot_price(self.model, self.last_hour)
         self.capacities = extract_capacities(self.model)
         self.energy_capacity = extract_energy_capacity(self.model)
         self.electricity_generation = extract_supply_elec(self.model, self.nb_years)
         self.primary_generation = extract_primary_gene(self.model, self.nb_years)
-        self.use_elec = extract_use_elec(self.model, self.nb_years, self.miscellaneous)
-        self.summary = extract_summary(self.model, self.demand, self.H2_demand, self.CH4_demand,
+        # self.use_elec = extract_use_elec(self.model, self.nb_years, self.miscellaneous)
+        self.summary, self.generation_per_technology, \
+        self.lcoe_per_tec = extract_summary(self.model, self.elec_demand, self.H2_demand, self.CH4_demand,
                                        self.annuities, self.storage_annuities, self.fOM, self.vOM, self.charging_opex,
                                        self.charging_capex, self.conversion_efficiency, self.nb_years)
         self.results = {'objective': self.objective, 'summary': self.summary,
                         'hourly_generation': self.hourly_generation,
                         'capacities': self.capacities, 'energy_capacity': self.energy_capacity,
-                        'supply_elec': self.electricity_generation, 'primary_generation': self.primary_generation,
-                        'use_elec': self.use_elec}
+                        'supply_elec': self.electricity_generation, 'primary_generation': self.primary_generation}
 
 
 def read_input_variable(config, year):
@@ -557,7 +548,7 @@ def read_input_variable(config, year):
     return o
 
 
-def read_input_static(config):
+def read_input_static(config, year):
     """Read static data"""
     epsilon = get_pandas(config["epsilon"], lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))
     existing_capacity = get_pandas(config["existing_capacity"],
@@ -579,7 +570,8 @@ def read_input_static(config):
     construction_time = get_pandas(config["construction_time"],
                                    lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # years
     capex = get_pandas(config["capex"],
-                       lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # 1e6€/GW
+                       lambda x: pd.read_csv(x, index_col=0))  # 1e6€/GW
+    capex = capex[[str(year)]].squeeze()  # get capex for year of interest
     storage_capex = get_pandas(config["storage_capex"],
                                lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # 1e6€/GW
     fOM = get_pandas(config["fOM"],
@@ -596,11 +588,15 @@ def read_input_static(config):
     eta_out = get_pandas(config["eta_out"],
                          lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))
     conversion_efficiency = get_pandas(config["conversion_efficiency"],
-                         lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))
+                                       lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))
     capacity_ex = get_pandas(config["capacity_ex"],
                              lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # GWh
     miscellaneous = get_pandas(config["miscellaneous"],
                                lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))
+    demand_H2_timesteps = get_pandas(config["demand_H2_timesteps"],
+                                            lambda x: pd.read_csv(x, index_col=0).squeeze())
+    demand_H2_RTE = demand_H2_timesteps[year]  # TWh
+
     o = dict()
     o["epsilon"] = epsilon
     o["existing_capacity"] = existing_capacity
@@ -623,6 +619,7 @@ def read_input_static(config):
     o["conversion_efficiency"] = conversion_efficiency
     o["capacity_ex"] = capacity_ex
     o["miscellaneous"] = miscellaneous
+    o["demand_H2_RTE"] = demand_H2_RTE * 1e3  # GWh
     return o
 
 
@@ -636,8 +633,8 @@ def extract_summary(model, demand, H2_demand, CH4_demand, annuities, storage_ann
 
     elec_spot_price = [-1e6 * model.dual[model.electricity_adequacy_constraint[h]] for h in
                        model.h]  # 1e3€/GWh = €/MWh
-    CH4_spot_price = [1e6 * model.dual[model.methane_balance_constraint[h]] for h in model.h]  # 1e3€ / GWh
-    H2_spot_price = [1e6 * model.dual[model.hydrogen_balance_constraint[h]] for h in model.h]  # 1e3€ / GWh
+    CH4_spot_price = [1e6 * model.dual[model.methane_balance_constraint[h]] for h in model.h]  # 1e3€ / GWh = €/MWh
+    H2_spot_price = [1e6 * model.dual[model.hydrogen_balance_constraint[h]] for h in model.h]  # 1e3€ / GWh = €/MWh
     gene_elec = [sum(value(model.gene[tec, hour]) for tec in model.elec_gene) for hour in model.h]
     storage_elec = [sum(value(model.gene[tec, hour]) for tec in model.str_elec) for hour in model.h]
 
@@ -648,9 +645,9 @@ def extract_summary(model, demand, H2_demand, CH4_demand, annuities, storage_ann
     weighted_price_generation = sum([elec_spot_price[h] * gene_elec[h] for h in model.h]) / sum(gene_elec)  # €/MWh
     summary["weighted_price_generation"] = weighted_price_generation
 
-    summary["demand_tot"] = elec_demand_tot
-    summary["hydrogen_tot"] = H2_demand_tot
-    summary["methane_tot"] = CH4_demand_tot
+    summary["elec_demand_tot"] = elec_demand_tot
+    summary["hydrogen_demand_tot"] = H2_demand_tot
+    summary["methane_demand_tot"] = CH4_demand_tot
 
     # Overall yearly energy generated by the technology in TWh
     # TODO: à mettre dans un autre dataframe
@@ -658,9 +655,10 @@ def extract_summary(model, demand, H2_demand, CH4_demand, annuities, storage_ann
     for tec in model.tec:
         gene_per_tec[tec] = sum(value(model.gene[tec, hour]) for hour in model.h) / 1000  # TWh
 
-    summary.update(gene_per_tec)
+    # summary.update(gene_per_tec)
 
-    sumgene_elec = sum(gene_per_tec[tec] for tec in model.elec_gene)  # production in TWh
+    sumgene_elec = sum(gene_per_tec[tec] for tec in model.elec_gene) + gene_per_tec["ocgt"] + gene_per_tec["ccgt"] + \
+                   gene_per_tec["h2_ccgt"]  # production in TWh
     summary["sumgene_elec"] = sumgene_elec
 
     G2P_bought = sum(CH4_spot_price[hour] * (
@@ -669,6 +667,19 @@ def extract_summary(model, demand, H2_demand, CH4_demand, annuities, storage_ann
                      for hour in model.h) / 1e3 + sum(H2_spot_price[hour] * (
             value(model.gene["h2_ccgt", hour]) / conversion_efficiency['h2_ccgt']) for hour in
                                                       model.h) / 1e3  # 1e6€ car l'objectif du modèle est en 1e9 €
+
+    # LCOE per technology
+    lcoe_per_tec = {}
+    lcoe_elec_gene = calculate_LCOE_gene_tec(model.elec_gene, model, annuities, fOM, vOM, nb_years, gene_per_tec)  # € / MWh-e
+    lcoe_elec_conv_CH4 = calculate_LCOE_conv_tec(["ocgt", "ccgt"], model, annuities, fOM, conversion_efficiency,
+                                             CH4_spot_price, nb_years, gene_per_tec)  # € / MWh-e
+    lcoe_elec_conv_H2 = calculate_LCOE_conv_tec(["h2_ccgt"], model, annuities, fOM, conversion_efficiency,
+                                             H2_spot_price, nb_years, gene_per_tec)  # € / MWh-e
+    lcoe_gas_gene = calculate_LCOE_gene_tec(model.gas_gene, model, annuities, fOM, vOM, nb_years, gene_per_tec)  # € / MWh-th
+    lcoe_per_tec.update(lcoe_elec_gene)
+    lcoe_per_tec.update(lcoe_elec_conv_CH4)
+    lcoe_per_tec.update(lcoe_elec_conv_H2)
+    lcoe_per_tec.update(lcoe_gas_gene)
 
     # LCOE: initial calculus from electricity costs
     lcoe_elec = (sum(
@@ -826,6 +837,6 @@ def extract_summary(model, demand, H2_demand, CH4_demand, annuities, storage_ann
     # summary["load_curtail_percent"] = lc_percent
     # summary["load_curtail_TWh"] = lc_TWh
     summary_df = pd.Series(summary)
-    return summary_df
+    return summary_df, gene_per_tec, lcoe_per_tec
 
 
