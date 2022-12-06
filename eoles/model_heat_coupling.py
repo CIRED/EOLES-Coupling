@@ -11,7 +11,8 @@ import math
 from eoles.utils import get_pandas, process_RTE_demand, calculate_annuities_capex, calculate_annuities_storage_capex, \
     update_ngas_cost, define_month_hours, calculate_annuities_renovation, get_technical_cost, extract_hourly_generation, \
     extract_spot_price, extract_capacities, extract_energy_capacity, extract_supply_elec, extract_primary_gene, \
-    extract_use_elec, extract_renovation_rates, extract_heat_gene, calculate_LCOE_gene_tec, calculate_LCOE_conv_tec
+    extract_use_elec, extract_renovation_rates, extract_heat_gene, calculate_LCOE_gene_tec, calculate_LCOE_conv_tec, \
+    extract_charging_capacity
 from pyomo.environ import (
     ConcreteModel,
     RangeSet,
@@ -93,6 +94,12 @@ class ModelEOLES():
             self.elec_demand = pd.concat([self.elec_demand, self.elec_demand1y], ignore_index=True)
             for key in self.heat_demand.keys():
                 self.heat_demand[key] = pd.concat([self.heat_demand[key], self.heat_demand1y[key]], ignore_index=True)  # we use the keys to add demand for each possible archetype
+
+        # We want the global heat demand profile before renovation
+        list_archetypes = list(self.heat_demand.keys())
+        self.heat_demand_tot = self.heat_demand[list_archetypes[0]]
+        for i in range(1, len(list_archetypes)):
+            self.heat_demand_tot = self.heat_demand_tot + self.heat_demand[list_archetypes[i]]
 
         if self.hourly_heat_gas is not None:  # we provide hourly gas data, for example with tertiary sector
             self.gas_demand = self.hourly_heat_gas
@@ -592,10 +599,12 @@ class ModelEOLES():
         # get value of objective function
         self.objective = self.solver_results["Problem"][0]["Upper bound"]
         self.technical_cost, self.emissions = get_technical_cost(self.model, self.objective, self.scc)
-        self.hourly_generation = extract_hourly_generation(self.model, self.elec_demand)
+        self.hourly_generation = extract_hourly_generation(self.model, self.elec_demand, list(self.CH4_demand.values()),
+                                                           list(self.H2_demand.values()), heat_demand=self.heat_demand_tot)
         self.spot_price = extract_spot_price(self.model, self.last_hour)
         self.capacities = extract_capacities(self.model)
         self.energy_capacity = extract_energy_capacity(self.model)
+        self.charging_capacity = extract_charging_capacity(self.model)
         self.renovation_rates = extract_renovation_rates(self.model, self.nb_linearize)
         self.electricity_generation = extract_supply_elec(self.model, self.nb_years)
         self.primary_generation = extract_primary_gene(self.model, self.nb_years)

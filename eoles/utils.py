@@ -32,16 +32,19 @@ def process_RTE_demand(config, year, demand):
     demand_noP2G_RTE_timesteps = get_pandas(config["demand_noP2G_RTE_timesteps"],
                                             lambda x: pd.read_csv(x, index_col=0).squeeze())
     demand_residential_heating_RTE_timesteps = get_pandas(config["demand_residential_heating_RTE_timesteps"],
-                                            lambda x: pd.read_csv(x, index_col=0).squeeze())
+                                                          lambda x: pd.read_csv(x, index_col=0).squeeze())
     percentage_hourly_residential_heating_profile = get_pandas(config["percentage_hourly_residential_heating_profile"],
-                                            lambda x: pd.read_csv(x, index_col=0, header=None).squeeze())
+                                                               lambda x: pd.read_csv(x, index_col=0,
+                                                                                     header=None).squeeze())
     demand_noP2G_RTE = demand_noP2G_RTE_timesteps[year]  # in TWh
     demand_residential_heating = demand_residential_heating_RTE_timesteps[year]  # in TWh
 
-    adjust_demand = (demand_noP2G_RTE * 1e3 - 580 * 1e3) / 8760
+    adjust_demand = (
+                                demand_noP2G_RTE * 1e3 - 580 * 1e3) / 8760  # 580TWh is the total of the profile we use as basis for electricity demand
     demand_elec_RTE_noP2G = demand + adjust_demand  # we adjust demand profile to obtain the correct total amount of demand based on RTE projections without P2G
 
-    hourly_residential_heating_RTE = create_hourly_residential_demand_profile(demand_residential_heating * 1e3, method="RTE")
+    hourly_residential_heating_RTE = create_hourly_residential_demand_profile(demand_residential_heating * 1e3,
+                                                                              method="RTE")
 
     demand_elec_RTE_no_residential_heating = demand_elec_RTE_noP2G - hourly_residential_heating_RTE  # we remove residential electric demand
     return demand_elec_RTE_no_residential_heating
@@ -79,10 +82,12 @@ def calculate_annuities_renovation(linearized_renovation_costs, miscellaneous):
     """Be careful to units. Renovation costs are initially expressed in 1e9 € contrary to the rest of the costs !!"""
     renovation_annuities = linearized_renovation_costs.copy()
     for archetype in linearized_renovation_costs.index:
-        renovation_annuities.at[archetype] = miscellaneous["discount_rate"] * linearized_renovation_costs[archetype] * 1e3 * (
-                miscellaneous["discount_rate"] * miscellaneous["construction_time_renov"] + 1) / (
-                                             1 - (1 + miscellaneous["discount_rate"]) ** (
-                                         -miscellaneous["lifetime_renov"]))
+        renovation_annuities.at[archetype] = miscellaneous["discount_rate"] * linearized_renovation_costs[
+            archetype] * 1e3 * (
+                                                     miscellaneous["discount_rate"] * miscellaneous[
+                                                 "construction_time_renov"] + 1) / (
+                                                     1 - (1 + miscellaneous["discount_rate"]) ** (
+                                                 -miscellaneous["lifetime_renov"]))
     return renovation_annuities
 
 
@@ -99,9 +104,6 @@ def update_ngas_cost(vOM_init, scc, emission_rate=0.2295):
     vOM in M€/GWh
     """
     return vOM_init + scc * emission_rate / 1000
-
-
-
 
 
 def create_hourly_residential_demand_profile(total_consumption, method="RTE"):
@@ -140,6 +142,7 @@ def define_month_hours(first_month, nb_years, months_hours, hours_by_months):
             j = 1
     return months_hours
 
+
 ### Processing output
 
 def get_technical_cost(model, objective, scc):
@@ -171,6 +174,16 @@ def extract_energy_capacity(model):
     return energy_capacity
 
 
+def extract_charging_capacity(model):
+    """Extracts energy capacity for all storage technology, in GWh"""
+    list_str = list(model.str)
+    charging_capacity = pd.Series(index=list_str, dtype=float)
+
+    for tec in list_str:
+        charging_capacity.loc[tec] = value(model.charging_capacity[tec])
+    return charging_capacity
+
+
 def extract_renovation_rates(model, nb_linearize):
     """Extractions renovation decisions (in % of initial heating demand)"""
     list_renovation_options = model.renovation  # includes linearized segments
@@ -185,7 +198,7 @@ def extract_renovation_rates(model, nb_linearize):
     return renovation_rates
 
 
-def extract_hourly_generation(model, demand):
+def extract_hourly_generation(model, elec_demand, CH4_demand, H2_demand, heat_demand=None):
     """Extracts hourly defined data, including demand, generation and storage"""
     list_tec = list(model.tec)
     list_storage_in = [e + "_in" for e in model.str]
@@ -193,7 +206,11 @@ def extract_hourly_generation(model, demand):
     list_columns = ["hour", "demand"] + list_tec + list_storage_in + list_storage_charge
     hourly_generation = pd.DataFrame(columns=list_columns)
     hourly_generation.loc[:, "hour"] = list(model.h)
-    hourly_generation.loc[:, "demand"] = demand
+    hourly_generation.loc[:, "elec_demand"] = elec_demand
+    hourly_generation.loc[:, "CH4_demand"] = CH4_demand
+    hourly_generation.loc[:, "H2_demand"] = H2_demand
+    if heat_demand is not None:
+        hourly_generation.loc[:, "heat_demand"] = heat_demand
 
     for tec in list_tec:
         hourly_generation[tec] = value(model.gene[tec, :])  # GWh
@@ -262,7 +279,8 @@ def calculate_LCOE_gene_tec(list_tec, model, annuities, fOM, vOM, nb_years, gene
     for tec in list_tec:
         gene = gene_per_tec[tec]  # TWh
         lcoe_tec = (
-            (value(model.capacity[tec])) * (annuities[tec] + fOM[tec]) * nb_years + gene * 1000 * vOM[tec]) / gene  # € / MWh
+                           (value(model.capacity[tec])) * (annuities[tec] + fOM[tec]) * nb_years + gene * 1000 * vOM[
+                       tec]) / gene  # € / MWh
         lcoe[tec] = lcoe_tec
     return lcoe
 
@@ -274,9 +292,9 @@ def calculate_LCOE_conv_tec(list_tec, model, annuities, fOM, conversion_efficien
         gene = gene_per_tec[tec]  # TWh
         vOM = sum(spot_price[hour] * (
                 value(model.gene[tec, hour]) / conversion_efficiency[tec]) for hour in
-            model.h) / 1e3  # 1e6 €
+                  model.h) / 1e3  # 1e6 €
         lcoe_tec = (
-            value(model.capacity[tec]) * (annuities[tec] + fOM[tec]) * nb_years + vOM) / gene  # € / MWh
+                           value(model.capacity[tec]) * (annuities[tec] + fOM[tec]) * nb_years + vOM) / gene  # € / MWh
         lcoe[tec] = lcoe_tec
     return lcoe
 
@@ -346,10 +364,11 @@ def process_heating_need(dict_heat, climate):
         Year to start counting hours"""
     for key in dict_heat.keys():
         heating_need = dict_heat[key]
-        new_index_hour = [int((e - datetime.datetime(climate, 1, 1, 0)).total_seconds() / 3600) for e in heating_need.index]  # transform into number of hours
+        new_index_hour = [int((e - datetime.datetime(climate, 1, 1, 0)).total_seconds() / 3600) for e in
+                          heating_need.index]  # transform into number of hours
         heating_need.index = new_index_hour
         heating_need = heating_need.sort_index(ascending=True)
-        heating_need = heating_need*1e-6  # convert kWh to GWh
+        heating_need = heating_need * 1e-6  # convert kWh to GWh
         dict_heat[key] = heating_need
     return dict_heat
 
@@ -361,14 +380,53 @@ def calculate_hp_cop(climate):
     """Calculates heat pump coefficient based on renewable ninja data."""
     path_weather = Path("eoles") / "inputs" / "ninja_weather_country_FR_merra-2_population_weighted.csv"
     weather = get_pandas(path_weather,
-               lambda x: pd.read_csv(x, header=2))
+                         lambda x: pd.read_csv(x, header=2))
     weather["date"] = weather.apply(lambda row: datetime.datetime.strptime(row["time"], '%Y-%m-%d %H:%M:%S'), axis=1)
-    weather = weather.loc[(weather.date >= datetime.datetime(climate, 1, 1, 0)) & (weather.date <= datetime.datetime(climate, 12, 31, 23))]
+    weather = weather.loc[(weather.date >= datetime.datetime(climate, 1, 1, 0)) & (
+                weather.date <= datetime.datetime(climate, 12, 31, 23))]
     weather["delta_temperature"] = TEMP_SINK - weather["temperature"]
-    weather["hp_cop"] = 6.81 - 0.121*weather["delta_temperature"] + 0.00063*weather["delta_temperature"]**2  # formula for HP performance coefficient
+    weather["hp_cop"] = 6.81 - 0.121 * weather["delta_temperature"] + 0.00063 * weather[
+        "delta_temperature"] ** 2  # formula for HP performance coefficient
     weather = weather[["date", "hp_cop"]].set_index("date")
     new_index_hour = [int((e - datetime.datetime(climate, 1, 1, 0)).total_seconds() / 3600) for e in
                       weather.index]  # transform into number of hours
     weather.index = new_index_hour
     weather = weather.sort_index(ascending=True)
     return weather
+
+
+def heating_hourly_profile(method, percentage=None):
+    """Creates hourly profile"""
+    assert method in ["very_extreme", "extreme", "medium", "valentin", "valentin_modif"]
+    if method == "very_extreme":
+        hourly_profile_test = pd.Series(
+            [0, 0, 0, 0, 0, 0, 0, 0, 0.1, 0.1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.2, 0.2, 0.2, 0.2, 0],
+            index=pd.TimedeltaIndex(range(0, 24), unit='h'))  # extreme
+    elif method == "extreme":
+        hourly_profile_test = pd.Series(
+            [0.1, 0, 0, 0, 0, 0, 0.05, 0.05, 0.05, 0.05, 0, 0, 0, 0, 0, 0, 0, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1],
+            index=pd.TimedeltaIndex(range(0, 24), unit='h'))
+    elif method == "medium":
+        L = [2, 2, 1, 1, 1, 1, 2, 2, 3, 2, 1, 1, 1, 1, 1, 1, 1, 2, 2, 3, 4, 4, 3, 3]  # profil plus smooth
+        hourly_profile_test = pd.Series([e / sum(L) for e in L], index=pd.TimedeltaIndex(range(0, 24), unit='h'))
+    elif method == "valentin":
+        L = [1850, 1750, 1800, 1850, 1900, 1950, 2050, 2120, 2250, 2100, 2000, 1850, 1700, 1550, 1600, 1650, 1800, 2000,
+             2100, 2150, 2200, 2150, 2100, 2000]  # profil issu de Valentin
+        hourly_profile_test = pd.Series([e / sum(L) for e in L], index=pd.TimedeltaIndex(range(0, 24), unit='h'))
+    elif method == "valentin_modif":  # utile pour tester la sensibilité au choix du profil horaire
+        L = [1850, 1750, 1800, 1850, 1900, 1950, 2050, 2120, 2250, 2100, 2000, 1850, 1700, 1550, 1600, 1650, 1800, 2000,
+             2100, 2150, 2200, 2150, 2100, 2000]  # profil issu de Valentin
+        hourly_profile_test = pd.Series([e / sum(L) for e in L], index=pd.TimedeltaIndex(range(0, 24), unit='h'))
+        threshold = 0.042
+        modif = 0.04*percentage
+        assert hourly_profile_test[hourly_profile_test > 0.042].shape[0] == 12
+        hourly_profile_test[hourly_profile_test > 0.042] = hourly_profile_test[hourly_profile_test > threshold] + modif
+        hourly_profile_test[hourly_profile_test <= 0.042] = hourly_profile_test[hourly_profile_test <= threshold] - modif
+    return hourly_profile_test
+
+
+if __name__ == '__main__':
+    path_cop_behrang = Path("eoles") / "inputs" / "hp_cop.csv"
+    hp_cop_behrang = get_pandas(path_cop_behrang, lambda x: pd.read_csv(x, index_col=0, header=0))
+    hp_cop_new = calculate_hp_cop(climate=2006)
+    # hp_cop_new.to_csv(Path("eoles") / "inputs" / "hp_cop_2006.csv")

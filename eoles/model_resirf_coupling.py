@@ -11,7 +11,8 @@ import math
 from eoles.utils import get_pandas, process_RTE_demand, calculate_annuities_capex, calculate_annuities_storage_capex, \
     update_ngas_cost, define_month_hours, calculate_annuities_renovation, get_technical_cost, extract_hourly_generation, \
     extract_spot_price, extract_capacities, extract_energy_capacity, extract_supply_elec, extract_primary_gene, \
-    extract_use_elec, extract_renovation_rates, extract_heat_gene, calculate_LCOE_gene_tec, calculate_LCOE_conv_tec
+    extract_use_elec, extract_renovation_rates, extract_heat_gene, calculate_LCOE_gene_tec, calculate_LCOE_conv_tec, \
+    extract_charging_capacity
 from pyomo.environ import (
     ConcreteModel,
     RangeSet,
@@ -515,10 +516,11 @@ class ModelEOLES():
         # get value of objective function
         self.objective = self.solver_results["Problem"][0]["Upper bound"]
         self.technical_cost, self.emissions = get_technical_cost(self.model, self.objective, self.scc)
-        self.hourly_generation = extract_hourly_generation(self.model, self.elec_demand)
+        self.hourly_generation = extract_hourly_generation(self.model, self.elec_demand, self.CH4_demand, self.H2_demand)
         self.spot_price = extract_spot_price(self.model, self.last_hour)
         self.capacities = extract_capacities(self.model)
         self.energy_capacity = extract_energy_capacity(self.model)
+        self.charging_capacity = extract_charging_capacity(self.model)
         self.electricity_generation = extract_supply_elec(self.model, self.nb_years)
         self.primary_generation = extract_primary_gene(self.model, self.nb_years)
         # self.use_elec = extract_use_elec(self.model, self.nb_years, self.miscellaneous)
