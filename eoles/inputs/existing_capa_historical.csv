@@ -12,13 +12,13 @@ pv_c,0,0,0,0,0,0
 methanization,0,0,0,0,0,0
 ocgt,6,6,6,6,6,6
 ccgt,0,0,0,0,0,0
-nuc,63,59.5,52.2,43.1,35,15.5
+nuclear,63,59.5,52.2,43.1,35,15.5
 h2_ccgt,0,0,0,0,0,0
 battery1,0,0,0,0,0,0
 battery4,0,0,0,0,0,0
 electrolysis,0,0,0,0,0,0
 hydrogen,0,0,0,0,0,0
-methane,,,,,,0
+methane,0,0,0,0,0,0
 methanation,0,0,0,0,0,0
 pyrogazification,0,0,0,0,0,0
-natural_gas,,,,,,0
+natural_gas,0,0,0,0,0,0

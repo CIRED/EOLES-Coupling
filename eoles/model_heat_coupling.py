@@ -12,7 +12,7 @@ from eoles.utils import get_pandas, process_RTE_demand, calculate_annuities_cape
     update_ngas_cost, define_month_hours, calculate_annuities_renovation, get_technical_cost, extract_hourly_generation, \
     extract_spot_price, extract_capacities, extract_energy_capacity, extract_supply_elec, extract_primary_gene, \
     extract_use_elec, extract_renovation_rates, extract_heat_gene, calculate_LCOE_gene_tec, calculate_LCOE_conv_tec, \
-    extract_charging_capacity
+    extract_charging_capacity, extract_renovation_rates_detailed
 from pyomo.environ import (
     ConcreteModel,
     RangeSet,
@@ -35,8 +35,9 @@ from pyomo.environ import (
 class ModelEOLES():
     def __init__(self, name, config, path, logger, nb_years, heating_demand, nb_linearize, linearized_renovation_costs,
                  threshold_linearized_renovation_costs, existing_capacity=None, existing_charging_capacity=None,
-                 existing_energy_capacity=None, hourly_heat_gas=None, social_cost_of_carbon=0, year=2050, scenario_cost=None,
-                 hp_hourly=True, renov=None):
+                 existing_energy_capacity=None, existing_renovation_rate=None, maximum_capacity=None,
+                 hourly_heat_gas=None, social_cost_of_carbon=0,
+                 year=2050, proj_demand=0, scenario_cost=None, hp_hourly=True, renov=None):
         """
 
         :param name: str
@@ -44,13 +45,16 @@ class ModelEOLES():
         :param nb_years: int
         :param heating_demand: dict
             Dictionary containing heating demand in GWh-th for all considered archetypes
-        :param existing_capa: pd.Series
-        : param residential_heating_demand: float
-            Final heating demand to be satisfied (in TWh-th)
-        :param nb_archetype: int
-            Number of building archetypes considered in our model
+        :param nb_linearize: int
+            Number of segments in the linearization process for a given archetype
+        :param linearized_renovation_costs: pd.Series
+        :param threshold_linearized_renovation_costs: pd.Series
+        :param existing_capacity: pd.Series
+        :param maximum_capacity: pd.Series
+            Maximum capacity allowed for a given technology
         :param social_cost_of_carbon: int
             Social cost of carbon used to calculate emissions
+        :param year: year to consider given costs and demand projections
         :param scenario_cost: dict
             Includes updates in cost assumptions
         :param hp_hourly: bool
@@ -70,6 +74,10 @@ class ModelEOLES():
         self.year = year
         self.nb_linearize = nb_linearize  # number of linearized segment to represent one heating archetype
         self.renov = renov
+        if existing_renovation_rate is not None:
+            self.existing_renovation_rate = existing_renovation_rate  # if renovation decisions have already been taken
+        else:
+            self.existing_renovation_rate = pd.Series(0, index=linearized_renovation_costs.index, dtype=float)  # we add the fact that no renovation was taken before
 
         # loading exogeneous variable data
         data_variable = read_input_variable(config, self.year)
@@ -78,7 +86,8 @@ class ModelEOLES():
         self.lake_inflows = data_variable["lake_inflows"]
 
         if hp_hourly is False:
-            data_variable["hp_cop"] = pd.Series(2.8, index=data_variable["hp_cop"].index)  # we use a fixed coefficient for heat pumps
+            data_variable["hp_cop"] = pd.Series(2.8, index=data_variable[
+                "hp_cop"].index)  # we use a fixed coefficient for heat pumps
 
         self.hp_cop = data_variable["hp_cop"]
 
@@ -93,7 +102,8 @@ class ModelEOLES():
         for i in range(self.nb_years - 1):
             self.elec_demand = pd.concat([self.elec_demand, self.elec_demand1y], ignore_index=True)
             for key in self.heat_demand.keys():
-                self.heat_demand[key] = pd.concat([self.heat_demand[key], self.heat_demand1y[key]], ignore_index=True)  # we use the keys to add demand for each possible archetype
+                self.heat_demand[key] = pd.concat([self.heat_demand[key], self.heat_demand1y[key]],
+                                                  ignore_index=True)  # we use the keys to add demand for each possible archetype
 
         # We want the global heat demand profile before renovation
         list_archetypes = list(self.heat_demand.keys())
@@ -126,7 +136,10 @@ class ModelEOLES():
             self.existing_energy_capacity = existing_energy_capacity
         else:  # default value
             self.existing_energy_capacity = data_static["existing_energy_capacity"]
-        self.maximum_capacity = data_static["maximum_capacity"]
+        if maximum_capacity is not None:
+            self.maximum_capacity = maximum_capacity
+        else:
+            self.maximum_capacity = data_static["maximum_capacity"]
         self.maximum_charging_capacity = data_static["maximum_charging_capacity"]
         self.maximum_energy_capacity = data_static["maximum_energy_capacity"]
         self.fix_capa = data_static["fix_capa"]
@@ -149,14 +162,6 @@ class ModelEOLES():
         self.threshold_linearized_renovation_costs = threshold_linearized_renovation_costs
         assert self.linearized_renovation_costs.shape == self.threshold_linearized_renovation_costs.shape  # they must be the same shape as they correspond to similar archetypes !
         self.total_H2_demand = data_static["demand_H2_RTE"]
-
-
-        # TODO: a enlever je pense, plus nécessaire
-        # self.heat_demand_new = {}
-        # for key in self.linearized_renovation_costs.index:
-        #     archetype = '_'.join(key.split('_')[:-1])  # get archetype
-        #     self.heat_demand_new[key] = self.heat_demand[archetype]
-        # self.heat_demand = self.heat_demand_new
 
         # calculate annuities
         self.annuities = calculate_annuities_capex(self.miscellaneous, self.capex, self.construction_time,
@@ -288,7 +293,7 @@ class ModelEOLES():
 
         def renovation_bounds(model, i):
             # TODO: il faudra changer cette ligne dans le cas trajectoire pour ajouter une borne inf
-            return 0, self.threshold_linearized_renovation_costs[i]  # max renovation rate for a given linearization segment
+            return self.existing_renovation_rate[i], self.threshold_linearized_renovation_costs[i]
 
         # Hourly energy generation in GWh/h
         self.model.gene = \
@@ -336,7 +341,6 @@ class ModelEOLES():
                 list_r = [f"{renov}_{i}" for i in range(self.nb_linearize)]
                 for r in list_r:
                     self.model.renovation_rate[r].fix(0)
-
 
     def define_constraints(self):
         def generation_vre_constraint_rule(model, h, vre):
@@ -400,12 +404,14 @@ class ModelEOLES():
         def methanization_constraint_rule(model):
             """Constraint on methanization. The annual power production from methanization is limited to a certain amount."""
             gene_biogas = sum(model.gene['methanization', hour] for hour in model.h)
-            return gene_biogas <= self.miscellaneous['max_methanization'] * 1000  # max biogas yearly energy expressed in TWh
+            return gene_biogas <= self.miscellaneous[
+                'max_methanization'] * 1000  # max biogas yearly energy expressed in TWh
 
         def pyrogazification_constraint_rule(model):
             """Constraint on pyrogazification. The annual power production from pyro is limited to a certain amount."""
             gene_pyro = sum(model.gene['pyrogazification', hour] for hour in model.h)
-            return gene_pyro <= self.miscellaneous['max_pyrogazification'] * 1000  # max pyro yearly energy expressed in TWh
+            return gene_pyro <= self.miscellaneous[
+                'max_pyrogazification'] * 1000  # max pyro yearly energy expressed in TWh
 
         def reserves_constraint_rule(model, h):
             """Constraint on frr reserves"""
@@ -427,7 +433,8 @@ class ModelEOLES():
             gene_methane = model.gene['methanation', h] + model.gene['methanization', h] + \
                            model.gene['pyrogazification', h] + model.gene['methane', h] + model.gene["natural_gas", h]
             dem_sto = model.gene['ocgt', h] / self.conversion_efficiency['ocgt'] + model.gene['ccgt', h] / \
-                      self.conversion_efficiency['ccgt'] + model.gene["gas_boiler", h] / self.conversion_efficiency["gas_boiler"] \
+                      self.conversion_efficiency['ccgt'] + model.gene["gas_boiler", h] / self.conversion_efficiency[
+                          "gas_boiler"] \
                       + self.CH4_demand[h] + model.storage['methane', h]
             return gene_methane == dem_sto
 
@@ -436,9 +443,12 @@ class ModelEOLES():
             renovation measures."""
             # Remarque: attention au traitement différent de fuel_boiler et wood_boiler
             # heat_demand_with_renov = sum(self.heat_demand[archetype][h]*(1-model.renovation_rate[archetype]) for archetype in model.renovation) # not accurate anymore i think
-            heat_demand_with_renov = sum(self.heat_demand[a][h]*(1-sum(model.renovation_rate[f"{a}_{i}"] for i in range(self.nb_linearize))) for a in model.archetype)
+            heat_demand_with_renov = sum(
+                self.heat_demand[a][h] * (1 - sum(model.renovation_rate[f"{a}_{i}"] for i in range(self.nb_linearize)))
+                for a in model.archetype)
             heat_prod = model.gene["heat_pump", h] + model.gene["resistive", h] + model.gene["gas_boiler", h] \
-                        + model.gene["fuel_boiler", h] * self.conversion_efficiency["fuel_boiler"] + model.gene["wood_boiler", h] * self.conversion_efficiency["wood_boiler"]
+                        + model.gene["fuel_boiler", h] * self.conversion_efficiency["fuel_boiler"] + model.gene[
+                            "wood_boiler", h] * self.conversion_efficiency["wood_boiler"]
             return heat_prod >= heat_demand_with_renov
 
         def electricity_adequacy_constraint_rule(model, h):
@@ -451,13 +461,15 @@ class ModelEOLES():
                           self.conversion_efficiency['resistive']  # heating technologies using electricity
             prod_elec = sum(model.gene[balance, h] for balance in model.elec_balance)
             return prod_elec >= (
-                    self.elec_demand[h] + heat_demand + storage + gene_from_elec)  # this inequality allows curtailment to take place
+                    self.elec_demand[
+                        h] + heat_demand + storage + gene_from_elec)  # this inequality allows curtailment to take place
 
         def ramping_nuclear_up_constraint_rule(model, h):
             """Constraint setting an upper ramping limit for nuclear flexibility"""
             previous_h = model.h.last() if h == 0 else h - 1
-            return model.gene['nuclear', h] - model.gene['nuclear', previous_h] + model.reserve['nuclear', h] - model.reserve[
-                'nuclear', previous_h] <= \
+            return model.gene['nuclear', h] - model.gene['nuclear', previous_h] + model.reserve['nuclear', h] - \
+                   model.reserve[
+                       'nuclear', previous_h] <= \
                    self.miscellaneous['hourly_ramping_nuclear'] * model.capacity['nuclear']
 
         def ramping_nuclear_down_constraint_rule(model, h):
@@ -473,7 +485,7 @@ class ModelEOLES():
             # TODO: cette contrainte actuellement est peu réaliste car c'est une contrainte horaire ! normalement
             #  (cf Behrang, 2021) cela devrait être une contrainte sur la somme sur toutes les heures, cf contrainte suivante
             return model.gene['methanation', h] / self.conversion_efficiency['methanation'] <= (
-                    model.gene['methanization', h]) * self.miscellaneous[
+                model.gene['methanization', h]) * self.miscellaneous[
                        'percentage_co2_from_methanization']
 
         def methanation_CO2_constraint_rule(model):
@@ -549,7 +561,7 @@ class ModelEOLES():
                         model.charging_capacity[storage_tecs] * self.charging_opex[storage_tecs] * self.nb_years
                         for storage_tecs in model.str)
                     + sum(sum(model.gene[tec, h] * self.vOM[tec] for h in model.h) for tec in model.tec)
-                    + sum(model.renovation_rate[tec]*self.renovation_annuities[tec] * self.nb_years for tec in
+                    + sum((model.renovation_rate[renov] - self.existing_renovation_rate[renov]) * self.renovation_annuities[renov] * self.nb_years for renov in
                           model.renovation)
                     ) / 1000
 
@@ -600,12 +612,15 @@ class ModelEOLES():
         self.objective = self.solver_results["Problem"][0]["Upper bound"]
         self.technical_cost, self.emissions = get_technical_cost(self.model, self.objective, self.scc)
         self.hourly_generation = extract_hourly_generation(self.model, self.elec_demand, list(self.CH4_demand.values()),
-                                                           list(self.H2_demand.values()), heat_demand=self.heat_demand_tot)
+                                                           list(self.H2_demand.values()),
+                                                           heat_demand=self.heat_demand_tot)
         self.spot_price = extract_spot_price(self.model, self.last_hour)
         self.capacities = extract_capacities(self.model)
         self.energy_capacity = extract_energy_capacity(self.model)
         self.charging_capacity = extract_charging_capacity(self.model)
         self.renovation_rates = extract_renovation_rates(self.model, self.nb_linearize)
+        self.renovation_rates_detailed = extract_renovation_rates_detailed(
+            self.model)  # detailed renovation rate at the linearized segment level
         self.electricity_generation = extract_supply_elec(self.model, self.nb_years)
         self.primary_generation = extract_primary_gene(self.model, self.nb_years)
         self.heat_generation = extract_heat_gene(self.model, self.nb_years)
@@ -630,7 +645,8 @@ def read_input_variable(config, year):
 
     lake_inflows = get_pandas(config["lake_inflows"],
                               lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # GWh
-    hp_cop = get_pandas(config["hp_cop"], lambda x: pd.read_csv(x, index_col=0, header=None).squeeze())  # GWh-th / GWh-e
+    hp_cop = get_pandas(config["hp_cop"],
+                        lambda x: pd.read_csv(x, index_col=0, header=None).squeeze())  # GWh-th / GWh-e
     o = dict()
     o["load_factors"] = load_factors
     o["demand"] = demand_no_residential
@@ -693,7 +709,7 @@ def read_input_static(config, year):
     # threshold_linearized_renovation_costs = get_pandas(config["threshold_linearized_renovation_costs"],
     #                                         lambda x: pd.read_csv(x, index_col=0, header=None).squeeze())
     demand_H2_timesteps = get_pandas(config["demand_H2_timesteps"],
-                                            lambda x: pd.read_csv(x, index_col=0).squeeze())
+                                     lambda x: pd.read_csv(x, index_col=0).squeeze())
     demand_H2_RTE = demand_H2_timesteps[year]  # TWh
 
     o = dict()
@@ -730,7 +746,8 @@ def extract_summary(model, demand, H2_demand, CH4_demand, heat_demand, annuities
     elec_demand_tot = sum(demand[hour] for hour in model.h) / 1000  # electricity demand in TWh
     H2_demand_tot = sum(H2_demand[hour] for hour in model.h) / 1000  # H2 demand in TWh
     CH4_demand_tot = sum(CH4_demand[hour] for hour in model.h) / 1000  # CH4 demand in TWh
-    heat_demand_tot = sum(heat_demand[a][hour] for hour in model.h for a in model.archetype) / 1000  # heat demand in TWh
+    heat_demand_tot = sum(
+        heat_demand[a][hour] for hour in model.h for a in model.archetype) / 1000  # heat demand in TWh
 
     elec_spot_price = [-1e6 * model.dual[model.electricity_adequacy_constraint[h]] for h in
                        model.h]  # 1e3€/GWh = €/MWh
@@ -772,12 +789,14 @@ def extract_summary(model, demand, H2_demand, CH4_demand, heat_demand, annuities
 
     # LCOE per technology
     lcoe_per_tec = {}
-    lcoe_elec_gene = calculate_LCOE_gene_tec(model.elec_gene, model, annuities, fOM, vOM, nb_years, gene_per_tec)  # € / MWh-e
+    lcoe_elec_gene = calculate_LCOE_gene_tec(model.elec_gene, model, annuities, fOM, vOM, nb_years,
+                                             gene_per_tec)  # € / MWh-e
     lcoe_elec_conv_CH4 = calculate_LCOE_conv_tec(["ocgt", "ccgt"], model, annuities, fOM, conversion_efficiency,
-                                             CH4_spot_price, nb_years, gene_per_tec)  # € / MWh-e
+                                                 CH4_spot_price, nb_years, gene_per_tec)  # € / MWh-e
     lcoe_elec_conv_H2 = calculate_LCOE_conv_tec(["h2_ccgt"], model, annuities, fOM, conversion_efficiency,
-                                             H2_spot_price, nb_years, gene_per_tec)  # € / MWh-e
-    lcoe_gas_gene = calculate_LCOE_gene_tec(model.gas_gene, model, annuities, fOM, vOM, nb_years, gene_per_tec)  # € / MWh-th
+                                                H2_spot_price, nb_years, gene_per_tec)  # € / MWh-e
+    lcoe_gas_gene = calculate_LCOE_gene_tec(model.gas_gene, model, annuities, fOM, vOM, nb_years,
+                                            gene_per_tec)  # € / MWh-th
     lcoe_per_tec.update(lcoe_elec_gene)
     lcoe_per_tec.update(lcoe_elec_conv_CH4)
     lcoe_per_tec.update(lcoe_elec_conv_H2)
@@ -906,5 +925,3 @@ def extract_summary(model, demand, H2_demand, CH4_demand, heat_demand, annuities
 
     summary_df = pd.Series(summary)
     return summary_df, gene_per_tec, lcoe_per_tec
-
-

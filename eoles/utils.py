@@ -185,7 +185,7 @@ def extract_charging_capacity(model):
 
 
 def extract_renovation_rates(model, nb_linearize):
-    """Extractions renovation decisions (in % of initial heating demand)"""
+    """Extractions renovation decisions per archetype (in % of initial heating demand)"""
     list_renovation_options = model.renovation  # includes linearized segments
     list_archetype = model.archetype  # includes building archetypes
     renovation_rates = pd.Series(index=list_archetype, dtype=float)
@@ -196,6 +196,15 @@ def extract_renovation_rates(model, nb_linearize):
             renov_rate += value(model.renovation_rate[tec])
         renovation_rates.loc[a] = renov_rate
     return renovation_rates
+
+
+def extract_renovation_rates_detailed(model):
+    """Extractions renovation decisions per segment of archetype (in % of initial heating demand)"""
+    list_renovation_options = model.renovation  # includes linearized segments
+    renovation_rates_detailed = pd.Series(index=list_renovation_options, dtype=float)
+    for r in list_renovation_options:
+        renovation_rates_detailed.loc[r] = value(model.renovation_rate[r])
+    return renovation_rates_detailed
 
 
 def extract_hourly_generation(model, elec_demand, CH4_demand, H2_demand, heat_demand=None):

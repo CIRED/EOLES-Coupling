@@ -1,9 +1,10 @@
 import logging
+import pandas as pd
 
 from project.model import social_planner
 
 from eoles.model_heat_coupling import ModelEOLES
-from eoles.utils import get_config, heating_hourly_profile, process_heating_need
+from eoles.utils import get_config, heating_hourly_profile, process_heating_need, get_pandas
 from eoles.process_cost_efficiency import piecewise_linearization_cost_efficiency
 
 
@@ -33,24 +34,39 @@ if __name__ == '__main__':
     threshold_linearized_renovation_costs[
         threshold_linearized_renovation_costs < 0] = 0  # handles cases where the linearization was not perfect
 
+    # importing evolution of historical capacity
+    existing_capacity_historical = get_pandas("eoles/inputs/existing_capa_historical.csv",
+                                              lambda x: pd.read_csv(x, index_col=0))  # GW
+    maximum_capacity_evolution = get_pandas("eoles/inputs/maximum_capacity_evolution.csv",
+                                              lambda x: pd.read_csv(x, index_col=0))  # GW
+
     # TODO: il faudra ajouter les capacités pour charging et discharging
     year = [2025, 2030, 2035, 2040, 2045, 2050]
-    new_capa_previous = 0
-    new_capa_tot = 0
+    new_capa_tot = pd.Series(0, index=existing_capacity_historical.index, dtype=float)
+    existing_renovation_rate = pd.Series(0, index=linearized_renovation_costs.index, dtype=float)  # no renovation has been done
+
+    capacity_df = pd.DataFrame(index=existing_capacity_historical.index, dtype=float)
+    new_capacity_df = pd.DataFrame(index=existing_capacity_historical.index, dtype=float)
+    renovation_rates_df = pd.DataFrame(index=list(dict_heat.keys()), dtype=float)  # renovation rates per archetype
+
     for y in year:
-        existing_capa_historical = None
-        existing_capacity = existing_capa_historical + new_capa_tot  # existing capacity are equal to newly built
+        existing_capa_historical_y = existing_capacity_historical[[str(y)]].squeeze()  # get historical capacity still installed for year of interest
+        new_maximum_capacity_y = maximum_capacity_evolution[[str(y)]].squeeze()  # get maximum new capacity to be built
+
+        existing_capacity = existing_capa_historical_y + new_capa_tot  # existing capacity are equal to newly built
         # capacities over the whole time horizon + existing capacity (from before 2020)
+        maximum_capacity = (existing_capacity + new_maximum_capacity_y).dropna()  # we drop nan values, which correspond to technologies without any upper bound
         m_scc = ModelEOLES(name="test", config=config, path="eoles/outputs", logger=logger, nb_years=1,
                            heating_demand=dict_heat, nb_linearize=3,
                            linearized_renovation_costs=linearized_renovation_costs,
                            threshold_linearized_renovation_costs=threshold_linearized_renovation_costs,
-                           existing_capacity=existing_capacity,
+                           existing_capacity=existing_capacity, existing_renovation_rate=existing_renovation_rate,
+                           maximum_capacity=maximum_capacity,
                            social_cost_of_carbon=0, year=y, scenario_cost=None, hp_hourly=True,
-                           renov=None,
-                           hourly_heat_gas=None)
+                           renov=None, hourly_heat_gas=None)
         m_scc.build_model()
         solver_results, status, termination_condition = m_scc.solve(solver_name="gurobi")
 
-        new_capa_previous = m_scc.capacities - m_scc.existing_capacity  # we get the newly installed capacities at time t
-        new_capa_tot = new_capa_tot + new_capa_previous  # total newly built capacity over the time horizon
+        new_capacity = m_scc.capacities - existing_capacity  # we get the newly installed capacities at year y
+        new_capa_tot = new_capa_tot + new_capacity  # total newly built capacity over the time horizon
+        existing_renovation_rate = m_scc.renovation_rates_detailed  # we get new renovation decisions
