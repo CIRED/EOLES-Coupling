@@ -198,6 +198,7 @@ class ModelEOLES():
                               "heat_pump", "gas_boiler", "resistive", "fuel_boiler", "wood_boiler"]
         self.model.tec = \
             Set(initialize=initial_techno_set)
+
         # Variables Technologies
         self.model.vre = \
             Set(initialize=["offshore_f", "offshore_g", "onshore", "pv_g", "pv_c", "river"])
@@ -280,10 +281,11 @@ class ModelEOLES():
                 return self.existing_capacity[i], None  # in this case, only lower bound exists
 
         def charging_capacity_bounds(model, i):
-            if i in self.maximum_charging_capacity.keys():
-                return self.existing_charging_capacity[i], self.maximum_capacity[i]
-            else:
-                return self.existing_charging_capacity[i], None
+            # TODO: j'ai enlevé cette contrainte, car je suppose ici que la seule contrainte provient de la discharging capacity
+            # if i in self.maximum_charging_capacity.keys():
+            #     return self.existing_charging_capacity[i], self.maximum_capacity[i]
+            # else:
+            return self.existing_charging_capacity[i], None
 
         def energy_capacity_bounds(model, i):
             if i in self.maximum_energy_capacity.keys():
@@ -303,6 +305,14 @@ class ModelEOLES():
         self.model.capacity = \
             Var(self.model.tec, within=NonNegativeReals, bounds=capacity_bounds)
 
+        # Charging power capacity of each storage technology in GW  # TODO: check the unit
+        self.model.charging_capacity = \
+            Var(self.model.str, within=NonNegativeReals, bounds=charging_capacity_bounds)
+
+        # Energy volume of storage technology in GWh
+        self.model.energy_capacity = \
+            Var(self.model.str, within=NonNegativeReals, bounds=energy_capacity_bounds)
+
         # Hourly electricity input of battery storage GWh  # TODO: check that unit is right
         self.model.storage = \
             Var(((storage, h) for storage in self.model.str for h in self.model.h), within=NonNegativeReals,
@@ -312,14 +322,6 @@ class ModelEOLES():
         self.model.stored = \
             Var(((storage, h) for storage in self.model.str for h in self.model.h), within=NonNegativeReals,
                 initialize=0)
-
-        # Charging power capacity of each storage technology in GW  # TODO: check the unit
-        self.model.charging_capacity = \
-            Var(self.model.str, within=NonNegativeReals, bounds=charging_capacity_bounds)
-
-        # Energy volume of storage technology in GWh
-        self.model.energy_capacity = \
-            Var(self.model.str, within=NonNegativeReals, bounds=energy_capacity_bounds)
 
         # Required upward frequency restoration reserve in GW
         self.model.reserve = \
@@ -343,6 +345,7 @@ class ModelEOLES():
                     self.model.renovation_rate[r].fix(0)
 
     def define_constraints(self):
+
         def generation_vre_constraint_rule(model, h, vre):
             """Cnstraint on variables renewable profiles generation."""
             return model.gene[vre, h] == model.capacity[vre] * self.load_factors[vre, h]
@@ -374,7 +377,7 @@ class ModelEOLES():
             return model.stored[storage_tecs, hPOne] == model.stored[storage_tecs, h] + flux
 
         def storage_constraint_rule(model, storage_tecs):
-            """Constraint on stored energy to be equal at the end than at the start."""
+            """Constraint on stored energy to be equal at the end and at the start."""
             first = model.stored[storage_tecs, self.first_hour]
             last = model.stored[storage_tecs, self.last_hour - 1]
             charge = model.storage[storage_tecs, self.last_hour - 1] * self.eta_in[storage_tecs]
@@ -400,6 +403,10 @@ class ModelEOLES():
             """Constraint on battery's capacity: battery charging capacity equals battery discharging capacity."""
             # TODO: check that the constraint is ok: charging capacity = capacity ?
             return model.charging_capacity[battery] == model.capacity[battery]
+
+        def storage_charging_discharging_constraint_rule(model, storage_tec):
+            """Constraint to limit charging capacity to be lower than discharging capacity"""
+            return model.charging_capacity[storage_tec] <= model.capacity[storage_tec]
 
         def methanization_constraint_rule(model):
             """Constraint on methanization. The annual power production from methanization is limited to a certain amount."""
@@ -521,6 +528,9 @@ class ModelEOLES():
 
         self.model.battery_capacity_constraint = Constraint(self.model.battery, rule=battery_capacity_constraint_rule)
 
+        self.model.storage_charging_discharging_constraint = \
+            Constraint(self.model.str, rule=storage_charging_discharging_constraint_rule)
+
         self.model.biogas_constraint = Constraint(rule=methanization_constraint_rule)
 
         self.model.pyrogazification_constraint = Constraint(rule=pyrogazification_constraint_rule)
@@ -552,14 +562,14 @@ class ModelEOLES():
                         (model.energy_capacity[storage_tecs] - self.existing_energy_capacity[storage_tecs]) *
                         self.storage_annuities[
                             storage_tecs] * self.nb_years for storage_tecs in model.str)
-                    + sum(
-                        (model.charging_capacity[storage_tecs] - self.existing_charging_capacity[storage_tecs]) *
-                        self.charging_capex[
-                            storage_tecs] * self.nb_years for storage_tecs in model.str)
+                    # + sum(
+                    #     (model.charging_capacity[storage_tecs] - self.existing_charging_capacity[storage_tecs]) *
+                    #     self.charging_capex[
+                    #         storage_tecs] * self.nb_years for storage_tecs in model.str)
                     + sum(model.capacity[tec] * self.fOM[tec] * self.nb_years for tec in model.tec)
-                    + sum(
-                        model.charging_capacity[storage_tecs] * self.charging_opex[storage_tecs] * self.nb_years
-                        for storage_tecs in model.str)
+                    # + sum(
+                    #     model.charging_capacity[storage_tecs] * self.charging_opex[storage_tecs] * self.nb_years
+                    #     for storage_tecs in model.str)
                     + sum(sum(model.gene[tec, h] * self.vOM[tec] for h in model.h) for tec in model.tec)
                     + sum((model.renovation_rate[renov] - self.existing_renovation_rate[renov]) * self.renovation_annuities[renov] * self.nb_years for renov in
                           model.renovation)
@@ -628,20 +638,19 @@ class ModelEOLES():
         self.summary, self.generation_per_technology, \
         self.lcoe_per_tec = extract_summary(self.model, self.elec_demand, self.H2_demand, self.CH4_demand,
                                             self.heat_demand, self.annuities, self.storage_annuities, self.fOM,
-                                            self.vOM, self.charging_opex, self.charging_capex,
-                                            self.conversion_efficiency, self.nb_years)
+                                            self.vOM, self.conversion_efficiency, self.nb_years)
         self.results = {'objective': self.objective, 'summary': self.summary,
                         'hourly_generation': self.hourly_generation,
                         'capacities': self.capacities, 'energy_capacity': self.energy_capacity,
                         'supply_elec': self.electricity_generation, 'primary_generation': self.primary_generation}
 
 
-def read_input_variable(config, year):
+def read_input_variable(config, year, method="valentin"):
     """Reads data defined at the hourly scale"""
     load_factors = get_pandas(config["load_factors"],
                               lambda x: pd.read_csv(x, index_col=[0, 1], header=None).squeeze("columns"))
     demand = get_pandas(config["demand"], lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # GW
-    demand_no_residential = process_RTE_demand(config, year, demand)
+    demand_no_residential = process_RTE_demand(config, year, demand, method=method)  # ATTENTION, peut être changé pour enlever correctement la valeur de la demande
 
     lake_inflows = get_pandas(config["lake_inflows"],
                               lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # GWh
@@ -684,7 +693,8 @@ def read_input_static(config, year):
                        lambda x: pd.read_csv(x, index_col=0))  # 1e6€/GW
     capex = capex[[str(year)]].squeeze()  # get capex for year of interest
     storage_capex = get_pandas(config["storage_capex"],
-                               lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # 1e6€/GW
+                               lambda x: pd.read_csv(x, index_col=0))  # 1e6€/GW
+    storage_capex = storage_capex[[str(year)]].squeeze()  # get storage capex for year of interest
     fOM = get_pandas(config["fOM"],
                      lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # 1e6€/GW/year
     # TODO: il y a des erreurs d'unités dans le choix des vOM je crois !!
@@ -741,7 +751,8 @@ def read_input_static(config, year):
 
 
 def extract_summary(model, demand, H2_demand, CH4_demand, heat_demand, annuities, storage_annuities, fOM, vOM,
-                    charging_opex, charging_capex, conversion_efficiency, nb_years):
+                    conversion_efficiency, nb_years):
+    # TODO: est-ce que je dois prendre en compte les capacités existantes pour calculer le LCOE ou non ?
     summary = {}  # final dictionary for output
     elec_demand_tot = sum(demand[hour] for hour in model.h) / 1000  # electricity demand in TWh
     H2_demand_tot = sum(H2_demand[hour] for hour in model.h) / 1000  # H2 demand in TWh
@@ -803,17 +814,14 @@ def extract_summary(model, demand, H2_demand, CH4_demand, heat_demand, annuities
     lcoe_per_tec.update(lcoe_gas_gene)
 
     # LCOE: initial calculus from electricity costs
+    # TODO: attention, j'ai supprimé les charging opex et capex pour les batteries
     lcoe_elec = (sum(
         (value(model.capacity[tec])) * (annuities[tec] + fOM[tec]) * nb_years + gene_per_tec[tec] * vOM[tec] * 1000
         for tec in
         model.elec_balance) +
                  sum(
                      (value(model.energy_capacity[storage_tecs])) * storage_annuities[
-                         storage_tecs] * nb_years for storage_tecs in model.str_elec) +
-                 sum(
-                     value(model.charging_capacity[storage_tecs]) * (charging_opex[storage_tecs] + charging_capex[
-                         storage_tecs]) * nb_years
-                     for storage_tecs in model.str_elec) + G2P_bought) / sumgene_elec  # € / MWh
+                         storage_tecs] * nb_years for storage_tecs in model.str_elec) + G2P_bought) / sumgene_elec  # € / MWh
 
     summary["lcoe_elec"] = lcoe_elec
 
@@ -824,11 +832,8 @@ def extract_summary(model, demand, H2_demand, CH4_demand, heat_demand, annuities
         model.elec_balance) + \
                  sum(
                      (value(model.energy_capacity[storage_tecs])) * storage_annuities[
-                         storage_tecs] * nb_years for storage_tecs in model.str_elec) + \
-                 sum(
-                     value(model.charging_capacity[storage_tecs]) * (charging_opex[storage_tecs] + charging_capex[
-                         storage_tecs]) * nb_years
-                     for storage_tecs in model.str_elec)  # 1e6 €
+                         storage_tecs] * nb_years for storage_tecs in model.str_elec) # 1e6 €
+
 
     costs_CH4 = sum(
         (value(model.capacity[tec])) * (annuities[tec] + fOM[tec]) * nb_years + gene_per_tec[tec] * vOM[tec] * 1000
@@ -836,11 +841,7 @@ def extract_summary(model, demand, H2_demand, CH4_demand, heat_demand, annuities
         model.CH4_balance) + \
                 sum(
                     (value(model.energy_capacity[storage_tecs])) * storage_annuities[
-                        storage_tecs] * nb_years for storage_tecs in model.str_CH4) + \
-                sum(
-                    value(model.charging_capacity[storage_tecs]) * (charging_opex[storage_tecs] + charging_capex[
-                        storage_tecs]) * nb_years
-                    for storage_tecs in model.str_CH4)  # 1e6 €
+                        storage_tecs] * nb_years for storage_tecs in model.str_CH4) # 1e6 €
 
     costs_H2 = sum(
         (value(model.capacity[tec])) * (annuities[tec] + fOM[tec]) * nb_years + gene_per_tec[tec] * vOM[tec] * 1000
@@ -848,11 +849,7 @@ def extract_summary(model, demand, H2_demand, CH4_demand, heat_demand, annuities
         model.H2_balance) + \
                sum(
                    (value(model.energy_capacity[storage_tecs])) * storage_annuities[
-                       storage_tecs] * nb_years for storage_tecs in model.str_H2) + \
-               sum(
-                   value(model.charging_capacity[storage_tecs]) * (charging_opex[storage_tecs] + charging_capex[
-                       storage_tecs]) * nb_years
-                   for storage_tecs in model.str_H2)  # 1e6 €
+                       storage_tecs] * nb_years for storage_tecs in model.str_H2) # 1e6 €
 
     # We now calculate ratios to assign the costs depending on the part of those costs used to meet final demand,
     # or to meet other vectors demand.

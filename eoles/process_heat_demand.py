@@ -77,12 +77,33 @@ if __name__ == '__main__':
     demand_elec_RTE_noP2G = demand_elec_RTE + adjust_demand  # we adjust demand profile to obtain the correct total amount of demand
 
     demand_elec_RTE_no_residential_heating = demand_elec_RTE_noP2G - hourly_residential_heating_RTE
-    demand_elec_RTE_no_residential_heating.to_csv("inputs/demand2050_RTE_no_residential_heating.csv", header=False)
+    # demand_elec_RTE_no_residential_heating.to_csv("inputs/demand2050_RTE_no_residential_heating.csv", header=False)
 
     # hourly_residential_heating_RTE.to_csv("inputs/hourly_residential_heating_RTE2050_RTE.csv", header=False)
     #
     # percentage_hourly_residential_profile_RTE.to_csv("inputs/percentage_hourly_residential_heating_profile_RTE.csv",
     #                                              header=False)
+
+
+    ############ Fourth method: hourly profile from Valentin  ############
+    L = [1850, 1750, 1800, 1850, 1900, 1950, 2050, 2120, 2250, 2100, 2000, 1850, 1700, 1550, 1600, 1650, 1800, 2000,
+         2100, 2150, 2200, 2150, 2100, 2000]  # profil issu de Valentin
+    daily_profile_valentin = [e / sum(L) for e in L]
+    monthly_profile = [0.24, 0.18, 0.15, 0.05, 0.01, 0, 0, 0, 0, 0.03, 0.12, 0.22]  # comes from Doudard et al
+    days_by_month = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+
+    percentage_hourly_residential_profile_valentin = []
+    for i in range(len(days_by_month)):
+        month_profile = []
+        for j in range(days_by_month[i]):
+            month_profile = month_profile + daily_profile_valentin
+        rescale_month_profile = [p / (days_by_month[i]) * monthly_profile[i] for p in month_profile]
+        percentage_hourly_residential_profile_valentin = percentage_hourly_residential_profile_valentin + rescale_month_profile  # we rescale to the number of hours in the month, and to the percentage of the month
+
+    percentage_hourly_residential_profile_valentin = pd.Series(percentage_hourly_residential_profile_valentin)
+    percentage_hourly_residential_profile_valentin.to_csv("inputs/percentage_hourly_residential_heating_profile_valentin.csv",
+                                                 header=False)
+
 
 
     # ### Test

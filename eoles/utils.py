@@ -28,7 +28,7 @@ def get_config(spec=None) -> dict:
 
 ### Defining the model
 
-def process_RTE_demand(config, year, demand):
+def process_RTE_demand(config, year, demand, method):
     demand_noP2G_RTE_timesteps = get_pandas(config["demand_noP2G_RTE_timesteps"],
                                             lambda x: pd.read_csv(x, index_col=0).squeeze())
     demand_residential_heating_RTE_timesteps = get_pandas(config["demand_residential_heating_RTE_timesteps"],
@@ -39,12 +39,11 @@ def process_RTE_demand(config, year, demand):
     demand_noP2G_RTE = demand_noP2G_RTE_timesteps[year]  # in TWh
     demand_residential_heating = demand_residential_heating_RTE_timesteps[year]  # in TWh
 
-    adjust_demand = (
-                                demand_noP2G_RTE * 1e3 - 580 * 1e3) / 8760  # 580TWh is the total of the profile we use as basis for electricity demand
+    adjust_demand = (demand_noP2G_RTE * 1e3 - 580 * 1e3) / 8760  # 580TWh is the total of the profile we use as basis for electricity demand
     demand_elec_RTE_noP2G = demand + adjust_demand  # we adjust demand profile to obtain the correct total amount of demand based on RTE projections without P2G
 
     hourly_residential_heating_RTE = create_hourly_residential_demand_profile(demand_residential_heating * 1e3,
-                                                                              method="RTE")
+                                                                              method=method)  # TODO: a changer a priori, ce n'est plus le bon profil
 
     demand_elec_RTE_no_residential_heating = demand_elec_RTE_noP2G - hourly_residential_heating_RTE  # we remove residential electric demand
     return demand_elec_RTE_no_residential_heating
@@ -112,6 +111,11 @@ def create_hourly_residential_demand_profile(total_consumption, method="RTE"):
     if method == "RTE":
         percentage_hourly_residential_heating = get_pandas(
             "eoles/inputs/percentage_hourly_residential_heating_profile_RTE.csv",
+            lambda x: pd.read_csv(x, index_col=0, header=None).squeeze(
+                "columns"))
+    elif method == "valentin":
+        percentage_hourly_residential_heating = get_pandas(
+            "eoles/inputs/percentage_hourly_residential_heating_profile_valentin.csv",
             lambda x: pd.read_csv(x, index_col=0, header=None).squeeze(
                 "columns"))
     else:

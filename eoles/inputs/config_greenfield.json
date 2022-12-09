@@ -19,7 +19,7 @@
   "lifetime": "eoles/inputs/lifetime.csv",
   "construction_time": "eoles/inputs/construction_time.csv",
   "capex": "eoles/inputs/overnight_capex_evolution.csv",
-  "storage_capex": "eoles/inputs/storage_capex.csv",
+  "storage_capex": "eoles/inputs/storage_capex_evolution.csv",
   "fOM": "eoles/inputs/fO&M_elec_new.csv",
   "vOM": "eoles/inputs/vO&M_elec_new.csv",
   "charging_capex": "eoles/inputs/charging_capex.csv",
