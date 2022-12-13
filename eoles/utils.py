@@ -17,11 +17,11 @@ def get_pandas(path, func=lambda x: pd.read_csv(x)):
 
 def get_config(spec=None) -> dict:
     if spec is None:
-        with resources.path('eoles.inputs', 'config.json') as f:
+        with resources.path('eoles.inputs.config', 'config.json') as f:
             with open(f) as file:
                 return json.load(file)
     else:
-        with resources.path('eoles.inputs', f'config_{spec}.json') as f:
+        with resources.path('eoles.inputs.config', f'config_{spec}.json') as f:
             with open(f) as file:
                 return json.load(file)
 
@@ -97,10 +97,10 @@ def update_ngas_cost(vOM_init, scc, emission_rate=0.2295):
     :param scc: int
         €/tCO2
     :param emission_rate: float
-        tCO2/TWh
+        tCO2/MWh
 
     Returns
-    vOM in M€/GWh
+    vOM in M€/GWh  = €/kWh
     """
     return vOM_init + scc * emission_rate / 1000
 
@@ -110,17 +110,17 @@ def create_hourly_residential_demand_profile(total_consumption, method="RTE"):
     methodology from RTE."""
     if method == "RTE":
         percentage_hourly_residential_heating = get_pandas(
-            "eoles/inputs/percentage_hourly_residential_heating_profile_RTE.csv",
+            "eoles/inputs/hourly_profiles/percentage_hourly_residential_heating_profile_RTE.csv",
             lambda x: pd.read_csv(x, index_col=0, header=None).squeeze(
                 "columns"))
     elif method == "valentin":
         percentage_hourly_residential_heating = get_pandas(
-            "eoles/inputs/percentage_hourly_residential_heating_profile_valentin.csv",
+            "eoles/inputs/hourly_profiles/percentage_hourly_residential_heating_profile_valentin.csv",
             lambda x: pd.read_csv(x, index_col=0, header=None).squeeze(
                 "columns"))
     else:
         percentage_hourly_residential_heating = get_pandas(
-            "eoles/inputs/percentage_hourly_residential_heating_profile_doudard.csv",
+            "eoles/inputs/hourly_profiles/percentage_hourly_residential_heating_profile_doudard.csv",
             lambda x: pd.read_csv(x, index_col=0, header=None).squeeze(
                 "columns"))
     hourly_residential_heating = percentage_hourly_residential_heating * total_consumption
@@ -436,6 +436,26 @@ def heating_hourly_profile(method, percentage=None):
         hourly_profile_test[hourly_profile_test > 0.042] = hourly_profile_test[hourly_profile_test > threshold] + modif
         hourly_profile_test[hourly_profile_test <= 0.042] = hourly_profile_test[hourly_profile_test <= threshold] - modif
     return hourly_profile_test
+
+
+def load_evolution_data():
+    """Load necessary data for the social planner trajectory"""
+    existing_capacity_historical = get_pandas("eoles/inputs/historical_data/existing_capacity_historical.csv",
+                                              lambda x: pd.read_csv(x, index_col=0))  # GW
+    existing_charging_capacity_historical = get_pandas("eoles/inputs/historical_data/existing_charging_capacity_historical.csv",
+                                                       lambda x: pd.read_csv(x, index_col=0))  # GW
+    existing_energy_capacity_historical = get_pandas("eoles/inputs/historical_data/existing_energy_capacity_historical.csv",
+                                                     lambda x: pd.read_csv(x, index_col=0))  # GW
+    maximum_capacity_evolution = get_pandas("eoles/inputs/technology_potential/maximum_capacity_evolution.csv",
+                                            lambda x: pd.read_csv(x, index_col=0))  # GW
+
+    # importing evolution of tertiary and ECS gas demand
+    heating_gas_demand_RTE_timesteps = get_pandas("eoles/inputs/demand/heating_gas_demand_tertiary_timesteps.csv",
+                                                  lambda x: pd.read_csv(x, index_col=0).squeeze())
+    ECS_gas_demand_RTE_timesteps = get_pandas("eoles/inputs/demand/ECS_gas_demand_timesteps.csv",
+                                              lambda x: pd.read_csv(x, index_col=0).squeeze())
+    return existing_capacity_historical, existing_charging_capacity_historical, existing_energy_capacity_historical,\
+           maximum_capacity_evolution, heating_gas_demand_RTE_timesteps, ECS_gas_demand_RTE_timesteps
 
 
 if __name__ == '__main__':

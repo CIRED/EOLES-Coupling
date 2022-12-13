@@ -149,19 +149,19 @@ class ModelEOLES():
         self.storage_capex = data_static["storage_capex"]
         self.fOM = data_static["fOM"]
         self.vOM = data_static["vOM"]
-        self.charging_capex = data_static["charging_capex"]
-        self.charging_opex = data_static["charging_opex"]
         self.eta_in = data_static["eta_in"]
         self.eta_out = data_static["eta_out"]
         self.conversion_efficiency = data_static["conversion_efficiency"]
-        self.capacity_ex = data_static["capacity_ex"]
         self.miscellaneous = data_static["miscellaneous"]
+        self.biomass_potential = data_static["biomass_potential"]
         # self.linearized_renovation_costs = data_static["linearized_renovation_costs"]  # TODO: a changer
         # self.threshold_linearized_renovation_costs = data_static["threshold_linearized_renovation_costs"]
         self.linearized_renovation_costs = linearized_renovation_costs
         self.threshold_linearized_renovation_costs = threshold_linearized_renovation_costs
         assert self.linearized_renovation_costs.shape == self.threshold_linearized_renovation_costs.shape  # they must be the same shape as they correspond to similar archetypes !
         self.total_H2_demand = data_static["demand_H2_RTE"]
+        self.energy_prices = data_static["energy_prices"]
+        self.vOM["wood_boiler"], self.vOM["fuel_boiler"] = self.energy_prices["wood"]*1e-3, self.energy_prices["fuel"]*1e-3
 
         # calculate annuities
         self.annuities = calculate_annuities_capex(self.miscellaneous, self.capex, self.construction_time,
@@ -171,7 +171,10 @@ class ModelEOLES():
         self.renovation_annuities = calculate_annuities_renovation(self.linearized_renovation_costs, self.miscellaneous)
 
         # Update natural gaz vOM based on social cost of carbon
-        self.vOM.loc["natural_gas"] = update_ngas_cost(self.vOM.loc["natural_gas"], scc=self.scc)
+        self.vOM.loc["natural_gas"] = update_ngas_cost(self.vOM.loc["natural_gas"], scc=self.scc, emission_rate=0.2295)
+        self.vOM["fuel_boiler"] = update_ngas_cost(self.vOM["fuel_boiler"], scc=self.scc, emission_rate=0.26)  # to check !!
+        self.vOM["wood_boiler"] = update_ngas_cost(self.vOM["wood_boiler"], scc=self.scc,
+                                                   emission_rate=0.26)  # to check !!
 
         # defining needed time steps
         self.first_hour = 0
@@ -411,14 +414,12 @@ class ModelEOLES():
         def methanization_constraint_rule(model):
             """Constraint on methanization. The annual power production from methanization is limited to a certain amount."""
             gene_biogas = sum(model.gene['methanization', hour] for hour in model.h)
-            return gene_biogas <= self.miscellaneous[
-                'max_methanization'] * 1000  # max biogas yearly energy expressed in TWh
+            return gene_biogas <= self.biomass_potential["methanization"] * 1000  # max biogas yearly energy expressed in TWh
 
         def pyrogazification_constraint_rule(model):
             """Constraint on pyrogazification. The annual power production from pyro is limited to a certain amount."""
             gene_pyro = sum(model.gene['pyrogazification', hour] for hour in model.h)
-            return gene_pyro <= self.miscellaneous[
-                'max_pyrogazification'] * 1000  # max pyro yearly energy expressed in TWh
+            return gene_pyro <= self.biomass_potential["pyrogazification"] * 1000  # max pyro yearly energy expressed in TWh
 
         def reserves_constraint_rule(model, h):
             """Constraint on frr reserves"""
@@ -700,20 +701,17 @@ def read_input_static(config, year):
     # TODO: il y a des erreurs d'unités dans le choix des vOM je crois !!
     vOM = get_pandas(config["vOM"],
                      lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # 1e6€/GWh
-    charging_capex = get_pandas(config["charging_capex"],
-                                lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # M€/GW/year
-    charging_opex = get_pandas(config["charging_opex"],
-                               lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # M€/GWh
     eta_in = get_pandas(config["eta_in"],
                         lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))
     eta_out = get_pandas(config["eta_out"],
                          lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))
     conversion_efficiency = get_pandas(config["conversion_efficiency"],
                                        lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))
-    capacity_ex = get_pandas(config["capacity_ex"],
-                             lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # GWh
     miscellaneous = get_pandas(config["miscellaneous"],
                                lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))
+    biomass_potential = get_pandas(config["biomass_potential"],
+                               lambda x: pd.read_csv(x, index_col=0))  # 1e6€/GW
+    biomass_potential = biomass_potential[[str(year)]].squeeze()  # get storage capex for year of interest
     # linearized_renovation_costs = get_pandas(config["linearized_renovation_costs"],
     #                               lambda x: pd.read_csv(x, index_col=0, header=None).squeeze())  # 1e9€
     # threshold_linearized_renovation_costs = get_pandas(config["threshold_linearized_renovation_costs"],
@@ -721,6 +719,10 @@ def read_input_static(config, year):
     demand_H2_timesteps = get_pandas(config["demand_H2_timesteps"],
                                      lambda x: pd.read_csv(x, index_col=0).squeeze())
     demand_H2_RTE = demand_H2_timesteps[year]  # TWh
+
+    energy_prices =  get_pandas(config["energy_prices"],
+                               lambda x: pd.read_csv(x, index_col=0))  # €/MWh
+    energy_prices = energy_prices[[str(year)]].squeeze()  # get storage capex for year of interest
 
     o = dict()
     o["epsilon"] = epsilon
@@ -737,16 +739,15 @@ def read_input_static(config, year):
     o["storage_capex"] = storage_capex
     o["fOM"] = fOM
     o["vOM"] = vOM
-    o["charging_capex"] = charging_capex
-    o["charging_opex"] = charging_opex
     o["eta_in"] = eta_in
     o["eta_out"] = eta_out
     o["conversion_efficiency"] = conversion_efficiency
-    o["capacity_ex"] = capacity_ex
     o["miscellaneous"] = miscellaneous
+    o["biomass_potential"] = biomass_potential
     # o["linearized_renovation_costs"] = linearized_renovation_costs
     # o["threshold_linearized_renovation_costs"] = threshold_linearized_renovation_costs
     o["demand_H2_RTE"] = demand_H2_RTE * 1e3  # GWh
+    o["energy_prices"] = energy_prices  # € / MWh
     return o
 
 

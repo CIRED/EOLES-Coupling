@@ -1,8 +1,8 @@
 ﻿heat_pump,3
 resistive,0.9
 gas_boiler,0.85
-fuel_boiler,0.85
-wood_boiler,0.85
+fuel_boiler,0.75
+wood_boiler,0.75
 electrolysis,0.8
 methanation,0.6
 ocgt,0.4
