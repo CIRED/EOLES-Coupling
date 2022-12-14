@@ -237,7 +237,7 @@ def extract_hourly_generation(model, elec_demand, CH4_demand, H2_demand, heat_de
 def extract_spot_price(model, nb_hours):
     """Extracts spot price"""
     spot_price = pd.DataFrame({"hour": range(nb_hours),
-                               "spot_price": [- 1000000 * model.dual[model.electricity_adequacy_constraint[h]] for h in
+                               "spot_price": [- 1e6 * model.dual[model.electricity_adequacy_constraint[h]] for h in
                                               model.h]})
     return spot_price
 
@@ -286,14 +286,63 @@ def extract_use_elec(model, nb_years, miscellaneous):
     return electricity_use
 
 
+def extract_annualized_costs_investment_new_capa(capacities, energy_capacities, existing_capacities, existing_energy_capacities,
+                                                 annuities, storage_annuities, fOM):
+    """
+    Returns the LCOE coming from newly invested capacities and energy capacities
+    :param model: pyomo model
+    :param existing_capacities: pd.Series
+    :return:
+    """
+    new_capacity = capacities - existing_capacities  # pd.Series
+    costs_new_capacity = pd.concat([new_capacity, annuities, fOM], axis=1, ignore_index=True).rename(columns={0: "new_capacity", 1: "annuities", 2: "fOM"})
+    costs_new_capacity["annualized_costs"] = costs_new_capacity["new_capacity"] * (costs_new_capacity["annuities"] + costs_new_capacity["fOM"])  # includes both annuity and fOM ! not to be counted twice in the LCOE
+
+    new_storage_capacity = energy_capacities - existing_energy_capacities
+    costs_new_energy_capacity = pd.concat([new_storage_capacity, storage_annuities], axis=1, ignore_index=True).rename(columns={0: "new_capacity", 1: "storage_annuities"})
+    costs_new_energy_capacity["annualized_costs"] = costs_new_energy_capacity["new_capacity"] * costs_new_energy_capacity["storage_annuities"]
+    return costs_new_capacity[["annualized_costs"]], costs_new_energy_capacity[["annualized_costs"]]
+
+
+def annualized_costs_investment_historical(existing_capa_historical_y, annuity_fOM_historical,
+                                           existing_energy_capacity_historical_y, storage_annuity_historical):
+    """Same as previous function but for historical LCOE"""
+    costs_capacity_historical = pd.concat([existing_capa_historical_y, annuity_fOM_historical], axis=1, ignore_index=True)  # we only include nonzero historical capacities
+    costs_capacity_historical = costs_capacity_historical.rename(columns={0: 'capacity_historical', 1: 'annuity_fOM'}).fillna(0)
+    costs_capacity_historical["annualized_costs"] = costs_capacity_historical["capacity_historical"] * costs_capacity_historical["annuity_fOM"]
+
+    costs_energy_capacity_historical = pd.concat([existing_energy_capacity_historical_y, storage_annuity_historical], axis=1, ignore_index=True)  # we only include nonzero historical capacities
+    costs_energy_capacity_historical = costs_energy_capacity_historical.rename(columns={0: 'energy_capacity_historical', 1: 'storage_annuity'}).fillna(0)
+    costs_energy_capacity_historical["annualized_costs"] = costs_energy_capacity_historical["energy_capacity_historical"] * costs_energy_capacity_historical["storage_annuity"]
+    return costs_capacity_historical[["annualized_costs"]], costs_energy_capacity_historical[["annualized_costs"]]
+
+
+def process_annualized_costs_per_vector(costs_capacity, costs_energy_capacity):
+    """Calculates LCOE related to investment for the different vectors (namely, electricity, methane and hydrogen)"""
+    elec_balance = ["offshore_f", "offshore_g", "onshore", "pv_g", "pv_c", "river", "lake", "nuclear", "phs",
+     "battery1", "battery4", "ocgt", "ccgt", "h2_ccgt"]
+    elec_str = ["phs", "battery1", "battery4"]
+
+    CH4_balance = ["methanization", "pyrogazification", "natural_gas", "methanation", "methane"]
+    CH4_str = ["methane"]
+
+    H2_balance = ["electrolysis", "hydrogen"]
+    H2_str = ["hydrogen"]
+
+    costs_elec = costs_capacity[elec_balance].sum() + costs_energy_capacity[elec_str].sum()  # includes annuity, fOM and storage annuity
+    costs_CH4 = costs_capacity[CH4_balance].sum() + costs_energy_capacity[CH4_str].sum()
+    costs_H2 = costs_capacity[H2_balance].sum() + costs_energy_capacity[H2_str].sum()
+    return costs_elec, costs_CH4, costs_H2
+
+
 def calculate_LCOE_gene_tec(list_tec, model, annuities, fOM, vOM, nb_years, gene_per_tec):
     """Calculates LCOE per generating technology with fixed vOM"""
     lcoe = {}
     for tec in list_tec:
         gene = gene_per_tec[tec]  # TWh
         lcoe_tec = (
-                           (value(model.capacity[tec])) * (annuities[tec] + fOM[tec]) * nb_years + gene * 1000 * vOM[
-                       tec]) / gene  # € / MWh
+                    (value(model.capacity[tec])) * (annuities[tec] + fOM[tec]) * nb_years + gene * 1000 * vOM[
+                    tec]) / gene  # € / MWh
         lcoe[tec] = lcoe_tec
     return lcoe
 
@@ -454,8 +503,15 @@ def load_evolution_data():
                                                   lambda x: pd.read_csv(x, index_col=0).squeeze())
     ECS_gas_demand_RTE_timesteps = get_pandas("eoles/inputs/demand/ECS_gas_demand_timesteps.csv",
                                               lambda x: pd.read_csv(x, index_col=0).squeeze())
+
+    annuity_fOM_historical = get_pandas("eoles/inputs/historical_data/annuity_fOM_historical.csv",
+                                              lambda x: pd.read_csv(x, index_col=0).squeeze())
+    storage_annuity_historical = get_pandas("eoles/inputs/historical_data/storage_annuity_historical.csv",
+                                              lambda x: pd.read_csv(x, index_col=0).squeeze())
+
     return existing_capacity_historical, existing_charging_capacity_historical, existing_energy_capacity_historical,\
-           maximum_capacity_evolution, heating_gas_demand_RTE_timesteps, ECS_gas_demand_RTE_timesteps
+           maximum_capacity_evolution, heating_gas_demand_RTE_timesteps, ECS_gas_demand_RTE_timesteps, \
+           annuity_fOM_historical, storage_annuity_historical
 
 
 if __name__ == '__main__':

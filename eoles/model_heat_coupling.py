@@ -12,7 +12,7 @@ from eoles.utils import get_pandas, process_RTE_demand, calculate_annuities_cape
     update_ngas_cost, define_month_hours, calculate_annuities_renovation, get_technical_cost, extract_hourly_generation, \
     extract_spot_price, extract_capacities, extract_energy_capacity, extract_supply_elec, extract_primary_gene, \
     extract_use_elec, extract_renovation_rates, extract_heat_gene, calculate_LCOE_gene_tec, calculate_LCOE_conv_tec, \
-    extract_charging_capacity, extract_renovation_rates_detailed
+    extract_charging_capacity, extract_renovation_rates_detailed, extract_annualized_costs_investment_new_capa
 from pyomo.environ import (
     ConcreteModel,
     RangeSet,
@@ -37,7 +37,8 @@ class ModelEOLES():
                  threshold_linearized_renovation_costs, existing_capacity=None, existing_charging_capacity=None,
                  existing_energy_capacity=None, existing_renovation_rate=None, maximum_capacity=None,
                  hourly_heat_gas=None, social_cost_of_carbon=0,
-                 year=2050, proj_demand=0, scenario_cost=None, hp_hourly=True, renov=None):
+                 year=2050, proj_demand=0, scenario_cost=None, hp_hourly=True, renov=None, existing_annualized_costs_elec=0,
+                 existing_annualized_costs_CH4=0, existing_annualized_costs_H2=0):
         """
 
         :param name: str
@@ -74,6 +75,9 @@ class ModelEOLES():
         self.year = year
         self.nb_linearize = nb_linearize  # number of linearized segment to represent one heating archetype
         self.renov = renov
+        self.existing_annualized_costs_elec = existing_annualized_costs_elec
+        self.existing_annualized_costs_CH4 = existing_annualized_costs_CH4
+        self.existing_annualized_costs_H2 = existing_annualized_costs_H2
         if existing_renovation_rate is not None:
             self.existing_renovation_rate = existing_renovation_rate  # if renovation decisions have already been taken
         else:
@@ -635,11 +639,18 @@ class ModelEOLES():
         self.electricity_generation = extract_supply_elec(self.model, self.nb_years)
         self.primary_generation = extract_primary_gene(self.model, self.nb_years)
         self.heat_generation = extract_heat_gene(self.model, self.nb_years)
+
+        self.new_capacity_annualized_costs, self.new_energy_capacity_annualized_costs = \
+            extract_annualized_costs_investment_new_capa(self.capacities, self.energy_capacity,
+                                                         self.existing_capacity, self.existing_energy_capacity, self.annuities,
+                                                         self.storage_annuities, self.fOM)
         # self.use_elec = extract_use_elec(self.model, self.nb_years, self.miscellaneous)
         self.summary, self.generation_per_technology, \
         self.lcoe_per_tec = extract_summary(self.model, self.elec_demand, self.H2_demand, self.CH4_demand,
-                                            self.heat_demand, self.annuities, self.storage_annuities, self.fOM,
-                                            self.vOM, self.conversion_efficiency, self.nb_years)
+                                            self.heat_demand, self.existing_capacity, self.existing_energy_capacity,
+                                            self.annuities, self.storage_annuities, self.fOM,
+                                            self.vOM, self.conversion_efficiency, self.hp_cop, self.existing_annualized_costs_elec,
+                                            self.existing_annualized_costs_CH4, self.existing_annualized_costs_H2, self.nb_years)
         self.results = {'objective': self.objective, 'summary': self.summary,
                         'hourly_generation': self.hourly_generation,
                         'capacities': self.capacities, 'energy_capacity': self.energy_capacity,
@@ -696,8 +707,8 @@ def read_input_static(config, year):
     storage_capex = get_pandas(config["storage_capex"],
                                lambda x: pd.read_csv(x, index_col=0))  # 1e6€/GW
     storage_capex = storage_capex[[str(year)]].squeeze()  # get storage capex for year of interest
-    fOM = get_pandas(config["fOM"],
-                     lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # 1e6€/GW/year
+    fOM = get_pandas(config["fOM"], lambda x: pd.read_csv(x, index_col=0))  # 1e6€/GW/year
+    fOM = fOM[[str(year)]].squeeze()  # get fOM for year of interest
     # TODO: il y a des erreurs d'unités dans le choix des vOM je crois !!
     vOM = get_pandas(config["vOM"],
                      lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # 1e6€/GWh
@@ -751,8 +762,9 @@ def read_input_static(config, year):
     return o
 
 
-def extract_summary(model, demand, H2_demand, CH4_demand, heat_demand, annuities, storage_annuities, fOM, vOM,
-                    conversion_efficiency, nb_years):
+def extract_summary(model, demand, H2_demand, CH4_demand, heat_demand, existing_capacity, existing_energy_capacity,
+                    annuities, storage_annuities, fOM, vOM, conversion_efficiency, hp_cop,
+                    existing_annualized_costs_elec, existing_annualized_costs_CH4, existing_annualized_costs_H2, nb_years):
     # TODO: est-ce que je dois prendre en compte les capacités existantes pour calculer le LCOE ou non ?
     summary = {}  # final dictionary for output
     elec_demand_tot = sum(demand[hour] for hour in model.h) / 1000  # electricity demand in TWh
@@ -761,16 +773,25 @@ def extract_summary(model, demand, H2_demand, CH4_demand, heat_demand, annuities
     heat_demand_tot = sum(
         heat_demand[a][hour] for hour in model.h for a in model.archetype) / 1000  # heat demand in TWh
 
+    elec_demand_tot_with_heat = sum(demand[hour] + value(model.gene["heat_pump", hour]) / hp_cop[hour] +
+                          value(model.gene["resistive", hour])/conversion_efficiency['resistive'] for hour in model.h) / 1000  # electricity demand including electricity demand for heat in TWh
+    CH4_demand_tot_with_heat = sum(demand[hour] + value(model.gene["gas_boiler", hour]) / conversion_efficiency["gas_boiler"] for hour in model.h) / 1000  # CH4 demand including CH4 demand for heat in TWh
+
     elec_spot_price = [-1e6 * model.dual[model.electricity_adequacy_constraint[h]] for h in
                        model.h]  # 1e3€/GWh = €/MWh
     CH4_spot_price = [1e6 * model.dual[model.methane_balance_constraint[h]] for h in model.h]  # 1e3€ / GWh = €/MWh
     H2_spot_price = [1e6 * model.dual[model.hydrogen_balance_constraint[h]] for h in model.h]  # 1e3€ / GWh = €/MWh
     gene_elec = [sum(value(model.gene[tec, hour]) for tec in model.elec_gene) for hour in model.h]
-    storage_elec = [sum(value(model.gene[tec, hour]) for tec in model.str_elec) for hour in model.h]
 
-    weighted_price_demand = sum([elec_spot_price[h] * demand[h] for h in model.h]) / (
+    weighted_elec_price_demand = sum([elec_spot_price[h] * demand[h] for h in model.h]) / (
             elec_demand_tot * 1e3)  # €/MWh
-    summary["weighted_price_demand"] = weighted_price_demand
+    summary["weighted_elec_price_demand"] = weighted_elec_price_demand
+    weighted_CH4_price_demand = sum([CH4_spot_price[h] * CH4_demand[h] for h in model.h]) / (
+            CH4_demand_tot * 1e3)  # €/MWh
+    summary["weighted_CH4_price_demand"] = weighted_CH4_price_demand
+    weighted_H2_price_demand = sum([H2_spot_price[h] * H2_demand[h] for h in model.h]) / (
+            H2_demand_tot * 1e3)  # €/MWh
+    summary["weighted_H2_price_demand"] = weighted_H2_price_demand
 
     weighted_price_generation = sum([elec_spot_price[h] * gene_elec[h] for h in model.h]) / sum(gene_elec)  # €/MWh
     summary["weighted_price_generation"] = weighted_price_generation
@@ -792,13 +813,6 @@ def extract_summary(model, demand, H2_demand, CH4_demand, heat_demand, annuities
                    gene_per_tec["h2_ccgt"]  # production in TWh
     summary["sumgene_elec"] = sumgene_elec
 
-    G2P_bought = sum(CH4_spot_price[hour] * (
-            value(model.gene["ocgt", hour]) / conversion_efficiency['ocgt'] + value(model.gene["ccgt", hour]) /
-            conversion_efficiency['ccgt'])
-                     for hour in model.h) / 1e3 + sum(H2_spot_price[hour] * (
-            value(model.gene["h2_ccgt", hour]) / conversion_efficiency['h2_ccgt']) for hour in
-                                                      model.h) / 1e3  # 1e6€ car l'objectif du modèle est en 1e9 €
-
     # LCOE per technology
     lcoe_per_tec = {}
     lcoe_elec_gene = calculate_LCOE_gene_tec(model.elec_gene, model, annuities, fOM, vOM, nb_years,
@@ -814,43 +828,54 @@ def extract_summary(model, demand, H2_demand, CH4_demand, heat_demand, annuities
     lcoe_per_tec.update(lcoe_elec_conv_H2)
     lcoe_per_tec.update(lcoe_gas_gene)
 
+    G2P_bought = sum(CH4_spot_price[hour] * (
+            value(model.gene["ocgt", hour]) / conversion_efficiency['ocgt'] + value(model.gene["ccgt", hour]) /
+            conversion_efficiency['ccgt'])
+                     for hour in model.h) / 1e3 + sum(H2_spot_price[hour] * (
+            value(model.gene["h2_ccgt", hour]) / conversion_efficiency['h2_ccgt']) for hour in
+                                                      model.h) / 1e3  # 1e6€ car l'objectif du modèle est en 1e9 €
     # LCOE: initial calculus from electricity costs
     # TODO: attention, j'ai supprimé les charging opex et capex pour les batteries
-    lcoe_elec = (sum(
-        (value(model.capacity[tec])) * (annuities[tec] + fOM[tec]) * nb_years + gene_per_tec[tec] * vOM[tec] * 1000
-        for tec in
-        model.elec_balance) +
+    # lcoe_elec = (sum(
+    #     (value(model.capacity[tec])) * (annuities[tec] + fOM[tec]) * nb_years + gene_per_tec[tec] * vOM[tec] * 1000
+    #     for tec in
+    #     model.elec_balance) +
+    #              sum(
+    #                  (value(model.energy_capacity[storage_tecs])) * storage_annuities[
+    #                      storage_tecs] * nb_years for storage_tecs in model.str_elec) + G2P_bought) / sumgene_elec  # €/MWh
+    lcoe_elec = (existing_annualized_costs_elec + sum(
+        (value(model.capacity[tec]) - existing_capacity[tec]) * (annuities[tec] + fOM[tec]) * nb_years + gene_per_tec[tec] * vOM[tec] * 1000
+        for tec in model.elec_balance) +
                  sum(
-                     (value(model.energy_capacity[storage_tecs])) * storage_annuities[
-                         storage_tecs] * nb_years for storage_tecs in model.str_elec) + G2P_bought) / sumgene_elec  # € / MWh
+                     (value(model.energy_capacity[str]) - existing_energy_capacity[str]) * storage_annuities[
+                         str] * nb_years for str in model.str_elec) + G2P_bought) / sumgene_elec  # €/MWh
 
     summary["lcoe_elec"] = lcoe_elec
 
     # We calculate the costs associated to functioning of each system (elec, CH4, gas)
-    costs_elec = sum(
-        (value(model.capacity[tec])) * (annuities[tec] + fOM[tec]) * nb_years + gene_per_tec[tec] * vOM[tec] * 1000
-        for tec in
-        model.elec_balance) + \
+    costs_elec = existing_annualized_costs_elec + sum(
+        (value(model.capacity[tec]) - existing_capacity[tec]) * (annuities[tec] + fOM[tec]) * nb_years + gene_per_tec[tec] * vOM[tec] * 1000
+        for tec in model.elec_balance) + \
                  sum(
-                     (value(model.energy_capacity[storage_tecs])) * storage_annuities[
-                         storage_tecs] * nb_years for storage_tecs in model.str_elec) # 1e6 €
+                     (value(model.energy_capacity[str]) - existing_energy_capacity[str]) * storage_annuities[
+                         str] * nb_years for str in model.str_elec) # 1e6 €
 
-
-    costs_CH4 = sum(
-        (value(model.capacity[tec])) * (annuities[tec] + fOM[tec]) * nb_years + gene_per_tec[tec] * vOM[tec] * 1000
+    costs_CH4 = existing_annualized_costs_CH4 + sum(
+        (value(model.capacity[tec]) - existing_capacity[tec]) * (annuities[tec] + fOM[tec]) * nb_years + gene_per_tec[tec] * vOM[tec] * 1000
         for tec in
         model.CH4_balance) + \
                 sum(
-                    (value(model.energy_capacity[storage_tecs])) * storage_annuities[
-                        storage_tecs] * nb_years for storage_tecs in model.str_CH4) # 1e6 €
+                    (value(model.energy_capacity[str]) - existing_energy_capacity[str]) * storage_annuities[
+                        str] * nb_years for str in model.str_CH4) # 1e6 €
 
-    costs_H2 = sum(
-        (value(model.capacity[tec])) * (annuities[tec] + fOM[tec]) * nb_years + gene_per_tec[tec] * vOM[tec] * 1000
-        for tec in
-        model.H2_balance) + \
+    costs_H2 = existing_annualized_costs_H2 + sum(
+        (value(model.capacity[tec]) - existing_capacity[tec]) * (annuities[tec] + fOM[tec]) * nb_years + gene_per_tec[tec] * vOM[tec] * 1000
+        for tec in model.H2_balance) + \
                sum(
-                   (value(model.energy_capacity[storage_tecs])) * storage_annuities[
-                       storage_tecs] * nb_years for storage_tecs in model.str_H2) # 1e6 €
+                   (value(model.energy_capacity[str]) - existing_energy_capacity[str]) * storage_annuities[
+                       str] * nb_years for str in model.str_H2) # 1e6 €
+
+    print(costs_elec, costs_CH4, costs_H2)
 
     # We now calculate ratios to assign the costs depending on the part of those costs used to meet final demand,
     # or to meet other vectors demand.
@@ -860,19 +885,20 @@ def extract_summary(model, demand, H2_demand, CH4_demand, heat_demand, annuities
     gene_from_elec_to_CH4 = sum(gene_per_tec[tec] for tec in model.from_elec_to_CH4)  # TWh
     gene_from_elec_to_H2 = sum(gene_per_tec[tec] for tec in model.from_elec_to_H2)  # TWh
 
-    costs_CH4_to_demand = costs_CH4 * CH4_demand_tot / (CH4_demand_tot + gene_from_CH4_to_elec)  # 1e6 €
-    costs_CH4_to_elec = costs_CH4 * gene_from_CH4_to_elec / (CH4_demand_tot + gene_from_CH4_to_elec)
+    # TODO: penser à bien regarder quelle demande j'ai envie de considérer !!
+    costs_CH4_to_demand = costs_CH4 * CH4_demand_tot_with_heat / (CH4_demand_tot_with_heat + gene_from_CH4_to_elec)  # 1e6 €
+    costs_CH4_to_elec = costs_CH4 * gene_from_CH4_to_elec / (CH4_demand_tot_with_heat + gene_from_CH4_to_elec)
     costs_H2_to_demand = costs_H2 * H2_demand_tot / (H2_demand_tot + gene_from_H2_to_elec)
     costs_H2_to_elec = costs_H2 * gene_from_H2_to_elec / (H2_demand_tot + gene_from_H2_to_elec)
-    costs_elec_to_demand = costs_elec * elec_demand_tot / (
-            elec_demand_tot + gene_from_elec_to_H2 + gene_from_elec_to_CH4)
+    costs_elec_to_demand = costs_elec * elec_demand_tot_with_heat / (
+            elec_demand_tot_with_heat + gene_from_elec_to_H2 + gene_from_elec_to_CH4)
     costs_elec_to_CH4 = costs_elec * gene_from_elec_to_CH4 / (
-            elec_demand_tot + gene_from_elec_to_H2 + gene_from_elec_to_CH4)
+            elec_demand_tot_with_heat + gene_from_elec_to_H2 + gene_from_elec_to_CH4)
     costs_elec_to_H2 = costs_elec * gene_from_elec_to_H2 / (
-            elec_demand_tot + gene_from_elec_to_H2 + gene_from_elec_to_CH4)
+            elec_demand_tot_with_heat + gene_from_elec_to_H2 + gene_from_elec_to_CH4)
 
-    lcoe_elec_volume = (costs_CH4_to_elec + costs_H2_to_elec + costs_elec_to_demand) / elec_demand_tot  # € / MWh
-    lcoe_CH4_volume = (costs_elec_to_CH4 + costs_CH4_to_demand) / CH4_demand_tot  # € / MWh
+    lcoe_elec_volume = (costs_CH4_to_elec + costs_H2_to_elec + costs_elec_to_demand) / elec_demand_tot_with_heat  # € / MWh
+    lcoe_CH4_volume = (costs_elec_to_CH4 + costs_CH4_to_demand) / CH4_demand_tot_with_heat  # € / MWh
     lcoe_H2_volume = (costs_elec_to_H2 + costs_H2_to_demand) / H2_demand_tot  # € / MWh
     summary["lcoe_elec_volume"], summary["lcoe_CH4_volume"], summary["lcoe_H2_volume"] = \
         lcoe_elec_volume, lcoe_CH4_volume, lcoe_H2_volume

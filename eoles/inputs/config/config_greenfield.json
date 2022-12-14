@@ -16,7 +16,7 @@
   "existing_charging_capacity": "eoles/inputs/historical_data/existing_charging_capacity.csv",
   "existing_energy_capacity": "eoles/inputs/historical_data/existing_energy_capacity.csv",
   "fix_capa": "eoles/inputs/fix_capas.csv",
-  "fOM": "eoles/inputs/technology_characteristics/fO&M_elec_new.csv",
+  "fOM": "eoles/inputs/technology_characteristics/fOM_evolution.csv",
   "lake_inflows": "eoles/inputs/hourly_profiles/lake_2006.csv",
   "load_factors": "eoles/inputs/hourly_profiles/vre_profiles_2006.csv",
   "maximum_capacity": "eoles/inputs/technology_potential/maximum_capacity.csv",
