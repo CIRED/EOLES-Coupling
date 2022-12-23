@@ -775,7 +775,7 @@ def extract_summary(model, demand, H2_demand, CH4_demand, heat_demand, existing_
 
     elec_demand_tot_with_heat = sum(demand[hour] + value(model.gene["heat_pump", hour]) / hp_cop[hour] +
                           value(model.gene["resistive", hour])/conversion_efficiency['resistive'] for hour in model.h) / 1000  # electricity demand including electricity demand for heat in TWh
-    CH4_demand_tot_with_heat = sum(demand[hour] + value(model.gene["gas_boiler", hour]) / conversion_efficiency["gas_boiler"] for hour in model.h) / 1000  # CH4 demand including CH4 demand for heat in TWh
+    CH4_demand_tot_with_heat = sum(CH4_demand[hour] + value(model.gene["gas_boiler", hour]) / conversion_efficiency["gas_boiler"] for hour in model.h) / 1000  # CH4 demand including CH4 demand for heat in TWh
 
     elec_spot_price = [-1e6 * model.dual[model.electricity_adequacy_constraint[h]] for h in
                        model.h]  # 1e3€/GWh = €/MWh
@@ -896,6 +896,7 @@ def extract_summary(model, demand, H2_demand, CH4_demand, heat_demand, existing_
             elec_demand_tot_with_heat + gene_from_elec_to_H2 + gene_from_elec_to_CH4)
     costs_elec_to_H2 = costs_elec * gene_from_elec_to_H2 / (
             elec_demand_tot_with_heat + gene_from_elec_to_H2 + gene_from_elec_to_CH4)
+    # print(costs_elec_to_demand, costs_elec_to_CH4, costs_elec_to_H2)
 
     lcoe_elec_volume = (costs_CH4_to_elec + costs_H2_to_elec + costs_elec_to_demand) / elec_demand_tot_with_heat  # € / MWh
     lcoe_CH4_volume = (costs_elec_to_CH4 + costs_CH4_to_demand) / CH4_demand_tot_with_heat  # € / MWh
@@ -919,9 +920,11 @@ def extract_summary(model, demand, H2_demand, CH4_demand, heat_demand, existing_
     gene_from_elec_to_H2_value = sum(
         sum(value(model.gene[tec, hour]) * elec_spot_price[hour] for hour in model.h) / (
                 1000 * total_elec_spot_price) for tec in model.from_elec_to_H2)  # TWh
-    elec_demand_tot_value = sum(demand[hour] * elec_spot_price[hour] for hour in model.h) / (
+    # TODO: attention, j'ai changé pour ajouter la demande en élec et gaz pour la chaleur
+    elec_demand_tot_value = sum((demand[hour] + value(model.gene["heat_pump", hour]) / hp_cop[hour] +
+                          value(model.gene["resistive", hour])/conversion_efficiency['resistive']) * elec_spot_price[hour] for hour in model.h) / (
             1000 * total_elec_spot_price)
-    CH4_demand_tot_value = sum(CH4_demand[hour] * CH4_spot_price[hour] for hour in model.h) / (
+    CH4_demand_tot_value = sum((CH4_demand[hour] + value(model.gene["gas_boiler", hour]) / conversion_efficiency["gas_boiler"]) * CH4_spot_price[hour] for hour in model.h) / (
             1000 * total_CH4_spot_price)
     H2_demand_tot_value = sum(H2_demand[hour] * H2_spot_price[hour] for hour in model.h) / (
             1000 * total_H2_spot_price)
@@ -940,9 +943,9 @@ def extract_summary(model, demand, H2_demand, CH4_demand, heat_demand, existing_
     costs_elec_to_H2_value = costs_elec * gene_from_elec_to_H2_value / (
             elec_demand_tot_value + gene_from_elec_to_H2_value + gene_from_elec_to_CH4_value)
 
-    lcoe_elec_value = (
-                              costs_CH4_to_elec_value + costs_H2_to_elec_value + costs_elec_to_demand_value) / elec_demand_tot  # € / MWh
-    lcoe_CH4_value = (costs_elec_to_CH4_value + costs_CH4_to_demand_value) / CH4_demand_tot  # € / MWh
+    # TODO: idem, j'ai changé le dénumérateur
+    lcoe_elec_value = (costs_CH4_to_elec_value + costs_H2_to_elec_value + costs_elec_to_demand_value) / elec_demand_tot_with_heat  # € / MWh
+    lcoe_CH4_value = (costs_elec_to_CH4_value + costs_CH4_to_demand_value) / CH4_demand_tot_with_heat  # € / MWh
     lcoe_H2_value = (costs_elec_to_H2_value + costs_H2_to_demand_value) / H2_demand_tot  # € / MWh
     summary["lcoe_elec_value"], summary["lcoe_CH4_value"], summary["lcoe_H2_value"] = \
         lcoe_elec_value, lcoe_CH4_value, lcoe_H2_value

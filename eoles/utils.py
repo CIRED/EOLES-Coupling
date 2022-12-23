@@ -108,6 +108,7 @@ def update_ngas_cost(vOM_init, scc, emission_rate=0.2295):
 def create_hourly_residential_demand_profile(total_consumption, method="RTE"):
     """Calculates hourly profile from total consumption, using either the methodology from Doudard (2018) or
     methodology from RTE."""
+    assert method in ["RTE", "valentin", "BDEW"]
     if method == "RTE":
         percentage_hourly_residential_heating = get_pandas(
             "eoles/inputs/hourly_profiles/percentage_hourly_residential_heating_profile_RTE.csv",
@@ -116,6 +117,11 @@ def create_hourly_residential_demand_profile(total_consumption, method="RTE"):
     elif method == "valentin":
         percentage_hourly_residential_heating = get_pandas(
             "eoles/inputs/hourly_profiles/percentage_hourly_residential_heating_profile_valentin.csv",
+            lambda x: pd.read_csv(x, index_col=0, header=None).squeeze(
+                "columns"))
+    elif method == "BDEW":
+        percentage_hourly_residential_heating = get_pandas(
+            "eoles/inputs/hourly_profiles/percentage_hourly_residential_heating_profile_BDEW.csv",
             lambda x: pd.read_csv(x, index_col=0, header=None).squeeze(
                 "columns"))
     else:
@@ -459,7 +465,8 @@ def calculate_hp_cop(climate):
 
 def heating_hourly_profile(method, percentage=None):
     """Creates hourly profile"""
-    assert method in ["very_extreme", "extreme", "medium", "valentin", "valentin_modif"]
+    assert method in ["very_extreme", "extreme", "medium", "valentin", "valentin_modif", "BDEW"]
+    heat_load = get_pandas("eoles/inputs/hourly_profiles/heat_load_profile.csv", lambda x: pd.read_csv(x))
     if method == "very_extreme":
         hourly_profile_test = pd.Series(
             [0, 0, 0, 0, 0, 0, 0, 0, 0.1, 0.1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.2, 0.2, 0.2, 0.2, 0],
@@ -474,7 +481,11 @@ def heating_hourly_profile(method, percentage=None):
     elif method == "valentin":
         L = [1850, 1750, 1800, 1850, 1900, 1950, 2050, 2120, 2250, 2100, 2000, 1850, 1700, 1550, 1600, 1650, 1800, 2000,
              2100, 2150, 2200, 2150, 2100, 2000]  # profil issu de Valentin
-        hourly_profile_test = pd.Series([e / sum(L) for e in L], index=pd.TimedeltaIndex(range(0, 24), unit='h'))
+        # hourly_profile_test = pd.Series([e / sum(L) for e in L], index=pd.TimedeltaIndex(range(0, 24), unit='h'))
+        hourly_profile_test = pd.Series(heat_load["residential_space_percentage_valentin"].tolist(), index=pd.TimedeltaIndex(range(0, 24), unit='h'))
+    elif method == "BDEW":  # method from Zeyen
+        hourly_profile_test = pd.Series(heat_load["residential_space_weekday_percentage_BDEW"].tolist(),
+                                        index=pd.TimedeltaIndex(range(0, 24), unit='h'))
     elif method == "valentin_modif":  # utile pour tester la sensibilité au choix du profil horaire
         L = [1850, 1750, 1800, 1850, 1900, 1950, 2050, 2120, 2250, 2100, 2000, 1850, 1700, 1550, 1600, 1650, 1800, 2000,
              2100, 2150, 2200, 2150, 2100, 2000]  # profil issu de Valentin

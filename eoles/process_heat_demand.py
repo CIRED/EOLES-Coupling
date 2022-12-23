@@ -2,6 +2,8 @@ import pandas as pd
 import numpy as np
 from matplotlib import pyplot as plt
 
+from eoles.utils import get_pandas
+
 if __name__ == '__main__':
     # ### First method: using Behrang hourly profiles
     # heat_demand = pd.read_csv("inputs/heat_demand_2050.csv", index_col=0, header=None,
@@ -81,7 +83,7 @@ if __name__ == '__main__':
 
     # hourly_residential_heating_RTE.to_csv("inputs/hourly_residential_heating_RTE2050_RTE.csv", header=False)
     #
-    # percentage_hourly_residential_profile_RTE.to_csv("inputs/percentage_hourly_residential_heating_profile_RTE.csv",
+    # percentage_hourly_residential_profile_RTE.to_csv("inputs/hourly_profiles/percentage_hourly_residential_heating_profile_RTE.csv",
     #                                              header=False)
 
 
@@ -101,9 +103,27 @@ if __name__ == '__main__':
         percentage_hourly_residential_profile_valentin = percentage_hourly_residential_profile_valentin + rescale_month_profile  # we rescale to the number of hours in the month, and to the percentage of the month
 
     percentage_hourly_residential_profile_valentin = pd.Series(percentage_hourly_residential_profile_valentin)
-    percentage_hourly_residential_profile_valentin.to_csv("inputs/percentage_hourly_residential_heating_profile_valentin.csv",
-                                                 header=False)
+    # percentage_hourly_residential_profile_valentin.to_csv("inputs/hourly_profiles/percentage_hourly_residential_heating_profile_valentin.csv",
+    #                                              header=False)
 
+
+    ####### Fifth method: hourly profile from BDEW, Zeyen #######
+    heat_load = get_pandas("eoles/inputs/hourly_profiles/heat_load_profile.csv", lambda x: pd.read_csv(x))
+    daily_profile_BDEW = heat_load["residential_space_weekday_percentage_BDEW"].tolist()
+    monthly_profile = [0.24, 0.18, 0.15, 0.05, 0.01, 0, 0, 0, 0, 0.03, 0.12, 0.22]  # comes from Doudard et al
+    days_by_month = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+
+    percentage_hourly_residential_profile_BDEW = []
+    for i in range(len(days_by_month)):
+        month_profile = []
+        for j in range(days_by_month[i]):
+            month_profile = month_profile + daily_profile_BDEW
+        rescale_month_profile = [p / (days_by_month[i]) * monthly_profile[i] for p in month_profile]
+        percentage_hourly_residential_profile_BDEW = percentage_hourly_residential_profile_BDEW + rescale_month_profile  # we rescale to the number of hours in the month, and to the percentage of the month
+
+    percentage_hourly_residential_profile_BDEW = pd.Series(percentage_hourly_residential_profile_BDEW)
+    percentage_hourly_residential_profile_BDEW.to_csv("inputs/hourly_profiles/percentage_hourly_residential_heating_profile_BDEW.csv",
+                                                 header=False)
 
 
     # ### Test
