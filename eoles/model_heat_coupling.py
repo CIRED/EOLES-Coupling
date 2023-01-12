@@ -36,8 +36,8 @@ class ModelEOLES():
     def __init__(self, name, config, path, logger, nb_years, heating_demand, nb_linearize, linearized_renovation_costs,
                  threshold_linearized_renovation_costs, existing_capacity=None, existing_charging_capacity=None,
                  existing_energy_capacity=None, existing_renovation_rate=None, maximum_capacity=None,
-                 hourly_heat_gas=None, social_cost_of_carbon=0,
-                 year=2050, proj_demand=0, scenario_cost=None, hp_hourly=True, renov=None, existing_annualized_costs_elec=0,
+                 method_hourly_profile="valentin", hourly_heat_gas=None, social_cost_of_carbon=0,
+                 year=2050, anticipated_year=2050, scenario_cost=None, hp_hourly=True, renov=None, existing_annualized_costs_elec=0,
                  existing_annualized_costs_CH4=0, existing_annualized_costs_H2=0):
         """
 
@@ -73,6 +73,7 @@ class ModelEOLES():
         self.nb_years = nb_years
         self.scc = social_cost_of_carbon
         self.year = year
+        self.anticipated_year = anticipated_year
         self.nb_linearize = nb_linearize  # number of linearized segment to represent one heating archetype
         self.renov = renov
         self.existing_annualized_costs_elec = existing_annualized_costs_elec
@@ -84,7 +85,7 @@ class ModelEOLES():
             self.existing_renovation_rate = pd.Series(0, index=linearized_renovation_costs.index, dtype=float)  # we add the fact that no renovation was taken before
 
         # loading exogeneous variable data
-        data_variable = read_input_variable(config, self.year)
+        data_variable = read_input_variable(config, self.anticipated_year, method=method_hourly_profile)
         self.load_factors = data_variable["load_factors"]
         self.elec_demand1y = data_variable["demand"]
         self.lake_inflows = data_variable["lake_inflows"]
@@ -109,7 +110,7 @@ class ModelEOLES():
                 self.heat_demand[key] = pd.concat([self.heat_demand[key], self.heat_demand1y[key]],
                                                   ignore_index=True)  # we use the keys to add demand for each possible archetype
 
-        # We want the global heat demand profile before renovation
+        # Global hourly heat demand profile before renovation
         list_archetypes = list(self.heat_demand.keys())
         self.heat_demand_tot = self.heat_demand[list_archetypes[0]]
         for i in range(1, len(list_archetypes)):
@@ -121,7 +122,11 @@ class ModelEOLES():
                 self.gas_demand = pd.concat([self.gas_demand, self.hourly_heat_gas], ignore_index=True)
 
         # loading exogeneous static data
-        data_static = read_input_static(self.config, self.year)
+        # data_static = read_input_static(self.config, self.year)
+        data_technology = read_technology_data(self.config, self.year)  # get current technology data
+        data_annual = read_annual_demand_data(self.config, self.anticipated_year)  # get anticipated demand and energy prices
+        data_technology.update(data_annual)
+        data_static = data_technology
         if scenario_cost is not None:  # we update costs based on data given in scenario
             for df in scenario_cost.keys():
                 for tec in scenario_cost[df].keys():
@@ -158,8 +163,6 @@ class ModelEOLES():
         self.conversion_efficiency = data_static["conversion_efficiency"]
         self.miscellaneous = data_static["miscellaneous"]
         self.biomass_potential = data_static["biomass_potential"]
-        # self.linearized_renovation_costs = data_static["linearized_renovation_costs"]  # TODO: a changer
-        # self.threshold_linearized_renovation_costs = data_static["threshold_linearized_renovation_costs"]
         self.linearized_renovation_costs = linearized_renovation_costs
         self.threshold_linearized_renovation_costs = threshold_linearized_renovation_costs
         assert self.linearized_renovation_costs.shape == self.threshold_linearized_renovation_costs.shape  # they must be the same shape as they correspond to similar archetypes !
@@ -215,8 +218,7 @@ class ModelEOLES():
                             "battery1", "battery4", "ocgt", "ccgt", "h2_ccgt"])
 
         # Technologies for upward FRR
-        self.model.frr = \
-            Set(initialize=["lake", "phs", "ocgt", "ccgt", "nuclear", "h2_ccgt"])
+        self.model.frr = Set(initialize=["lake", "phs", "ocgt", "ccgt", "nuclear", "h2_ccgt"])
 
         # Building archetypes
         self.model.archetype = Set(initialize=list(self.heat_demand.keys()))
@@ -301,7 +303,6 @@ class ModelEOLES():
                 return self.existing_energy_capacity[i], None
 
         def renovation_bounds(model, i):
-            # TODO: il faudra changer cette ligne dans le cas trajectoire pour ajouter une borne inf
             return self.existing_renovation_rate[i], self.threshold_linearized_renovation_costs[i]
 
         # Hourly energy generation in GWh/h
@@ -497,7 +498,7 @@ class ModelEOLES():
             # TODO: cette contrainte actuellement est peu réaliste car c'est une contrainte horaire ! normalement
             #  (cf Behrang, 2021) cela devrait être une contrainte sur la somme sur toutes les heures, cf contrainte suivante
             return model.gene['methanation', h] / self.conversion_efficiency['methanation'] <= (
-                model.gene['methanization', h]) * self.miscellaneous[
+                    model.gene['methanization', h]) * self.miscellaneous[
                        'percentage_co2_from_methanization']
 
         def methanation_CO2_constraint_rule(model):
@@ -559,7 +560,6 @@ class ModelEOLES():
     def define_objective(self):
         def objective_rule(model):
             """Objective value in 10**3 M€, or Billion €"""
-            # TODO: à changer pour ajouter le fait qu'on peut avoir des rénovations déjà réalisées dans le cas de la trajectoire
             return (sum(
                 (model.capacity[tec] - self.existing_capacity[tec]) * self.annuities[tec] * self.nb_years for tec in
                 model.tec)
@@ -673,6 +673,97 @@ def read_input_variable(config, year, method="valentin"):
     o["demand"] = demand_no_residential
     o["lake_inflows"] = lake_inflows
     o["hp_cop"] = hp_cop
+    return o
+
+
+def read_technology_data(config, year):
+    """Read technology data (capex, opex, capacity potential, etc...)
+        config: json file
+            Includes paths to files
+        year: int
+            Year to get capex."""
+    epsilon = get_pandas(config["epsilon"], lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))
+    existing_capacity = get_pandas(config["existing_capacity"],
+                                   lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # GW
+    existing_charging_capacity = get_pandas(config["existing_charging_capacity"],
+                                            lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # GW
+    existing_energy_capacity = get_pandas(config["existing_energy_capacity"],
+                                          lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # GW
+    maximum_capacity = get_pandas(config["maximum_capacity"],
+                                  lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # GW
+    maximum_charging_capacity = get_pandas(config["maximum_charging_capacity"],
+                                           lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # GW
+    maximum_energy_capacity = get_pandas(config["maximum_energy_capacity"],
+                                         lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # GW
+    fix_capa = get_pandas(config["fix_capa"],
+                          lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # GW
+    lifetime = get_pandas(config["lifetime"],
+                          lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # years
+    construction_time = get_pandas(config["construction_time"],
+                                   lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # years
+    capex = get_pandas(config["capex"],
+                       lambda x: pd.read_csv(x, index_col=0))  # 1e6€/GW
+    capex = capex[[str(year)]].squeeze()  # get capex for year of interest
+    storage_capex = get_pandas(config["storage_capex"],
+                               lambda x: pd.read_csv(x, index_col=0))  # 1e6€/GW
+    storage_capex = storage_capex[[str(year)]].squeeze()  # get storage capex for year of interest
+    fOM = get_pandas(config["fOM"], lambda x: pd.read_csv(x, index_col=0))  # 1e6€/GW/year
+    fOM = fOM[[str(year)]].squeeze()  # get fOM for year of interest
+    # TODO: il y a des erreurs d'unités dans le choix des vOM je crois !!
+    vOM = get_pandas(config["vOM"],
+                     lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # 1e6€/GWh
+    eta_in = get_pandas(config["eta_in"],
+                        lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))
+    eta_out = get_pandas(config["eta_out"],
+                         lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))
+    conversion_efficiency = get_pandas(config["conversion_efficiency"],
+                                       lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))
+    miscellaneous = get_pandas(config["miscellaneous"],
+                               lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))
+    biomass_potential = get_pandas(config["biomass_potential"],
+                                   lambda x: pd.read_csv(x, index_col=0))  # 1e6€/GW
+    biomass_potential = biomass_potential[[str(year)]].squeeze()  # get storage capex for year of interest
+
+    o = dict()
+    o["epsilon"] = epsilon
+    o["existing_capacity"] = existing_capacity
+    o["existing_charging_capacity"] = existing_charging_capacity
+    o["existing_energy_capacity"] = existing_energy_capacity
+    o["maximum_capacity"] = maximum_capacity
+    o["maximum_charging_capacity"] = maximum_charging_capacity
+    o["maximum_energy_capacity"] = maximum_energy_capacity
+    o["fix_capa"] = fix_capa
+    o["lifetime"] = lifetime
+    o["construction_time"] = construction_time
+    o["capex"] = capex
+    o["storage_capex"] = storage_capex
+    o["fOM"] = fOM
+    o["vOM"] = vOM
+    o["eta_in"] = eta_in
+    o["eta_out"] = eta_out
+    o["conversion_efficiency"] = conversion_efficiency
+    o["miscellaneous"] = miscellaneous
+    o["biomass_potential"] = biomass_potential
+    return o
+
+
+def read_annual_demand_data(config, year):
+    """Read annual demand data (H2, energy prices)
+        config: json file
+            Includes paths to files
+        year: int
+            Year to get capex."""
+    demand_H2_timesteps = get_pandas(config["demand_H2_timesteps"],
+                                     lambda x: pd.read_csv(x, index_col=0).squeeze())
+    demand_H2_RTE = demand_H2_timesteps[year]  # TWh
+
+    energy_prices = get_pandas(config["energy_prices"],
+                               lambda x: pd.read_csv(x, index_col=0))  # €/MWh
+    energy_prices = energy_prices[[str(year)]].squeeze()  # get storage capex for year of interest
+
+    o = dict()
+    o["demand_H2_RTE"] = demand_H2_RTE * 1e3  # GWh
+    o["energy_prices"] = energy_prices  # € / MWh
     return o
 
 

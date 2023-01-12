@@ -39,7 +39,7 @@ def process_RTE_demand(config, year, demand, method):
     demand_noP2G_RTE = demand_noP2G_RTE_timesteps[year]  # in TWh
     demand_residential_heating = demand_residential_heating_RTE_timesteps[year]  # in TWh
 
-    adjust_demand = (demand_noP2G_RTE * 1e3 - 580 * 1e3) / 8760  # 580TWh is the total of the profile we use as basis for electricity demand
+    adjust_demand = (demand_noP2G_RTE * 1e3 - 580 * 1e3) / 8760  # 580TWh is the total of the profile we use as basis for electricity hourly demand (from RTE)
     demand_elec_RTE_noP2G = demand + adjust_demand  # we adjust demand profile to obtain the correct total amount of demand based on RTE projections without P2G
 
     hourly_residential_heating_RTE = create_hourly_residential_demand_profile(demand_residential_heating * 1e3,
@@ -500,6 +500,7 @@ def heating_hourly_profile(method, percentage=None):
 
 def load_evolution_data():
     """Load necessary data for the social planner trajectory"""
+    # Load historical data
     existing_capacity_historical = get_pandas("eoles/inputs/historical_data/existing_capacity_historical.csv",
                                               lambda x: pd.read_csv(x, index_col=0))  # GW
     existing_charging_capacity_historical = get_pandas("eoles/inputs/historical_data/existing_charging_capacity_historical.csv",
@@ -509,15 +510,15 @@ def load_evolution_data():
     maximum_capacity_evolution = get_pandas("eoles/inputs/technology_potential/maximum_capacity_evolution.csv",
                                             lambda x: pd.read_csv(x, index_col=0))  # GW
 
-    # importing evolution of tertiary and ECS gas demand
-    heating_gas_demand_RTE_timesteps = get_pandas("eoles/inputs/demand/heating_gas_demand_tertiary_timesteps.csv",
-                                                  lambda x: pd.read_csv(x, index_col=0).squeeze())
-    ECS_gas_demand_RTE_timesteps = get_pandas("eoles/inputs/demand/ECS_gas_demand_timesteps.csv",
-                                              lambda x: pd.read_csv(x, index_col=0).squeeze())
-
     annuity_fOM_historical = get_pandas("eoles/inputs/historical_data/annuity_fOM_historical.csv",
                                               lambda x: pd.read_csv(x, index_col=0).squeeze())
     storage_annuity_historical = get_pandas("eoles/inputs/historical_data/storage_annuity_historical.csv",
+                                              lambda x: pd.read_csv(x, index_col=0).squeeze())
+
+    # Import evolution of tertiary and ECS gas demand
+    heating_gas_demand_RTE_timesteps = get_pandas("eoles/inputs/demand/heating_gas_demand_tertiary_timesteps.csv",
+                                                  lambda x: pd.read_csv(x, index_col=0).squeeze())
+    ECS_gas_demand_RTE_timesteps = get_pandas("eoles/inputs/demand/ECS_gas_demand_timesteps.csv",
                                               lambda x: pd.read_csv(x, index_col=0).squeeze())
 
     return existing_capacity_historical, existing_charging_capacity_historical, existing_energy_capacity_historical,\
