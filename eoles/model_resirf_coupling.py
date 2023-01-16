@@ -74,7 +74,7 @@ class ModelEOLES():
         self.hourly_heat_elec_1y = hourly_heat_elec
 
         self.elec_demand1y = self.elec_demand1y + self.hourly_heat_elec_1y  # we add electricity demand from heating, may require changing if we include multiple weather years
-        self.hourly_heat_gas = hourly_heat_gas  # TODO: attention, bien vérifier que ce profil inclut toute la demande en gaz qu'on veut, notamment le tertiaire également !
+        self.hourly_heat_gas = hourly_heat_gas  # TODO: attention, bien vérifier que ce profil inclut toute la demande en gaz qu'on veut, notamment le tertiaire et ECS également !
 
         self.H2_demand = {}
         self.CH4_demand = {}
@@ -472,7 +472,7 @@ class ModelEOLES():
 
     def define_objective(self):
         def objective_rule(model):
-            """Objective value in 10**3 M€, or Billion €"""
+            """Objective value in 10**3 M€, or 1e9€"""
 
             return (sum(
                 (model.capacity[tec] - self.existing_capacity[tec]) * self.annuities[tec] * self.nb_years for tec in
@@ -546,7 +546,7 @@ class ModelEOLES():
         self.charging_capacity = extract_charging_capacity(self.model)
         self.electricity_generation = extract_supply_elec(self.model, self.nb_years)
         self.primary_generation = extract_primary_gene(self.model, self.nb_years)
-        self.heat_generation = extract_heat_gene(self.model, self.nb_years)
+        # self.heat_generation = extract_heat_gene(self.model, self.nb_years)
 
         self.new_capacity_annualized_costs, self.new_energy_capacity_annualized_costs = \
             extract_annualized_costs_investment_new_capa(self.capacities, self.energy_capacity,
@@ -850,7 +850,7 @@ def extract_summary(model, demand, H2_demand, CH4_demand, existing_capacity, exi
                    (value(model.energy_capacity[str]) - existing_energy_capacity[str]) * storage_annuities[
                        str] * nb_years for str in model.str_H2) # 1e6 €
 
-    print(costs_elec, costs_CH4, costs_H2)
+    # print(costs_elec, costs_CH4, costs_H2)
 
     # We now calculate ratios to assign the costs depending on the part of those costs used to meet final demand,
     # or to meet other vectors demand.

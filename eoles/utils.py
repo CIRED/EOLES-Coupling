@@ -90,6 +90,20 @@ def calculate_annuities_renovation(linearized_renovation_costs, miscellaneous):
     return renovation_annuities
 
 
+def calculate_annuities_resirf(capex, lifetime, discount_rate):
+    """
+
+    :param capex: float
+        Overnight cost of renovation and change of heat vector
+    :param lifetime: int
+        Lifetime of considered investment
+    :param discount_rate: float
+        Discount rate used in the annuity calculus
+    :return:
+    """
+    return capex * discount_rate / (1 - (1 + discount_rate) ** (-lifetime))
+
+
 def update_ngas_cost(vOM_init, scc, emission_rate=0.2295):
     """Add emission cost related to social cost of carbon to the natural gas vOM cost.
     :param vOM_init: float
@@ -323,8 +337,8 @@ def annualized_costs_investment_historical(existing_capa_historical_y, annuity_f
     return costs_capacity_historical[["annualized_costs"]], costs_energy_capacity_historical[["annualized_costs"]]
 
 
-def process_annualized_costs_per_vector(costs_capacity, costs_energy_capacity):
-    """Calculates LCOE related to investment for the different vectors (namely, electricity, methane and hydrogen)"""
+def process_annualized_costs_per_vector(annualized_costs_capacity, annualized_costs_energy_capacity):
+    """Calculates annualized costs related to investment for the different vectors (namely, electricity, methane and hydrogen)"""
     elec_balance = ["offshore_f", "offshore_g", "onshore", "pv_g", "pv_c", "river", "lake", "nuclear", "phs",
      "battery1", "battery4", "ocgt", "ccgt", "h2_ccgt"]
     elec_str = ["phs", "battery1", "battery4"]
@@ -335,10 +349,10 @@ def process_annualized_costs_per_vector(costs_capacity, costs_energy_capacity):
     H2_balance = ["electrolysis", "hydrogen"]
     H2_str = ["hydrogen"]
 
-    costs_elec = costs_capacity[elec_balance].sum() + costs_energy_capacity[elec_str].sum()  # includes annuity, fOM and storage annuity
-    costs_CH4 = costs_capacity[CH4_balance].sum() + costs_energy_capacity[CH4_str].sum()
-    costs_H2 = costs_capacity[H2_balance].sum() + costs_energy_capacity[H2_str].sum()
-    return costs_elec, costs_CH4, costs_H2
+    annualized_costs_elec = annualized_costs_capacity[elec_balance].sum() + annualized_costs_energy_capacity[elec_str].sum()  # includes annuity, fOM and storage annuity
+    annualized_costs_CH4 = annualized_costs_capacity[CH4_balance].sum() + annualized_costs_energy_capacity[CH4_str].sum()
+    annualized_costs_H2 = annualized_costs_capacity[H2_balance].sum() + annualized_costs_energy_capacity[H2_str].sum()
+    return annualized_costs_elec, annualized_costs_CH4, annualized_costs_H2
 
 
 def calculate_LCOE_gene_tec(list_tec, model, annuities, fOM, vOM, nb_years, gene_per_tec):

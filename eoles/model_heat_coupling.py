@@ -4,6 +4,7 @@ Power system components.
 
 import pandas as pd
 import numpy as np
+from pickle import dump
 import logging
 import json
 import os
