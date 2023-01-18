@@ -13,7 +13,8 @@ from eoles.utils import get_pandas, process_RTE_demand, calculate_annuities_cape
     update_ngas_cost, define_month_hours, calculate_annuities_renovation, get_technical_cost, extract_hourly_generation, \
     extract_spot_price, extract_capacities, extract_energy_capacity, extract_supply_elec, extract_primary_gene, \
     extract_use_elec, extract_renovation_rates, extract_heat_gene, calculate_LCOE_gene_tec, calculate_LCOE_conv_tec, \
-    extract_charging_capacity, extract_renovation_rates_detailed, extract_annualized_costs_investment_new_capa
+    extract_charging_capacity, extract_renovation_rates_detailed, extract_annualized_costs_investment_new_capa, \
+    extract_renovation_investment
 from pyomo.environ import (
     ConcreteModel,
     RangeSet,
@@ -170,7 +171,7 @@ class ModelEOLES():
         self.total_H2_demand = data_static["demand_H2_RTE"]
         self.energy_prices = data_static["energy_prices"]
         self.vOM["wood_boiler"], self.vOM["fuel_boiler"] = self.energy_prices["wood"]*1e-3, self.energy_prices["fuel"]*1e-3  # €/kWh
-        # self.vOM["natural_gas"] = self.energy_prices["natural_gas"]*1e-3  # TEST de prendre en compte l'augmentation du prix du gaz naturel
+        self.vOM["natural_gas"] = self.energy_prices["natural_gas"]*1e-3  # TEST de prendre en compte l'augmentation du prix du gaz naturel
 
         # calculate annuities
         self.annuities = calculate_annuities_capex(self.miscellaneous, self.capex, self.construction_time,
@@ -183,7 +184,7 @@ class ModelEOLES():
         self.vOM.loc["natural_gas"] = update_ngas_cost(self.vOM.loc["natural_gas"], scc=self.scc, emission_rate=0.2295)
         self.vOM["fuel_boiler"] = update_ngas_cost(self.vOM["fuel_boiler"], scc=self.scc, emission_rate=0.271)  # to check !!
         self.vOM["wood_boiler"] = update_ngas_cost(self.vOM["wood_boiler"], scc=self.scc,
-                                                   emission_rate=0.26)  # to check !!
+                                                   emission_rate=0)  # to check !!
 
         # defining needed time steps
         self.first_hour = 0
@@ -641,6 +642,9 @@ class ModelEOLES():
         self.electricity_generation = extract_supply_elec(self.model, self.nb_years)
         self.primary_generation = extract_primary_gene(self.model, self.nb_years)
         self.heat_generation = extract_heat_gene(self.model, self.conversion_efficiency, self.nb_years)
+        self.investment_renovation, self.annuity_investment_renovation = \
+            extract_renovation_investment(self.model, self.existing_renovation_rate, self.linearized_renovation_costs,
+                                          self.renovation_annuities, self.nb_years)
 
         self.new_capacity_annualized_costs, self.new_energy_capacity_annualized_costs = \
             extract_annualized_costs_investment_new_capa(self.capacities, self.energy_capacity,

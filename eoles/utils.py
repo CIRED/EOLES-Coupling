@@ -208,6 +208,14 @@ def extract_charging_capacity(model):
     return charging_capacity
 
 
+def extract_renovation_investment(model, existing_renovation_rate, linearized_renovation_costs, renovation_annuities, nb_years):
+    investment = sum((value(model.renovation_rate[renov]) - existing_renovation_rate[renov]) * linearized_renovation_costs[renov] * nb_years for renov in
+                          model.renovation)  # 1e9€  (a verifier, mais je crois que c'est bien l'unité de linearized_renovation_costs)
+    annuity_investment = sum((value(model.renovation_rate[renov]) - existing_renovation_rate[renov]) * renovation_annuities[renov] * nb_years for renov in
+                          model.renovation) / 1000
+    return investment, annuity_investment
+
+
 def extract_renovation_rates(model, nb_linearize):
     """Extractions renovation decisions per archetype (in % of initial heating demand)"""
     list_renovation_options = model.renovation  # includes linearized segments

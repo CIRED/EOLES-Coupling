@@ -208,7 +208,8 @@ def optimize_blackbox_resirf_eoles_coupling(buildings, energy_prices, taxes, cos
 
 
 def resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, cost_insulation, flow_built, post_inputs,
-                                  list_year, list_trajectory_scc, scenario_cost, config_eoles, max_iter, return_optimizer=False):
+                                  list_year, list_trajectory_scc, scenario_cost, config_eoles, max_iter, add_CH4_demand=False,
+                                  return_optimizer=False):
     """Performs multistep optimization of capacities and subsidies."""
     # INITIALIZATION OF EOLES PARAMETERS
 
@@ -306,15 +307,19 @@ def resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, 
             annualized_costs_capacity[["annualized_costs"]].squeeze(), annualized_costs_energy_capacity[["annualized_costs"]].squeeze())
         # print(existing_annualized_costs_elec, existing_annualized_costs_CH4)
 
-        ### Create additional gas profile (tertiary heating + ECS)
-        heating_gas_demand = heating_gas_demand_RTE_timesteps[anticipated_year_eoles] * 1e3  # in TWh
-        ECS_gas_demand = ECS_gas_demand_RTE_timesteps[anticipated_year_eoles] * 1e3  # in TWh
-        # ECS_gas_demand = ECS_gas_demand + 95*1e3  # we add transport + industry following scenario 3
-        ECS_demand_hourly = ECS_gas_demand / 8760
-        hourly_gas = eoles.utils.create_hourly_residential_demand_profile(total_consumption=heating_gas_demand,
-                                                              method=HOURLY_PROFILE_METHOD)  # value for gas heating demand in tertiary sector
-        hourly_ECS = pd.Series(ECS_demand_hourly, index=hourly_gas.index)
-        hourly_exogeneous_CH4 = hourly_gas + hourly_ECS
+        if add_CH4_demand:
+            # Create additional gas profile (tertiary heating + ECS)
+            heating_gas_demand = heating_gas_demand_RTE_timesteps[anticipated_year_eoles] * 1e3  # in TWh
+            ECS_gas_demand = ECS_gas_demand_RTE_timesteps[anticipated_year_eoles] * 1e3  # in TWh
+            ECS_demand_hourly = ECS_gas_demand / 8760
+            hourly_gas = eoles.utils.create_hourly_residential_demand_profile(total_consumption=heating_gas_demand,
+                                                                  method=HOURLY_PROFILE_METHOD)  # value for gas heating demand in tertiary sector
+            hourly_ECS = pd.Series(ECS_demand_hourly, index=hourly_gas.index)
+            hourly_exogeneous_CH4 = hourly_gas + hourly_ECS
+        else:
+            # we do not add any demand
+            hourly_exogeneous_CH4 = eoles.utils.create_hourly_residential_demand_profile(total_consumption=0,
+                                                                  method=HOURLY_PROFILE_METHOD)
 
         # Find optimal subsidy
         optimizer, opt_sub = \
@@ -486,7 +491,8 @@ def resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, 
 
 def resirf_eoles_coupling_dynamic_no_opti(list_sub_heater, list_sub_insulation, buildings, energy_prices, taxes,
                                           cost_heater, cost_insulation, flow_built, post_inputs,
-                                          list_year, list_trajectory_scc, scenario_cost, config_eoles):
+                                          list_year, list_trajectory_scc, scenario_cost, config_eoles,
+                                          add_CH4_demand=False):
     """Computes multistep optimization of capacities. (Optimal) subsidies are taken as input."""
     # INITIALIZATION OF EOLES PARAMETERS
 
@@ -584,15 +590,19 @@ def resirf_eoles_coupling_dynamic_no_opti(list_sub_heater, list_sub_insulation, 
             annualized_costs_capacity[["annualized_costs"]].squeeze(), annualized_costs_energy_capacity[["annualized_costs"]].squeeze())
         # print(existing_annualized_costs_elec, existing_annualized_costs_CH4)
 
-        ### Create additional gas profile (tertiary heating + ECS)
-        heating_gas_demand = heating_gas_demand_RTE_timesteps[anticipated_year_eoles] * 1e3  # in TWh
-        ECS_gas_demand = ECS_gas_demand_RTE_timesteps[anticipated_year_eoles] * 1e3  # in TWh
-        # ECS_gas_demand = ECS_gas_demand + 95*1e3  # we add transport + industry following scenario 3
-        ECS_demand_hourly = ECS_gas_demand / 8760
-        hourly_gas = eoles.utils.create_hourly_residential_demand_profile(total_consumption=heating_gas_demand,
-                                                              method=HOURLY_PROFILE_METHOD)  # value for gas heating demand in tertiary sector
-        hourly_ECS = pd.Series(ECS_demand_hourly, index=hourly_gas.index)
-        hourly_exogeneous_CH4 = hourly_gas + hourly_ECS
+        if add_CH4_demand:
+            # Create additional gas profile (tertiary heating + ECS)
+            heating_gas_demand = heating_gas_demand_RTE_timesteps[anticipated_year_eoles] * 1e3  # in TWh
+            ECS_gas_demand = ECS_gas_demand_RTE_timesteps[anticipated_year_eoles] * 1e3  # in TWh
+            ECS_demand_hourly = ECS_gas_demand / 8760
+            hourly_gas = eoles.utils.create_hourly_residential_demand_profile(total_consumption=heating_gas_demand,
+                                                                  method=HOURLY_PROFILE_METHOD)  # value for gas heating demand in tertiary sector
+            hourly_ECS = pd.Series(ECS_demand_hourly, index=hourly_gas.index)
+            hourly_exogeneous_CH4 = hourly_gas + hourly_ECS
+        else:
+            # we do not add any demand
+            hourly_exogeneous_CH4 = eoles.utils.create_hourly_residential_demand_profile(total_consumption=0,
+                                                                  method=HOURLY_PROFILE_METHOD)
 
         opt_sub_heater, opt_sub_insulation = list_sub_heater[t], list_sub_insulation[t]
 
