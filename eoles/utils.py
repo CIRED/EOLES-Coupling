@@ -111,7 +111,7 @@ def update_ngas_cost(vOM_init, scc, emission_rate=0.2295):
     :param scc: int
         €/tCO2
     :param emission_rate: float
-        tCO2/MWh
+        tCO2/MWh. The default value is the one corresponding to natural gas.
 
     Returns
     vOM in M€/GWh  = €/kWh
@@ -282,13 +282,16 @@ def extract_primary_gene(model, nb_years):
     return primary_generation
 
 
-def extract_heat_gene(model, nb_years):
+def extract_heat_gene(model, conversion_efficiency, nb_years):
     """Extracts yearly heat generation per technology in TWh"""
     list_tec = list(model.heat)
     heat_generation = pd.Series(index=list_tec, dtype=float)
 
     for tec in list_tec:
-        heat_generation[tec] = sum(value(model.gene[tec, hour]) for hour in model.h) / 1000 / nb_years  # TWh
+        if tec == 'wood_boiler' or tec == 'fuel_boiler':  # efficiency
+            heat_generation[tec] = sum(value(model.gene[tec, hour])*conversion_efficiency[tec] for hour in model.h) / 1000 / nb_years  # TWh
+        else:
+            heat_generation[tec] = sum(value(model.gene[tec, hour]) for hour in model.h) / 1000 / nb_years  # TWh
     return heat_generation
 
 

@@ -33,7 +33,8 @@ from pyomo.environ import (
 
 
 class ModelEOLES():
-    def __init__(self, name, config, path, logger, nb_years, hourly_heat_elec, hourly_heat_gas, existing_capacity=None,
+    def __init__(self, name, config, path, logger, nb_years, hourly_heat_elec, hourly_heat_gas, heat_wood=0, heat_fuel=0,
+                 existing_capacity=None,
                  existing_charging_capacity=None, existing_energy_capacity=None, maximum_capacity=None,
                  method_hourly_profile="valentin", social_cost_of_carbon=0, year=2050, anticipated_year=2050,
                  scenario_cost=None, existing_annualized_costs_elec=0,
@@ -75,13 +76,15 @@ class ModelEOLES():
 
         self.elec_demand1y = self.elec_demand1y + self.hourly_heat_elec_1y  # we add electricity demand from heating, may require changing if we include multiple weather years
         self.hourly_heat_gas = hourly_heat_gas  # TODO: attention, bien vérifier que ce profil inclut toute la demande en gaz qu'on veut, notamment le tertiaire et ECS également !
+        self.heat_wood = heat_wood
+        self.heat_fuel = heat_fuel
 
         self.H2_demand = {}
         self.CH4_demand = {}
 
         # concatenate electricity demand data
         self.elec_demand = self.elec_demand1y
-        for i in range(self.nb_years - 1):
+        for i in range(self.nb_years - 1):  # TODO: a changer si on ajoute plusieurs années météo, ca ne sera plus simplement une concaténation
             self.elec_demand = pd.concat([self.elec_demand, self.elec_demand1y], ignore_index=True)
 
         if self.hourly_heat_gas is not None:  # we provide hourly gas data
@@ -132,6 +135,9 @@ class ModelEOLES():
         self.miscellaneous = data_static["miscellaneous"]
         self.biomass_potential = data_static["biomass_potential"]
         self.total_H2_demand = data_static["demand_H2_RTE"]
+        self.energy_prices = data_static["energy_prices"]
+        self.vOM["wood_boiler"], self.vOM["fuel_boiler"] = self.energy_prices["wood"] * 1e-3, self.energy_prices[
+            "fuel"] * 1e-3  # €/kWh
 
         # calculate annuities
         self.annuities = calculate_annuities_capex(self.miscellaneous, self.capex, self.construction_time,
@@ -140,7 +146,10 @@ class ModelEOLES():
                                                                    self.construction_time, self.lifetime)
 
         # Update natural gaz vOM based on social cost of carbon
-        self.vOM.loc["natural_gas"] = update_ngas_cost(self.vOM.loc["natural_gas"], scc=self.scc)
+        self.vOM.loc["natural_gas"] = update_ngas_cost(self.vOM.loc["natural_gas"], scc=self.scc)  # €/kWh
+        self.vOM["fuel_boiler"] = update_ngas_cost(self.vOM["fuel_boiler"], scc=self.scc, emission_rate=0.271)  # to check !!
+        self.vOM["wood_boiler"] = update_ngas_cost(self.vOM["wood_boiler"], scc=self.scc,
+                                                   emission_rate=0)  # to check !!
 
         # defining needed time steps
         self.first_hour = 0
@@ -490,6 +499,7 @@ class ModelEOLES():
                     #     model.charging_capacity[storage_tecs] * self.charging_opex[storage_tecs] * self.nb_years
                     #     for storage_tecs in model.str)
                     + sum(sum(model.gene[tec, h] * self.vOM[tec] for h in model.h) for tec in model.tec)
+                    + self.heat_fuel * self.vOM["fuel_boiler"] + self.heat_wood * self.vOM["wood_boiler"]  # we add variable costs from wood and fuel
                     ) / 1000
 
         # Creation of the objective -> Cost

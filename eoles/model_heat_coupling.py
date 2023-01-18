@@ -169,7 +169,8 @@ class ModelEOLES():
         assert self.linearized_renovation_costs.shape == self.threshold_linearized_renovation_costs.shape  # they must be the same shape as they correspond to similar archetypes !
         self.total_H2_demand = data_static["demand_H2_RTE"]
         self.energy_prices = data_static["energy_prices"]
-        self.vOM["wood_boiler"], self.vOM["fuel_boiler"] = self.energy_prices["wood"]*1e-3, self.energy_prices["fuel"]*1e-3
+        self.vOM["wood_boiler"], self.vOM["fuel_boiler"] = self.energy_prices["wood"]*1e-3, self.energy_prices["fuel"]*1e-3  # €/kWh
+        # self.vOM["natural_gas"] = self.energy_prices["natural_gas"]*1e-3  # TEST de prendre en compte l'augmentation du prix du gaz naturel
 
         # calculate annuities
         self.annuities = calculate_annuities_capex(self.miscellaneous, self.capex, self.construction_time,
@@ -180,7 +181,7 @@ class ModelEOLES():
 
         # Update natural gaz vOM based on social cost of carbon
         self.vOM.loc["natural_gas"] = update_ngas_cost(self.vOM.loc["natural_gas"], scc=self.scc, emission_rate=0.2295)
-        self.vOM["fuel_boiler"] = update_ngas_cost(self.vOM["fuel_boiler"], scc=self.scc, emission_rate=0.26)  # to check !!
+        self.vOM["fuel_boiler"] = update_ngas_cost(self.vOM["fuel_boiler"], scc=self.scc, emission_rate=0.271)  # to check !!
         self.vOM["wood_boiler"] = update_ngas_cost(self.vOM["wood_boiler"], scc=self.scc,
                                                    emission_rate=0.26)  # to check !!
 
@@ -560,7 +561,7 @@ class ModelEOLES():
 
     def define_objective(self):
         def objective_rule(model):
-            """Objective value in 10**3 M€, or Billion €"""
+            """Objective value in 10**3 M€, or 1e9€"""
             return (sum(
                 (model.capacity[tec] - self.existing_capacity[tec]) * self.annuities[tec] * self.nb_years for tec in
                 model.tec)
@@ -639,7 +640,7 @@ class ModelEOLES():
             self.model)  # detailed renovation rate at the linearized segment level
         self.electricity_generation = extract_supply_elec(self.model, self.nb_years)
         self.primary_generation = extract_primary_gene(self.model, self.nb_years)
-        self.heat_generation = extract_heat_gene(self.model, self.nb_years)
+        self.heat_generation = extract_heat_gene(self.model, self.conversion_efficiency, self.nb_years)
 
         self.new_capacity_annualized_costs, self.new_energy_capacity_annualized_costs = \
             extract_annualized_costs_investment_new_capa(self.capacities, self.energy_capacity,
