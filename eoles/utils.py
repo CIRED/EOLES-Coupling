@@ -209,11 +209,36 @@ def extract_charging_capacity(model):
 
 
 def extract_renovation_investment(model, existing_renovation_rate, linearized_renovation_costs, renovation_annuities, nb_years):
+    """Investment in renovation (Billion euro), both annualized and non annualized"""
     investment = sum((value(model.renovation_rate[renov]) - existing_renovation_rate[renov]) * linearized_renovation_costs[renov] * nb_years for renov in
                           model.renovation)  # 1e9€  (a verifier, mais je crois que c'est bien l'unité de linearized_renovation_costs)
     annuity_investment = sum((value(model.renovation_rate[renov]) - existing_renovation_rate[renov]) * renovation_annuities[renov] * nb_years for renov in
                           model.renovation) / 1000
     return investment, annuity_investment
+
+
+def extract_heater_investment(model, existing_capacity, annuities, nb_years):
+    """Investment in heaters in Billion euro (annualized)"""
+    list_tec = list(model.heat)
+    investment_heater = sum(
+                (value(model.capacity[tec]) - existing_capacity[tec]) * annuities[tec] * nb_years for tec in
+                list_tec) / 1000
+    return investment_heater
+
+
+def extract_electricity_cost(model, existing_capacity, existing_energy_capacity, storage_annuities, annuities,  fOM,
+                             vOM, nb_years):
+    """Annualized costs in the electricity system, excluding investment costs in heat technologies and renovation."""
+    all_but_heater = list(set(list(model.tec)) - set(list(model.heat)))
+    elec_costs = (sum(
+        (model.capacity[tec] - existing_capacity[tec]) * annuities[tec] * nb_years for tec in
+        all_but_heater)
+     + sum((model.energy_capacity[storage_tecs] - existing_energy_capacity[storage_tecs]) *
+                storage_annuities[
+                    storage_tecs] * nb_years for storage_tecs in model.str)
+     + sum(model.capacity[tec] * fOM[tec] * nb_years for tec in model.tec)
+     + sum(sum(model.gene[tec, h] * vOM[tec] for h in model.h) for tec in model.tec)) / 1000
+    return elec_costs
 
 
 def extract_renovation_rates(model, nb_linearize):
@@ -288,6 +313,36 @@ def extract_primary_gene(model, nb_years):
     for tec in list_tec:
         primary_generation[tec] = sum(value(model.gene[tec, hour]) for hour in model.h) / 1000 / nb_years  # TWh
     return primary_generation
+
+
+def extract_CH4_to_power(model, conversion_efficiency, nb_years):
+    """Extracts CH4 generation necessary to produce electricity"""
+    list_tec = list(model.from_CH4_to_elec)
+    gas_to_power_generation = pd.Series(index=list_tec, dtype=float)
+
+    for tec in list_tec:
+        gas_to_power_generation[tec] = sum(value(model.gene[tec, hour]) / conversion_efficiency[tec] for hour in model.h) / 1000 / nb_years  # TWh
+    return gas_to_power_generation
+
+
+def extract_power_to_CH4(model, conversion_efficiency, nb_years):
+    """Extracts electricity generation necessary to produce CH4"""
+    list_tec = list(model.from_elec_to_CH4)
+    power_to_CH4_generation = pd.Series(index=list_tec, dtype=float)
+
+    for tec in list_tec:
+        power_to_CH4_generation[tec] = sum(value(model.gene[tec, hour]) / conversion_efficiency[tec] for hour in model.h) / 1000 / nb_years  # TWh
+    return power_to_CH4_generation
+
+
+def extract_power_to_H2(model, conversion_efficiency, nb_years):
+    """Extracts electricity generation necessary to produce H2"""
+    list_tec = list(model.from_elec_to_H2)
+    power_to_H2_generation = pd.Series(index=list_tec, dtype=float)
+
+    for tec in list_tec:
+        power_to_H2_generation[tec] = sum(value(model.gene[tec, hour]) / conversion_efficiency[tec] for hour in model.h) / 1000 / nb_years  # TWh
+    return power_to_H2_generation
 
 
 def extract_heat_gene(model, conversion_efficiency, nb_years):

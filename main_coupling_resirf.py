@@ -17,6 +17,7 @@ from eoles.utils import get_config, get_pandas, calculate_annuities_resirf
 import eoles.utils
 from eoles.coupling_resirf_eoles import resirf_eoles_coupling_dynamic, optimize_blackbox_resirf_eoles_coupling, resirf_eoles_coupling_dynamic_no_opti
 import logging
+import argparse
 
 
 from matplotlib import pyplot as plt
@@ -135,31 +136,33 @@ if __name__ == '__main__':
     # parser.add_argument("-n", "--name", type=str, help="name for exporting result")
     #
     # args = parser.parse_args()
-    # config_res_irf, name = args.config, args.name  # we select the config we are interested in
+    # config_res_irf_path, name = args.config, args.name  # we select the config we are interested in
+    config_res_irf_path, name = os.path.join('eoles', 'inputs', 'config', 'config_resirf_nomultifamily.json'), "test"
 
     _export_calibration = os.path.join('eoles', 'outputs', 'calibration')
     _import_calibration = os.path.join(_export_calibration, 'calibration.pkl')
 
     # then
-    _buildings, _energy_prices, _taxes, _cost_heater, _cost_insulation, _flow_built, _post_inputs = ini_res_irf(
+    buildings, energy_prices, taxes, cost_heater, cost_insulation, flow_built, post_inputs = ini_res_irf(
         path=os.path.join('eoles', 'outputs', 'ResIRF'),
         logger=None,
-        config=os.path.join('eoles', 'inputs', 'config', 'config_resirf.json'),
+        config=config_res_irf_path,
         import_calibration=_import_calibration,
         export_calibration=_export_calibration)
 
-    timestep = 5
-    _year = 2020
-    _start = _year
-    _end = _year + timestep
-
-    _sub_heater = 0.2
-    _sub_insulation = 0.5
-
-    output, consumption = simu_res_irf(_buildings, _sub_heater, _sub_insulation, _start, _end, _energy_prices, _taxes,
-                 _cost_heater, _cost_insulation, _flow_built, _post_inputs, climate=2006,
-                 smooth=False, efficiency_hour=True, output_consumption=True,
-                 full_output=True)
+    # # TEST
+    # timestep = 5
+    # _year = 2020
+    # _start = _year
+    # _end = _year + timestep
+    #
+    # _sub_heater = 0.2
+    # _sub_insulation = 0.5
+    #
+    # output, consumption = simu_res_irf(buildings, _sub_heater, _sub_insulation, _start, _end, energy_prices, taxes,
+    #              cost_heater, cost_insulation, flow_built, post_inputs, climate=2006,
+    #              smooth=False, efficiency_hour=True, output_consumption=True,
+    #              full_output=True)
 
     list_year = [2025, 2030, 2035, 2040, 2045]
     list_trajectory_scc = [180, 250, 350, 500, 650]  # SCC trajectory from Quinet
@@ -173,9 +176,6 @@ if __name__ == '__main__':
         "fOM": {
             "gas_boiler": 19  # hypothesis Zeyen
         },
-        "conversion_efficiency": {
-            "gas_boiler": 0.9,
-        },
         "miscellaneous": {
             "lifetime_renov": 40
         },
@@ -183,9 +183,10 @@ if __name__ == '__main__':
             "h2_ccgt": 0
         }
     }
-    # output = resirf_eoles_coupling_dynamic(_buildings, _energy_prices, _taxes, _cost_heater, _cost_insulation, _flow_built,
-    #                                        _post_inputs, list_year, list_trajectory_scc, scenario_cost, config_eoles=config_eoles)
-
+    # output = resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, cost_insulation, flow_built,
+    #                                        post_inputs, list_year, list_trajectory_scc, scenario_cost, config_eoles=config_eoles,
+    #                                        max_iter=20, add_CH4_demand=False, return_optimizer=False)
+    #
     # # Save results
     # date = datetime.datetime.now().strftime("%m%d%H%M")
     # export_results = os.path.join("eoles", "outputs", f'{date}_{name}')
@@ -195,29 +196,30 @@ if __name__ == '__main__':
     #
     # with open(os.path.join(export_results, 'coupling_results.pkl'), "wb") as file:
     #     dump(output, file)
+    #
+    # with open(os.path.join(export_results, 'config_eoles.json'), "w") as outfile:
+    #     outfile.write(json.dumps(config_eoles, indent=4))
+    #
+    # # read and save the actual config file
+    # with open(config_res_irf_path) as file:
+    #     config_res_irf = json.load(file)
+    #
+    # with open(os.path.join(export_results, 'config_resirf.json'), "w") as outfile:
+    #     outfile.write(json.dumps(config_res_irf, indent=4))
+    #
+    # with open(os.path.join(export_results, 'scenario_eoles_costs.json'), "w") as outfile:
+    #     outfile.write(json.dumps(scenario_cost, indent=4))
 
-    #### Study trajectory with given list of subsidies
-    # list_sub_heater = [0.80, 0.20, 0.25, 0.46, 0.0]
-    # list_sub_insulation = [0.0, 0.0, 0.0, 0.0, 0.0]
-    # output = resirf_eoles_coupling_dynamic_no_opti(list_sub_heater, list_sub_insulation, buildings, energy_prices, taxes,
-    #                                       cost_heater, cost_insulation, flow_built, post_inputs,
-    #                                       list_year, list_trajectory_scc, scenario_cost, config_eoles)
+    ### Study trajectory with given list of subsidies
+    list_sub_heater = [1.0, 1.0, 1.0, 1.0, 1.0]
+    list_sub_insulation = [0.0, 0.0, 0.0, 0.0, 0.0]
+    output = resirf_eoles_coupling_dynamic_no_opti(list_sub_heater, list_sub_insulation, buildings, energy_prices, taxes,
+                                          cost_heater, cost_insulation, flow_built, post_inputs,
+                                          list_year, list_trajectory_scc, scenario_cost, config_eoles, add_CH4_demand=False)
 
-    # objective = resirf_eoles_coupling_static(np.array([[0, 0]]), buildings, energy_prices, taxes, cost_heater,
-    #                                          cost_insulation, flow_built,
-    #                                          post_inputs,
-    #                                          start_year_resirf=2020, timestep_resirf=1, config_eoles=config_eoles,
-    #                                          year_eoles=2050, anticipated_year_eoles=2050, scc=0, hourly_gas_exogeneous=0,
-    #                                          existing_capacity=None, existing_charging_capacity=None,
-    #                                          existing_energy_capacity=None,
-    #                                          maximum_capacity=None, method_hourly_profile="valentin",
-    #                                          scenario_cost=None, existing_annualized_costs_elec=0,
-    #                                          existing_annualized_costs_CH4=0,
-    #                                          existing_annualized_costs_H2=0, lifetime_renov=40,
-    #                                          discount_rate_renov=0.045)
 
     #
-    ## Test convergence of the result
+    # Test convergence of the result
     # max_iter, initial_design_numdata, optimizer = test_convergence(max_iter=20, initial_design_numdata=3)
     #
     # optimizer.plot_acquisition()
@@ -235,7 +237,7 @@ if __name__ == '__main__':
     #
     # optimizer.plot_acquisition()
     #
-    # from GPyOpt.plotting.plots_bo import plot_acquisition
+    from GPyOpt.plotting.plots_bo import plot_acquisition
     # #
     # # sns.set_theme()
     # plot_acquisition([(0, 1), (0, 0.2)],

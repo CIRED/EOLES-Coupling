@@ -12,7 +12,8 @@ from eoles.utils import get_pandas, process_RTE_demand, calculate_annuities_cape
     update_ngas_cost, define_month_hours, calculate_annuities_renovation, get_technical_cost, extract_hourly_generation, \
     extract_spot_price, extract_capacities, extract_energy_capacity, extract_supply_elec, extract_primary_gene, \
     extract_use_elec, extract_renovation_rates, extract_heat_gene, calculate_LCOE_gene_tec, calculate_LCOE_conv_tec, \
-    extract_charging_capacity, extract_annualized_costs_investment_new_capa
+    extract_charging_capacity, extract_annualized_costs_investment_new_capa, extract_CH4_to_power, extract_power_to_CH4, \
+    extract_power_to_H2
 from pyomo.environ import (
     ConcreteModel,
     RangeSet,
@@ -556,7 +557,9 @@ class ModelEOLES():
         self.charging_capacity = extract_charging_capacity(self.model)
         self.electricity_generation = extract_supply_elec(self.model, self.nb_years)
         self.primary_generation = extract_primary_gene(self.model, self.nb_years)
-        # self.heat_generation = extract_heat_gene(self.model, self.nb_years)
+        self.CH4_to_power_generation = extract_CH4_to_power(self.model, self.conversion_efficiency, self.nb_years)
+        self.power_to_CH4_generation = extract_power_to_CH4(self.model, self.conversion_efficiency, self.nb_years)
+        self.power_to_H2_generation = extract_power_to_H2(self.model, self.conversion_efficiency, self.nb_years)
 
         self.new_capacity_annualized_costs, self.new_energy_capacity_annualized_costs = \
             extract_annualized_costs_investment_new_capa(self.capacities, self.energy_capacity,
