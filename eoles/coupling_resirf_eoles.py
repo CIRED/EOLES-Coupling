@@ -25,15 +25,19 @@ LIST_REPLACEMENT_HEATER = ['Replacement heater Electricity-Heat pump water (Thou
                            'Replacement heater Oil fuel-Performance boiler (Thousand households)',
                            'Replacement heater Wood fuel-Performance boiler (Thousand households)']
 
-LIST_STOCK_HEATER = ['Stock Electricity-Heat pump air (Thousand)',
-                     'Stock Electricity-Heat pump water (Thousand)', 'Stock Electricity-Performance boiler (Thousand)',
-                     'Stock Natural gas-Performance boiler (Thousand)', 'Stock Natural gas-Standard boiler (Thousand)',
-                     'Stock Oil fuel-Performance boiler (Thousand)', 'Stock Oil fuel-Standard boiler (Thousand)',
-                     'Stock Wood fuel-Performance boiler (Thousand)', 'Stock Wood fuel-Standard boiler (Thousand)']
+LIST_STOCK_HEATER = ['Stock Electricity-Heat pump air (Thousand households)',
+                     'Stock Electricity-Heat pump water (Thousand households)',
+                     'Stock Electricity-Performance boiler (Thousand households)',
+                     'Stock Natural gas-Performance boiler (Thousand households)',
+                     'Stock Natural gas-Standard boiler (Thousand households)',
+                     'Stock Oil fuel-Performance boiler (Thousand households)',
+                     'Stock Oil fuel-Standard boiler (Thousand households)',
+                     'Stock Wood fuel-Performance boiler (Thousand households)',
+                     'Stock Wood fuel-Standard boiler (Thousand households)']
 
 
 def run_resirf(sub_heater, sub_insulation, buildings, energy_prices, taxes, cost_heater, cost_insulation, flow_built,
-               post_inputs, start_year_resirf, timestep_resirf):
+               post_inputs, policies_heater, policies_insulation, start_year_resirf, timestep_resirf):
     # TODO: a modifier avec les changements dans ResIRF
     endyear_resirf = start_year_resirf + timestep_resirf
 
@@ -44,7 +48,7 @@ def run_resirf(sub_heater, sub_insulation, buildings, energy_prices, taxes, cost
     output, heating_consumption = simu_res_irf(buildings_copy, sub_heater, sub_insulation, start_year_resirf,
                                                endyear_resirf,
                                                energy_prices, taxes, cost_heater, cost_insulation, flow_built,
-                                               post_inputs,
+                                               post_inputs, policies_heater, policies_insulation,
                                                climate=2006, smooth=False, efficiency_hour=True,
                                                output_consumption=True,
                                                full_output=True)
@@ -83,7 +87,7 @@ def run_resirf(sub_heater, sub_insulation, buildings, energy_prices, taxes, cost
 
 
 def resirf_eoles_coupling_static(subvention, buildings, energy_prices, taxes, cost_heater, cost_insulation, flow_built,
-                                 post_inputs,
+                                 post_inputs, policies_heater, policies_insulation,
                                  start_year_resirf, timestep_resirf, config_eoles,
                                  year_eoles, anticipated_year_eoles, scc, hourly_gas_exogeneous,
                                  existing_capacity, existing_charging_capacity, existing_energy_capacity,
@@ -110,7 +114,7 @@ def resirf_eoles_coupling_static(subvention, buildings, energy_prices, taxes, co
     output, heating_consumption = simu_res_irf(buildings_copy, sub_heater, sub_insulation, start_year_resirf,
                                                endyear_resirf,
                                                energy_prices, taxes, cost_heater, cost_insulation, flow_built,
-                                               post_inputs,
+                                               post_inputs, policies_heater, policies_insulation,
                                                climate=2006, smooth=False, efficiency_hour=True,
                                                output_consumption=True,
                                                full_output=True)
@@ -160,7 +164,8 @@ def resirf_eoles_coupling_static(subvention, buildings, energy_prices, taxes, co
 
 
 def optimize_blackbox_resirf_eoles_coupling(buildings, energy_prices, taxes, cost_heater, cost_insulation, flow_built,
-                                            post_inputs, start_year_resirf, timestep_resirf, config_eoles,
+                                            post_inputs, policies_heater, policies_insulation,
+                                            start_year_resirf, timestep_resirf, config_eoles,
                                             year_eoles, anticipated_year_eoles, scc, hourly_gas_exogeneous,
                                             existing_capacity, existing_charging_capacity, existing_energy_capacity,
                                             maximum_capacity, method_hourly_profile,
@@ -175,7 +180,8 @@ def optimize_blackbox_resirf_eoles_coupling(buildings, energy_prices, taxes, cos
         f=lambda x: resirf_eoles_coupling_static(x, buildings=buildings, energy_prices=energy_prices,
                                                  taxes=taxes, cost_heater=cost_heater,
                                                  cost_insulation=cost_insulation, flow_built=flow_built,
-                                                 post_inputs=post_inputs, start_year_resirf=start_year_resirf,
+                                                 post_inputs=post_inputs, policies_heater=policies_heater,
+                                                 policies_insulation=policies_insulation, start_year_resirf=start_year_resirf,
                                                  timestep_resirf=timestep_resirf,
                                                  config_eoles=config_eoles, year_eoles=year_eoles,
                                                  anticipated_year_eoles=anticipated_year_eoles,
@@ -211,7 +217,7 @@ def optimize_blackbox_resirf_eoles_coupling(buildings, energy_prices, taxes, cos
 
 
 def resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, cost_insulation, flow_built,
-                                  post_inputs,
+                                  post_inputs, policies_heater, policies_insulation,
                                   list_year, list_trajectory_scc, scenario_cost, config_eoles, max_iter,
                                   add_CH4_demand=False,
                                   return_optimizer=False):
@@ -256,9 +262,11 @@ def resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, 
 
     list_sub_heater, list_sub_insulation = [], []
     list_investment_heater, list_investment_insulation, list_subsidies_heater_cost, list_subsidies_insulation_cost, list_health_cost = [], [], [], [], []
+    list_cost_rebound, list_consumption_saving_insulation, list_consumption_saving_heater = [], [], []
     list_electricity_consumption, list_gas_consumption, list_wood_consumption, list_oil_consumption = [], [], [], []
     replacement_heater_df = pd.DataFrame(index=LIST_REPLACEMENT_HEATER, dtype=float)
     stock_heater_df = pd.DataFrame(index=LIST_STOCK_HEATER, dtype=float)
+    investment_cost_eff_df = pd.DataFrame(dtype=float)
 
     for y, scc in zip(list_year, list_trajectory_scc):
         print(f"Year {y}, SCC {scc}")
@@ -332,7 +340,8 @@ def resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, 
         # Find optimal subsidy
         optimizer, opt_sub = \
             optimize_blackbox_resirf_eoles_coupling(buildings, energy_prices, taxes, cost_heater, cost_insulation,
-                                                    flow_built, post_inputs, start_year_resirf, timestep_resirf,
+                                                    flow_built, post_inputs, policies_heater, policies_insulation,
+                                                    start_year_resirf, timestep_resirf,
                                                     config_eoles, year_eoles, anticipated_year_eoles, scc,
                                                     hourly_gas_exogeneous=hourly_exogeneous_CH4,
                                                     existing_capacity=existing_capacity,
@@ -355,7 +364,7 @@ def resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, 
         output_opt, heating_consumption = simu_res_irf(buildings, opt_sub_heater, opt_sub_insulation, start_year_resirf,
                                                        endyear_resirf,
                                                        energy_prices, taxes, cost_heater, cost_insulation, flow_built,
-                                                       post_inputs,
+                                                       post_inputs, policies_heater, policies_insulation,
                                                        climate=2006, smooth=False, efficiency_hour=True,
                                                        output_consumption=True,
                                                        full_output=True)
@@ -379,6 +388,9 @@ def resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, 
         subsidies_heater_cost = output_opt.loc["Subsidies heater (Billion euro)"].sum()  # 1e9 €
         subsidies_insulation_cost = output_opt.loc["Subsidies insulation (Billion euro)"].sum()  # 1e9 €
         health_cost = output_opt.loc["Health cost (Billion euro)"].sum()  # 1e9 €
+        rebound_cost = output_opt.loc['Cost rebound (Billion euro)'].sum()  # 1e9 €
+        consumption_saving_heater = output_opt.loc["Consumption saving heater (TWh)"].sum()  # TWh
+        consumption_saving_insulation = output_opt.loc["Consumption saving renovation (TWh)"].sum()  # TWh
 
         annuity_health_cost = calculate_annuities_resirf(health_cost, lifetime=40, discount_rate=0.045)
         annuity_investment_heater_cost = calculate_annuities_resirf(investment_heater_cost, lifetime=40, discount_rate=0.045)
@@ -386,29 +398,32 @@ def resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, 
                                                                     discount_rate=0.045)
 
         replacement_output = output_opt.loc[[ind for ind in output_opt.index if "Replacement" in ind]].sum(axis=1)
+        stock_output = output_opt.loc[[ind for ind in output_opt.index if "Stock" in ind]]
+        stock_output = stock_output[stock_output.columns[-1]]
 
-        # stock_output = pd.Series(
-        #     {key: output_opt[endyear_resirf - 1][key] for key in list(output_opt[endyear_resirf - 1].keys()) if
-        #      "Stock" in key})
+        investment_heater_cost_eff = output_opt.loc['Investment heater / saving (euro / kWh.year)'].to_frame()
+        investment_insulation_cost_eff = output_opt.loc['Investment insulation / saving (euro / kWh.year)'].to_frame()
+        investment_cost_eff = pd.concat([investment_heater_cost_eff, investment_insulation_cost_eff], axis=1)
 
         list_investment_heater.append(investment_heater_cost)
         list_investment_insulation.append(investment_insulation_cost)
         list_subsidies_heater_cost.append(subsidies_heater_cost)
         list_subsidies_insulation_cost.append(subsidies_insulation_cost)
         list_health_cost.append(health_cost)
+        list_cost_rebound.append(rebound_cost)
         list_electricity_consumption.append(electricity_consumption)
         list_gas_consumption.append(gas_consumption)
         list_wood_consumption.append(wood_consumption)
         list_oil_consumption.append(oil_consumption)
         replacement_heater_df = pd.concat([replacement_heater_df, replacement_output.to_frame().rename(columns={0: y})],
                                           axis=1)
+        stock_heater_df = pd.concat([stock_heater_df, stock_output.to_frame()], axis=1)
+        investment_cost_eff_df = pd.concat([investment_cost_eff_df, investment_cost_eff], axis=0)
         list_insulation_annualized.append(annuity_investment_insulation_cost)
         list_heater_annualized.append(annuity_investment_heater_cost)
         list_healthcost_annualized.append(annuity_health_cost)
-
-        # stock_heater_df = pd.concat([stock_heater_df, stock_output.to_frame().rename(columns={0: y})], axis=1)
-
-        # TODO: ajouter des dictionnaires avec les outputs d'intérêt
+        list_consumption_saving_heater.append(consumption_saving_heater)
+        list_consumption_saving_insulation.append(consumption_saving_insulation)
 
         # Rerun EOLES with optimal parameters
         m_eoles = ModelEOLES(name="trajectory", config=config_eoles, path="eoles/outputs", logger=logger, nb_years=1,
@@ -494,14 +509,19 @@ def resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, 
          'Annualized health costs': list_healthcost_annualized}, index=list_year
     )
 
+    resirf_subsidies_df = pd.DataFrame({'Heater': list_sub_heater, 'Insulation': list_sub_insulation},
+                                    index=list_year)
+
     resirf_costs_df = pd.DataFrame({'Heater': list_investment_heater, "Insulation": list_investment_insulation,
                                     'Subsidies insulation': list_subsidies_insulation_cost,
-                                    'Subsidies heater': list_subsidies_heater_cost, "Health cost": list_health_cost},
+                                    'Subsidies heater': list_subsidies_heater_cost, "Health cost": list_health_cost,
+                                    'Rebound cost': list_cost_rebound},
                                    index=list_year)
 
     resirf_consumption_df = pd.DataFrame(
         {'Electricity': list_electricity_consumption, "Natural gas": list_gas_consumption,
-         'Oil fuel': list_oil_consumption, 'Wood fuel': list_wood_consumption}, index=list_year)
+         'Oil fuel': list_oil_consumption, 'Wood fuel': list_wood_consumption,
+         'Saving heater': list_consumption_saving_heater, 'Saving insulation': list_consumption_saving_insulation}, index=list_year)
 
     output = {
         "Capacities (GW)": capacity_df,
@@ -512,13 +532,13 @@ def resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, 
         "Charging capacity (GW)": charging_capacity_df,
         "Energy capacity (GW)": energy_capacity_df,
         "Prices (€/MWh)": price_df,
-        "Subvention heater": list_sub_heater,
-        "Subvention insulation": list_sub_insulation,
+        "Subsidies (%)": resirf_subsidies_df,
         "ResIRF costs (Billion euro)": resirf_costs_df,
+        "ResIRF costs eff (euro / kWh.year)": investment_cost_eff_df,
         "ResIRF consumption (TWh)": resirf_consumption_df,
         "ResIRF replacement heater (Thousand)": replacement_heater_df,
+        "ResIRF stock heater (Thousand)": stock_heater_df,
         "Annualized system costs (Billion euro / year)": annualized_system_costs_df
-        # "stock_heater": stock_heater_df
     }
     if return_optimizer:
         return output, optimizer
@@ -526,7 +546,7 @@ def resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, 
 
 
 def resirf_eoles_coupling_dynamic_no_opti(list_sub_heater, list_sub_insulation, buildings, energy_prices, taxes,
-                                          cost_heater, cost_insulation, flow_built, post_inputs,
+                                          cost_heater, cost_insulation, flow_built, post_inputs, policies_heater, policies_insulation,
                                           list_year, list_trajectory_scc, scenario_cost, config_eoles,
                                           add_CH4_demand=False):
     # TODO: a modifier avec les changements dans ResIRF
@@ -570,9 +590,11 @@ def resirf_eoles_coupling_dynamic_no_opti(list_sub_heater, list_sub_insulation, 
                                                         columns=["annualized_costs"], dtype=float)
 
     list_investment_heater, list_investment_insulation, list_subsidies_heater_cost, list_subsidies_insulation_cost, list_health_cost = [], [], [], [], []
+    list_cost_rebound, list_consumption_saving_insulation, list_consumption_saving_heater = [], [], []
     list_electricity_consumption, list_gas_consumption, list_wood_consumption, list_oil_consumption = [], [], [], []
     replacement_heater_df = pd.DataFrame(index=LIST_REPLACEMENT_HEATER, dtype=float)
     stock_heater_df = pd.DataFrame(index=LIST_STOCK_HEATER, dtype=float)
+    investment_cost_eff_df = pd.DataFrame(dtype=float)
 
     t = 0
     for y, scc in zip(list_year, list_trajectory_scc):
@@ -655,7 +677,7 @@ def resirf_eoles_coupling_dynamic_no_opti(list_sub_heater, list_sub_insulation, 
         output_opt, heating_consumption = simu_res_irf(buildings, opt_sub_heater, opt_sub_insulation, start_year_resirf,
                                                        endyear_resirf,
                                                        energy_prices, taxes, cost_heater, cost_insulation, flow_built,
-                                                       post_inputs,
+                                                       post_inputs, policies_heater, policies_insulation,
                                                        climate=2006, smooth=False, efficiency_hour=True,
                                                        output_consumption=True,
                                                        full_output=True)
@@ -679,6 +701,9 @@ def resirf_eoles_coupling_dynamic_no_opti(list_sub_heater, list_sub_insulation, 
         subsidies_heater_cost = output_opt.loc["Subsidies heater (Billion euro)"].sum()  # 1e9 €
         subsidies_insulation_cost = output_opt.loc["Subsidies insulation (Billion euro)"].sum()  # 1e9 €
         health_cost = output_opt.loc["Health cost (Billion euro)"].sum()  # 1e9 €
+        rebound_cost = output_opt.loc['Cost rebound (Billion euro)'].sum()  # 1e9 €
+        consumption_saving_heater = output_opt.loc["Consumption saving heater (TWh)"].sum()  # TWh
+        consumption_saving_insulation = output_opt.loc["Consumption saving renovation (TWh)"].sum()  # TWh
 
         annuity_health_cost = calculate_annuities_resirf(health_cost, lifetime=40, discount_rate=0.045)
         annuity_investment_heater_cost = calculate_annuities_resirf(investment_heater_cost, lifetime=40, discount_rate=0.045)
@@ -686,26 +711,32 @@ def resirf_eoles_coupling_dynamic_no_opti(list_sub_heater, list_sub_insulation, 
                                                                     discount_rate=0.045)
 
         replacement_output = output_opt.loc[[ind for ind in output_opt.index if "Replacement" in ind]].sum(axis=1)
+        stock_output = output_opt.loc[[ind for ind in output_opt.index if "Stock" in ind]]
+        stock_output = stock_output[stock_output.columns[-1]]
 
-        # stock_output = pd.Series(
-        #     {key: output_opt[endyear_resirf - 1][key] for key in list(output_opt[endyear_resirf - 1].keys()) if
-        #      "Stock" in key})
+        investment_heater_cost_eff = output_opt.loc['Investment heater / saving (euro / kWh.year)'].to_frame()
+        investment_insulation_cost_eff = output_opt.loc['Investment insulation / saving (euro / kWh.year)'].to_frame()
+        investment_cost_eff = pd.concat([investment_heater_cost_eff, investment_insulation_cost_eff], axis=1)
 
         list_investment_heater.append(investment_heater_cost)
         list_investment_insulation.append(investment_insulation_cost)
         list_subsidies_heater_cost.append(subsidies_heater_cost)
         list_subsidies_insulation_cost.append(subsidies_insulation_cost)
         list_health_cost.append(health_cost)
+        list_cost_rebound.append(rebound_cost)
         list_electricity_consumption.append(electricity_consumption)
         list_gas_consumption.append(gas_consumption)
         list_wood_consumption.append(wood_consumption)
         list_oil_consumption.append(oil_consumption)
         replacement_heater_df = pd.concat([replacement_heater_df, replacement_output.to_frame().rename(columns={0: y})],
                                           axis=1)
+        stock_heater_df = pd.concat([stock_heater_df, stock_output.to_frame().rename(columns={0: y})], axis=1)
+        investment_cost_eff_df = pd.concat([investment_cost_eff_df, investment_cost_eff], axis=0)
         list_insulation_annualized.append(annuity_investment_insulation_cost)
         list_heater_annualized.append(annuity_investment_heater_cost)
         list_healthcost_annualized.append(annuity_health_cost)
-        # stock_heater_df = pd.concat([stock_heater_df, stock_output.to_frame().rename(columns={0: y})], axis=1)
+        list_consumption_saving_heater.append(consumption_saving_heater)
+        list_consumption_saving_insulation.append(consumption_saving_insulation)
 
         # Rerun EOLES with optimal parameters
         m_eoles = ModelEOLES(name="trajectory", config=config_eoles, path="eoles/outputs", logger=logger, nb_years=1,
@@ -798,12 +829,14 @@ def resirf_eoles_coupling_dynamic_no_opti(list_sub_heater, list_sub_insulation, 
 
     resirf_costs_df = pd.DataFrame({'Heater': list_investment_heater, "Insulation": list_investment_insulation,
                                     'Subsidies insulation': list_subsidies_insulation_cost,
-                                    'Subsidies heater': list_subsidies_heater_cost, "Health cost": list_health_cost},
+                                    'Subsidies heater': list_subsidies_heater_cost, "Health cost": list_health_cost,
+                                    'Rebound cost': list_cost_rebound},
                                    index=list_year)
 
     resirf_consumption_df = pd.DataFrame(
         {'Electricity': list_electricity_consumption, "Natural gas": list_gas_consumption,
-         'Oil fuel': list_oil_consumption, 'Wood fuel': list_wood_consumption}, index=list_year)
+         'Oil fuel': list_oil_consumption, 'Wood fuel': list_wood_consumption,
+         'Saving heater': list_consumption_saving_heater, 'Saving insulation': list_consumption_saving_insulation}, index=list_year)
 
     output = {
         "Capacities (GW)": capacity_df,
@@ -817,10 +850,15 @@ def resirf_eoles_coupling_dynamic_no_opti(list_sub_heater, list_sub_insulation, 
         "Subvention heater": list_sub_heater,
         "Subvention insulation": list_sub_insulation,
         "ResIRF costs (Billion euro)": resirf_costs_df,
+        "ResIRF costs eff (euro / kWh.year)": investment_cost_eff_df,
         "ResIRF consumption (TWh)": resirf_consumption_df,
         "ResIRF replacement heater (Thousand)": replacement_heater_df,
+        "ResIRF stock heater (Thousand)": stock_heater_df,
         "Annualized system costs (Billion euro / year)": annualized_system_costs_df
-        # "stock_heater": stock_heater_df
     }
 
     return output
+
+
+def electricity_price_ttc(system_cost):
+    return 0

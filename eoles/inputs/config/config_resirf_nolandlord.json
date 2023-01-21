@@ -45,7 +45,7 @@
     "policies": {
       "mpr_serenite": {
         "start": 2019,
-        "end": 2051,
+        "end": 2020,
         "insulation": "project/input/policies/mpr_serenite.csv",
         "cap": "project/input/policies/mpr_serenite_cap.csv"
       },
@@ -70,14 +70,14 @@
       },
       "cite": {
         "start": 2019,
-        "end": 2051,
+        "end": 2020,
         "heater": "project/input/policies/cite_heater.csv",
         "insulation": "project/input/policies/cite_insulation.csv",
         "cap": 4800
       },
       "reduced_tax": {
         "start": 2019,
-        "end": 2051,
+        "end": 2020,
         "value": 0.055
       },
       "obligation": {
@@ -90,7 +90,7 @@
       },
       "landlord": {
         "start": 2020,
-        "end": 2015
+        "end": 2051
       },
       "multi_family": {
         "start": 2020,

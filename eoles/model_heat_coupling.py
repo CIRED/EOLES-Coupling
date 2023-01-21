@@ -244,7 +244,7 @@ class ModelEOLES():
         # Technologies using electricity
         self.model.use_elec = Set(initialize=["phs", "battery1", "battery4", "electrolysis"])
         # Technologies producing gas
-        self.model.gas_gene = Set(initialize=["methanization", "pyrogazification"])
+        self.model.gas_gene = Set(initialize=["methanization", "pyrogazification", "natural_gas"])
 
         # Gas technologies used for balance (both CH4 and H2)
         self.model.CH4_balance = Set(
@@ -641,7 +641,7 @@ class ModelEOLES():
             self.model)  # detailed renovation rate at the linearized segment level
         self.electricity_generation = extract_supply_elec(self.model, self.nb_years)
         self.primary_generation = extract_primary_gene(self.model, self.nb_years)
-        self.heat_generation = extract_heat_gene(self.model, self.conversion_efficiency, self.nb_years)
+        self.heat_generation, self.heat_consumption = extract_heat_gene(self.model, self.conversion_efficiency, self.hp_cop, self.nb_years)
         self.CH4_to_power_generation = extract_CH4_to_power(self.model, self.conversion_efficiency, self.nb_years)
         self.power_to_CH4_generation = extract_power_to_CH4(self.model, self.conversion_efficiency, self.nb_years)
         self.power_to_H2_generation = extract_power_to_H2(self.model, self.conversion_efficiency, self.nb_years)

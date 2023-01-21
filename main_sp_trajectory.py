@@ -10,7 +10,7 @@ from eoles.process_cost_efficiency import piecewise_linearization_cost_efficienc
 
 
 if __name__ == '__main__':
-
+    ## ATTENTION: OLD VERSION
     config = get_config(spec="greenfield")
 
     LOG_FORMATTER = '%(asctime)s : %(name)s  : %(funcName)s : %(levelname)s : %(message)s'

@@ -15,9 +15,12 @@ def plot_simulation(output, save_path):
     primary_generation_df = output["Primary generation (TWh)"]
     conversion_generation_df = output["Conversion generation (TWh)"]
     prices_df = output["Prices (€/MWh)"]
+    resirf_subsidies = output["Subsidies (%)"]
     resirf_costs_df = output["ResIRF costs (Billion euro)"]
+    resirf_costs_eff_df = output["ResIRF costs eff (euro / kWh.year)"]
     resirf_consumption_df = output["ResIRF consumption (TWh)"]
     resirf_replacement_heater = output["ResIRF replacement heater (Thousand)"]
+    resirf_stock_heater = output["ResIRF stock heater (Thousand)"]
     annualized_system_costs = output["Annualized system costs (Billion euro / year)"]
 
     # Plot capacities
@@ -74,17 +77,33 @@ def plot_simulation(output, save_path):
                    save=os.path.join(save_path, "prices.png"),
                    format_y=lambda y, _: '{:.0f}'.format(y))
 
-    # Plot consumption ResIRF
-    make_area_plot(resirf_consumption_df, y_label="Heating consumption (TWh)", colors=resources_data["colors_resirf"],
-                   save=os.path.join(save_path, "resirf_consumption.png"), format_y=lambda y, _: '{:.0f}'.format(y))
-
-    # Plot costs ResIRF
-    make_area_plot(resirf_costs_df, y_label="Costs (Billion euro)", save=os.path.join(save_path, "resirf_costs.png"),
+    # Plot subsidies ResIRF
+    make_line_plot(resirf_subsidies, y_label="Subsidies (%)", save=os.path.join(save_path, "resirf_subsidies.png"),
                    format_y=lambda y, _: '{:.0f}'.format(y))
 
-    # Plot replacement ResIRF
+    # Plot consumption ResIRF
+    make_area_plot(resirf_consumption_df, subset=["Electricity", "Natural gas", "Oil fuel", "Wood fuel"],
+                   y_label="Heating consumption (TWh)", colors=resources_data["colors_resirf"],
+                   save=os.path.join(save_path, "resirf_consumption.png"), format_y=lambda y, _: '{:.0f}'.format(y))
+
+    # Plot savings ResIRF
+    make_area_plot(resirf_consumption_df, subset=['Saving heater', "Saving insulation"],
+                   y_label="Savings (TWh)",
+                   save=os.path.join(save_path, "resirf_savings.png"), format_y=lambda y, _: '{:.0f}'.format(y))
+
+    # Plot costs ResIRF
+    make_line_plot(resirf_costs_df, y_label="Costs (Billion euro)", save=os.path.join(save_path, "resirf_costs.png"),
+                   format_y=lambda y, _: '{:.0f}'.format(y))
+
+    make_line_plot(resirf_costs_eff_df, y_label="Costs per saving (euro / kWh.year)", save=os.path.join(save_path, "resirf_costs_eff.png"),
+                   format_y=lambda y, _: '{:.0f}'.format(y), rotation=45, x_ticks=resirf_costs_eff_df.index[::2])
+
+    # Plot stock and replacement ResIRF
     make_area_plot(resirf_replacement_heater.T, y_label="Replacement heater (Thousand households)",
                    save=os.path.join(save_path, "resirf_replacement.png"), format_y=lambda y, _: '{:.0f}'.format(y))
+
+    make_area_plot(resirf_stock_heater.T, y_label="Stock heater (Thousand households)",
+                   save=os.path.join(save_path, "resirf_stock.png"), format_y=lambda y, _: '{:.0f}'.format(y))
 
     # Plot annualized system costs
     make_line_plot(annualized_system_costs, y_label="Annualized system costs",
@@ -97,10 +116,13 @@ def format_legend(ax):
     ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
 
 
-def format_ax(ax: plt.Axes, title=None, y_label=None, x_label=None, x_ticks=None, format_y=lambda y, _: y):
+def format_ax(ax: plt.Axes, title=None, y_label=None, x_label=None, x_ticks=None, format_y=lambda y, _: y,
+              rotation=None):
     ax.yaxis.set_major_formatter(plt.FuncFormatter(format_y))
     if x_ticks is not None:
         ax.set_xticks(ticks=x_ticks, labels=x_ticks)
+    if rotation is not None:
+        ax.set_xticklabels(ax.get_xticks(), rotation=45)
     if y_label is not None:
         ax.set_ylabel(y_label)
 
@@ -136,7 +158,8 @@ def make_area_plot(df, subset=None, y_label=None, colors=None, format_y=lambda y
     save_fig(fig, save=save)
 
 
-def make_line_plot(df, subset=None, y_label=None, colors=None, format_y=lambda y, _: y, save=None):
+def make_line_plot(df, subset=None, y_label=None, colors=None, format_y=lambda y, _: y, save=None, rotation=None,
+                   x_ticks=None):
     if save is None:
         fig, ax = plt.subplots(1, 1)
     else:  # we change figure size when saving figure
@@ -153,7 +176,10 @@ def make_line_plot(df, subset=None, y_label=None, colors=None, format_y=lambda y
         else:
             df[subset].plot.line(ax=ax, color=colors)
 
-    ax = format_ax(ax, title=y_label, x_ticks=df.index, format_y=format_y)
+    if x_ticks is None:
+        ax = format_ax(ax, title=y_label, x_ticks=df.index, format_y=format_y, rotation=rotation)
+    else:
+        ax = format_ax(ax, title=y_label, x_ticks=x_ticks, format_y=format_y, rotation=rotation)
     format_legend(ax)
 
     save_fig(fig, save=save)
