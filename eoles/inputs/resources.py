@@ -113,7 +113,12 @@ colors_eoles = {
     "LCOE electricity volume": "#029E73",
     "LCOE electricity value": "#DE8F05",
     "Gas for heating": "slategrey",
-    "Electricity for heating": "darkorange"
+    "Electricity for heating": "darkorange",
+    "Investment heater (Billion euro)" : "firebrick",
+    "Investment insulation (Billion euro)" : "#CC78BC",
+    "Subsidies heater (Billion euro)" : "orangered",
+    "Subsidies insulation (Billion euro)": "#ECE133",
+    "Health cost (Billion euro)": "blue"
 }
 
 resources_data["colors_resirf"] = colors_resirf

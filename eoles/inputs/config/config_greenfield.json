@@ -3,6 +3,7 @@
   "biomass_potential": "eoles/inputs/technology_potential/biomass_evolution_S3.csv",
   "construction_time": "eoles/inputs/technology_characteristics/construction_time.csv",
   "capex": "eoles/inputs/technology_characteristics/overnight_capex_evolution.csv",
+  "carbon_budget": "eoles/inputs/carbon_budget.csv",
   "demand": "eoles/inputs/demand/demand2050_RTE.csv",
   "demand_no_residential": "eoles/inputs/demand/demand2050_RTE_no_residential_heating.csv",
   "demand_noP2G_RTE_timesteps": "eoles/inputs/demand/demand_noP2G_timesteps.csv",

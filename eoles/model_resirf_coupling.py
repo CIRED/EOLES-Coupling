@@ -34,12 +34,12 @@ from pyomo.environ import (
 
 
 class ModelEOLES():
-    def __init__(self, name, config, path, logger, nb_years, hourly_heat_elec, hourly_heat_gas, heat_wood=0, heat_fuel=0,
+    def __init__(self, name, config, path, logger, nb_years, hourly_heat_elec, hourly_heat_gas, wood_consumption=0, oil_consumption=0,
                  existing_capacity=None,
                  existing_charging_capacity=None, existing_energy_capacity=None, maximum_capacity=None,
                  method_hourly_profile="valentin", social_cost_of_carbon=0, year=2050, anticipated_year=2050,
                  scenario_cost=None, existing_annualized_costs_elec=0,
-                 existing_annualized_costs_CH4=0, existing_annualized_costs_H2=0):
+                 existing_annualized_costs_CH4=0, existing_annualized_costs_H2=0, carbon_constraint=False):
         """
 
         :param name: str
@@ -77,8 +77,8 @@ class ModelEOLES():
 
         self.elec_demand1y = self.elec_demand1y + self.hourly_heat_elec_1y  # we add electricity demand from heating, may require changing if we include multiple weather years
         self.hourly_heat_gas = hourly_heat_gas  # TODO: attention, bien vérifier que ce profil inclut toute la demande en gaz qu'on veut, notamment le tertiaire et ECS également !
-        self.heat_wood = heat_wood
-        self.heat_fuel = heat_fuel
+        self.wood_consumption = wood_consumption
+        self.oil_consumption = oil_consumption
 
         self.H2_demand = {}
         self.CH4_demand = {}
@@ -101,6 +101,18 @@ class ModelEOLES():
         data_static = data_technology
         if scenario_cost is not None:  # we update costs based on data given in scenario
             for df in scenario_cost.keys():
+                if df == "existing_capacity" and existing_capacity is not None:
+                    for tec in scenario_cost[df].keys():
+                        existing_capacity[tec] = scenario_cost[df][tec]
+                if df == "existing_charging_capacity" and existing_charging_capacity is not None:
+                    for tec in scenario_cost[df].keys():
+                        existing_charging_capacity[tec] = scenario_cost[df][tec]
+                if df == "existing_energy_capacity" and existing_energy_capacity is not None:
+                    for tec in scenario_cost[df].keys():
+                        existing_energy_capacity[tec] = scenario_cost[df][tec]
+                if df == "maximum_capacity" and maximum_capacity is not None:
+                    for tec in scenario_cost[df].keys():
+                        maximum_capacity[tec] = scenario_cost[df][tec]
                 for tec in scenario_cost[df].keys():
                     data_static[df][tec] = scenario_cost[df][tec]
 
@@ -137,6 +149,7 @@ class ModelEOLES():
         self.biomass_potential = data_static["biomass_potential"]
         self.total_H2_demand = data_static["demand_H2_RTE"]
         self.energy_prices = data_static["energy_prices"]
+        self.carbon_budget = data_static["carbon_budget"]
         self.vOM["wood_boiler"], self.vOM["fuel_boiler"] = self.energy_prices["wood"] * 1e-3, self.energy_prices[
             "fuel"] * 1e-3  # €/kWh
 
@@ -146,11 +159,12 @@ class ModelEOLES():
         self.storage_annuities = calculate_annuities_storage_capex(self.miscellaneous, self.storage_capex,
                                                                    self.construction_time, self.lifetime)
 
-        # Update natural gaz vOM based on social cost of carbon
-        self.vOM.loc["natural_gas"] = update_ngas_cost(self.vOM.loc["natural_gas"], scc=self.scc)  # €/kWh
-        self.vOM["fuel_boiler"] = update_ngas_cost(self.vOM["fuel_boiler"], scc=self.scc, emission_rate=0.271)  # to check !!
-        self.vOM["wood_boiler"] = update_ngas_cost(self.vOM["wood_boiler"], scc=self.scc,
-                                                   emission_rate=0)  # to check !!
+        if not carbon_constraint:  # on prend en compte le scc mais pas de contrainte sur le budget
+            # Update natural gaz vOM based on social cost of carbon
+            self.vOM.loc["natural_gas"] = update_ngas_cost(self.vOM.loc["natural_gas"], scc=self.scc, emission_rate=0.2295)  # €/kWh
+            self.vOM["fuel_boiler"] = update_ngas_cost(self.vOM["fuel_boiler"], scc=self.scc, emission_rate=0.271)  # to check !!
+            self.vOM["wood_boiler"] = update_ngas_cost(self.vOM["wood_boiler"], scc=self.scc,
+                                                       emission_rate=0)  # to check !!
 
         # defining needed time steps
         self.first_hour = 0
@@ -433,6 +447,12 @@ class ModelEOLES():
                 'percentage_co2_from_methanization']
             )
 
+        def carbon_budget_constraint_rule(model):
+            """Constraint on carbon budget."""
+            return sum(model.gene["natural_gas", h] for h in model.h) * 0.2295 / 1000 + \
+                   self.oil_consumption * 0.271 / 1000 <= self.carbon_budget
+
+
         self.model.generation_vre_constraint = \
             Constraint(self.model.h, self.model.vre, rule=generation_vre_constraint_rule)
 
@@ -480,10 +500,12 @@ class ModelEOLES():
 
         self.model.electricity_adequacy_constraint = Constraint(self.model.h, rule=electricity_adequacy_constraint_rule)
 
+        if self.carbon_budget:
+            self.model.carbon_budget_constraint = Constraint(rule=carbon_budget_constraint_rule)
+
     def define_objective(self):
         def objective_rule(model):
             """Objective value in 10**3 M€, or 1e9€"""
-
             return (sum(
                 (model.capacity[tec] - self.existing_capacity[tec]) * self.annuities[tec] * self.nb_years for tec in
                 model.tec)
@@ -500,7 +522,7 @@ class ModelEOLES():
                     #     model.charging_capacity[storage_tecs] * self.charging_opex[storage_tecs] * self.nb_years
                     #     for storage_tecs in model.str)
                     + sum(sum(model.gene[tec, h] * self.vOM[tec] for h in model.h) for tec in model.tec)
-                    + self.heat_fuel * self.vOM["fuel_boiler"] + self.heat_wood * self.vOM["wood_boiler"]  # we add variable costs from wood and fuel
+                    + self.oil_consumption * self.vOM["fuel_boiler"] + self.wood_consumption * self.vOM["wood_boiler"]  # we add variable costs from wood and fuel
                     ) / 1000
 
         # Creation of the objective -> Cost
@@ -678,10 +700,13 @@ def read_annual_demand_data(config, year):
     energy_prices = get_pandas(config["energy_prices"],
                                lambda x: pd.read_csv(x, index_col=0))  # €/MWh
     energy_prices = energy_prices[[str(year)]].squeeze()  # get storage capex for year of interest
+    carbon_budget_timesteps = get_pandas(config["carbon_budget"], lambda x: pd.read_csv(x, index_col=0).squeeze())
+    carbon_budget = carbon_budget_timesteps[year]
 
     o = dict()
     o["demand_H2_RTE"] = demand_H2_RTE * 1e3  # GWh
     o["energy_prices"] = energy_prices  # € / MWh
+    o["carbon_budget"] = carbon_budget  # MtCO2eq
     return o
 
 

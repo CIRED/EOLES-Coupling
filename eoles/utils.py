@@ -50,7 +50,7 @@ TEMP_SINK = 55
 
 def calculate_hp_cop(climate):
     """Calculates heat pump coefficient based on renewable ninja data."""
-    path_weather = Path("eoles") / "inputs" / "ninja_weather_country_FR_merra-2_population_weighted.csv"
+    path_weather = Path("eoles") / "inputs" / "hourly_profiles" / "ninja_weather_country_FR_merra-2_population_weighted.csv"
     weather = get_pandas(path_weather,
                          lambda x: pd.read_csv(x, header=2))
     weather["date"] = weather.apply(lambda row: datetime.datetime.strptime(row["time"], '%Y-%m-%d %H:%M:%S'), axis=1)
@@ -262,10 +262,10 @@ def define_month_hours(first_month, nb_years, months_hours, hours_by_months):
 
 ### Processing output
 
-def get_technical_cost(model, objective, scc):
+def get_technical_cost(model, objective, scc, heat_fuel):
     """Returns technical cost (social cost without CO2 emissions-related cost"""
-    gene_ngas = sum(value(model.gene["natural_gas", hour]) for hour in model.h) / 1000  # TWh
-    net_emissions = gene_ngas * 0.2295
+    gene_ngas = sum(value(model.gene["natural_gas", hour]) for hour in model.h)   # GWh
+    net_emissions = gene_ngas * 0.2295 / 1000 + heat_fuel * 0.271 / 1000  # MtCO2
     technical_cost = objective - net_emissions * scc / 1000
     return technical_cost, net_emissions
 
@@ -383,8 +383,11 @@ def extract_hourly_generation(model, elec_demand, CH4_demand, H2_demand, heat_de
 def extract_spot_price(model, nb_hours):
     """Extracts spot price"""
     spot_price = pd.DataFrame({"hour": range(nb_hours),
-                               "spot_price": [- 1e6 * model.dual[model.electricity_adequacy_constraint[h]] for h in
-                                              model.h]})
+                               "elec_spot_price": [- 1e6 * model.dual[model.electricity_adequacy_constraint[h]] for h in
+                                              model.h],
+                               "CH4_spot_price": [1e6 * model.dual[model.methane_balance_constraint[h]] for h in
+                                                   model.h]
+                               })
     return spot_price
 
 
@@ -607,7 +610,7 @@ def plot_generation(df):
 
 
 if __name__ == '__main__':
-    path_cop_behrang = Path("eoles") / "inputs" / "hp_cop.csv"
+    path_cop_behrang = Path("eoles") / "inputs" / "hourly_profiles" / "hp_cop.csv"
     hp_cop_behrang = get_pandas(path_cop_behrang, lambda x: pd.read_csv(x, index_col=0, header=0))
     hp_cop_new = calculate_hp_cop(climate=2006)
     # hp_cop_new.to_csv(Path("eoles") / "inputs" / "hp_cop_2006.csv")
