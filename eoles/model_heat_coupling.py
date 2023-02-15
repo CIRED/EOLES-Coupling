@@ -40,7 +40,7 @@ class ModelEOLES():
                  existing_energy_capacity=None, existing_renovation_rate=None, maximum_capacity=None,
                  method_hourly_profile="valentin", hourly_heat_gas=None, social_cost_of_carbon=0,
                  year=2050, anticipated_year=2050, scenario_cost=None, hp_hourly=True, renov=None, existing_annualized_costs_elec=0,
-                 existing_annualized_costs_CH4=0, existing_annualized_costs_H2=0):
+                 existing_annualized_costs_CH4=0, existing_annualized_costs_H2=0, discount_rate=0.045):
         """
 
         :param name: str
@@ -74,6 +74,7 @@ class ModelEOLES():
         self.model.dual = Suffix(direction=Suffix.IMPORT)
         self.nb_years = nb_years
         self.scc = social_cost_of_carbon
+        self.discount_rate = discount_rate
         self.year = year
         self.anticipated_year = anticipated_year
         self.nb_linearize = nb_linearize  # number of linearized segment to represent one heating archetype
@@ -174,9 +175,9 @@ class ModelEOLES():
         self.vOM["natural_gas"] = self.energy_prices["natural_gas"]*1e-3  # TEST de prendre en compte l'augmentation du prix du gaz naturel
 
         # calculate annuities
-        self.annuities = calculate_annuities_capex(self.miscellaneous, self.capex, self.construction_time,
+        self.annuities = calculate_annuities_capex(self.discount_rate, self.capex, self.construction_time,
                                                    self.lifetime)
-        self.storage_annuities = calculate_annuities_storage_capex(self.miscellaneous, self.storage_capex,
+        self.storage_annuities = calculate_annuities_storage_capex(self.discount_rate, self.storage_capex,
                                                                    self.construction_time, self.lifetime)
         self.renovation_annuities = calculate_annuities_renovation(self.linearized_renovation_costs, self.miscellaneous)
 
@@ -628,7 +629,7 @@ class ModelEOLES():
         """
         # get value of objective function
         self.objective = self.solver_results["Problem"][0]["Upper bound"]
-        self.technical_cost, self.emissions = get_technical_cost(self.model, self.objective, self.scc)
+        self.technical_cost, self.emissions = get_technical_cost(self.model, self.objective, self.scc, heat_fuel=0)  # TODO: attention, cela ne fonctionne pas, il faudrait intégrer vraiment le fioul
         self.hourly_generation = extract_hourly_generation(self.model, self.elec_demand, list(self.CH4_demand.values()),
                                                            list(self.H2_demand.values()),
                                                            heat_demand=self.heat_demand_tot)

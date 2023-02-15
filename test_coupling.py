@@ -8,7 +8,7 @@ import seaborn as sns
 import datetime
 from pickle import dump, load
 
-from project.sensitivity import ini_res_irf, simu_res_irf
+from project.coupling import ini_res_irf, simu_res_irf
 from project.building import AgentBuildings
 from project.model import get_inputs, social_planner
 
@@ -34,11 +34,20 @@ console_handler.setFormatter(logging.Formatter(LOG_FORMATTER))
 logger.addHandler(console_handler)
 
 HOURLY_PROFILE_METHOD = "valentin"
-DICT_CONFIG = {
+DICT_CONFIG_RESIRF = {
     "classic": "eoles/inputs/config/config_resirf.json",
     "landlord": "eoles/inputs/config/config_resirf_nolandlord.json",
     "multifamily": "eoles/inputs/config/config_resirf_nomultifamily.json",
+    "landlord_multifamily": "eoles/inputs/config/config_resirf_nolandlord_nomultifamily.json",
     "threshold": "eoles/inputs/config/config_resirf_threshold.json",
+    "technical_progress": "eoles/inputs/config/config_resirf_technical_progress.json",
+    "technical_progress_nolandlord_nomultifamily": "eoles/inputs/config/config_resirf_technical_progress_nolandlord_nomultifamily.json",
+    "test": "eoles/inputs/config/config_resirf_new.json"
+}
+
+DICT_CONFIG_EOLES = {
+    "eoles_classic": "eoles_coupling",
+    "eoles_worst_case": "eoles_coupling_worst_case"
 }
 
 
@@ -130,124 +139,28 @@ def test_convergence(max_iter, initial_design_numdata, buildings, energy_prices,
     return max_iter, initial_design_numdata, optimizer
 
 
-def test_convergence_2030():
-    output, optimizer = resirf_eoles_coupling_dynamic(_buildings, _energy_prices, _taxes, _cost_heater, _cost_insulation, _flow_built,
-                                  _post_inputs, [2025, 2030], [180, 250], scenario_cost, config_eoles, max_iter=22, return_optimizer=True)
-    return output, optimizer
-
-
-def run_optimization_scenario(config:str, calibration_threshold:bool, h2ccgt:bool):
-
-    config_resirf_path = DICT_CONFIG[config]
-
-    # Calibration: whether we use threshold or not
-    name_calibration = 'calibration'
-    if calibration_threshold is True:
-        name_calibration = '{}_threshold'.format(name_calibration)
-
-    export_calibration = os.path.join('eoles', 'outputs', 'calibration', '{}.pkl'.format(name_calibration))
-    import_calibration = os.path.join('eoles', 'outputs', 'calibration', '{}.pkl'.format(name_calibration))
-
-    # initialization
-    buildings, energy_prices, taxes, cost_heater, cost_insulation, flow_built, post_inputs, policies_heater, policies_insulation = ini_res_irf(
-        path=os.path.join('eoles', 'outputs', 'ResIRF'),
-        logger=None,
-        config=config_resirf_path,
-        import_calibration=import_calibration,
-        export_calibration=export_calibration)
-
-    list_year = [2025, 2030, 2035, 2040, 2045]
-    list_trajectory_scc = [180, 250, 350, 500, 650]  # SCC trajectory from Quinet
-    config_eoles = eoles.utils.get_config(spec="greenfield")  # TODO: changer le nom de la config qu'on appelle
-
-    scenario_cost = {}
-    if not h2ccgt:  # we do not allow h2 ccgt plants
-        scenario_cost["fix_capa"] = {
-            "h2_ccgt": 0
-        }
-
-    output = resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, cost_insulation, flow_built,
-                                           post_inputs, policies_heater, policies_insulation,
-                                           list_year, list_trajectory_scc, scenario_cost, config_eoles=config_eoles,
-                                           max_iter=20, add_CH4_demand=False, return_optimizer=False)
-
-    # Save results
-    date = datetime.datetime.now().strftime("%m%d%H%M")
-    if h2ccgt:
-        export_results = os.path.join("eoles", "outputs", f'{date}_{config}_h2ccgt')
-    else:
-        export_results = os.path.join("eoles", "outputs", f'{date}_{config}')
-
-    # Create directories
-    if not os.path.isdir(export_results):
-        os.mkdir(export_results)
-
-    if not os.path.isdir(os.path.join(export_results, "config")):
-        os.mkdir(os.path.join(export_results, "config"))
-
-    if not os.path.isdir(os.path.join(export_results, "plots")):
-        os.mkdir(os.path.join(export_results, "plots"))
-
-    with open(os.path.join(export_results, 'coupling_results.pkl'), "wb") as file:
-        dump(output, file)
-
-    with open(os.path.join(export_results, "config", 'config_eoles.json'), "w") as outfile:
-        outfile.write(json.dumps(config_eoles, indent=4))
-
-    # read and save the actual config file
-    with open(config_resirf_path) as file:
-        config_res_irf = json.load(file)
-
-    with open(os.path.join(export_results, "config", 'config_resirf.json'), "w") as outfile:
-        outfile.write(json.dumps(config_res_irf, indent=4))
-
-    with open(os.path.join(export_results, "config", 'scenario_eoles_costs.json'), "w") as outfile:
-        outfile.write(json.dumps(scenario_cost, indent=4))
-
-    plot_simulation(output, save_path=os.path.join(export_results, "plots"))
-
-
-def buildings_copy(instance):
-    # TODO: il faudrait ajouter un paramètre preferences a l'objet AgentsBuilding, pour pouvoir le récupérer pour l'initialisation.
-    # TODO: le paramètre performance_insulation semble initialiser à la fois dans le init, puis dans la fonction prepare_consumption: pas clair de savoir ce qu'il faudrait
-    # utiliser pour l'initialisation
-    new_building = instance.__class__(stock=instance._stock, surface=instance._surface_yrs, ratio_surface=instance._ratio_surface,
-                                      efficiency=instance._efficiency, income=instance._income,
-                                      consumption_ini=instance._consumption_ini, preferences=instance.preferences,
-                                      performance_insulation=instance.performance_insulation)
-
-    for k in instance.__dict__:
-        attr_copy = copy.deepcopy(getattr(instance, k))
-        setattr(new_building, k, attr_copy)
-    return new_building
-
+# def test_convergence_2030():
+#     output, optimizer = resirf_eoles_coupling_dynamic(_buildings, _energy_prices, _taxes, _cost_heater, _cost_insulation, _flow_built,
+#                                   _post_inputs, [2025, 2030], [180, 250], scenario_cost, config_eoles, max_iter=22, return_optimizer=True)
+#     return output, optimizer
 
 if __name__ == '__main__':
 
-    # # TEST
-    # timestep = 2
-    # _year = 2025
-    # _start = _year
-    # _end = _year + timestep
-    #
-    # _sub_heater = 0.0
-    # _sub_insulation = 0.0
-    #
-    # _buildings._debug_mode = True
-    # output, consumption = simu_res_irf(_buildings, _sub_heater, _sub_insulation, _start, _end, _energy_prices, _taxes,
-    #              _cost_heater, _cost_insulation, _flow_built, _post_inputs, _policies_heater, _policies_insulation, climate=2006,
-    #              smooth=False, efficiency_hour=True, output_consumption=True, full_output=True, sub_design=None)
-
     config_coupling = {
         'config_resirf': "classic",
-        'h2ccgt': True,
         'calibration_threshold': False,
-        'max_iter': 15,
-        'sub_design': 'natural_gas',
-        "annuity_health": True,
+        'h2ccgt': False,
+        'max_iter': 1,
+        'sub_design': "global_renovation_low_income",
+        "health": True,
+        "discount_rate": 0.045,
+        "rebound": True,
+        "carbon_constraint": True,
+        'one_shot_setting': True,
+        'fix_sub_heater': False,
         'list_year': [2025],
-        'list_trajectory_scc': [650],
-        'scenario_cost_eoles': {
+        'list_trajectory_scc': [775],
+         'scenario_cost_eoles': {
             'biomass_potential': {
                 'methanization': 0,
                 'pyrogazification': 0
@@ -271,13 +184,40 @@ if __name__ == '__main__':
             'vOM': {
                 'natural_gas': 0.035,
             }
-        },
-        'one_shot_setting': True,
-        'fix_sub_heater': True
+        }
     }
 
-    config_resirf = config_coupling["config_resirf"]
-    config_resirf_path = DICT_CONFIG[config_resirf]
+    config_coupling = {
+        'config_resirf': "test",
+        "config_eoles": "eoles_classic",  # includes costs assumptions
+        'calibration_threshold': False,
+        'h2ccgt': False,
+        'max_iter': 1,
+        'sub_design': None,
+        "health": True,  # on inclut les coûts de santé
+        "discount_rate": 0.032,
+        "rebound": True,
+        "carbon_constraint": False,
+        'one_shot_setting': False,
+        'fix_sub_heater': False,
+        'list_year': [2025, 2030],
+        'list_trajectory_scc': [250, 350],
+        'scenario_cost_eoles': {  # add assumptions on available technologies
+            "biomass_potential": {
+                "methanization": 0,
+                "pyrogazification": 0
+            },
+            "existing_capacity": {
+                "offshore_f": 0
+            },
+            "maximum_capacity": {
+                "offshore_f": 0
+            }
+        }
+    }
+
+    config_resirf, config_eoles_spec = config_coupling["config_resirf"], DICT_CONFIG_EOLES[config_coupling["config_eoles"]]
+    config_resirf_path = DICT_CONFIG_RESIRF[config_resirf]
 
     calibration_threshold = config_coupling["calibration_threshold"]
 
@@ -291,16 +231,16 @@ if __name__ == '__main__':
     import_calibration = os.path.join('eoles', 'outputs', 'calibration', '{}.pkl'.format(name_calibration))
 
     # initialization
-    buildings, energy_prices, taxes, cost_heater, cost_insulation, flow_built, post_inputs, policies_heater, policies_insulation = ini_res_irf(
+    buildings, energy_prices, taxes, cost_heater, cost_insulation, lifetime_heater, flow_built, post_inputs, policies_heater, policies_insulation, technical_progress, financing_cost = ini_res_irf(
         path=os.path.join('eoles', 'outputs', 'ResIRF'),
         logger=None,
         config=config_resirf_path,
-        import_calibration=None,
-        export_calibration=export_calibration, cost_factor=1)
+        import_calibration='eoles/outputs/calibration/calibration.pkl',
+        export_calibration=None)
 
     list_year = config_coupling["list_year"]
     list_trajectory_scc = config_coupling["list_trajectory_scc"]  # SCC trajectory
-    config_eoles = eoles.utils.get_config(spec="greenfield")  # TODO: changer le nom de la config qu'on appelle
+    config_eoles = eoles.utils.get_config(spec=config_eoles_spec)  # TODO: changer le nom de la config qu'on appelle
 
     h2ccgt = config_coupling["h2ccgt"]
     scenario_cost = config_coupling["scenario_cost_eoles"]
@@ -315,14 +255,47 @@ if __name__ == '__main__':
 
     max_iter, one_shot_setting, fix_sub_heater = config_coupling["max_iter"], config_coupling["one_shot_setting"], config_coupling["fix_sub_heater"]
 
-    sub_design, annuity_health = config_coupling["sub_design"], config_coupling["annuity_health"]
+    sub_design, health, discount_rate, rebound, carbon_constraint = config_coupling["sub_design"], config_coupling["health"], \
+                                                                    config_coupling["discount_rate"], config_coupling["rebound"], config_coupling["carbon_constraint"]
 
-    output, optimizer = resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, cost_insulation, flow_built,
-                                           post_inputs, policies_heater, policies_insulation,
-                                           list_year, list_trajectory_scc, scenario_cost, config_eoles=config_eoles,
-                                           max_iter=max_iter, add_CH4_demand=False, return_optimizer=True,
-                                           one_shot_setting=one_shot_setting, fix_sub_heater=fix_sub_heater, sub_design=sub_design,
-                                                      annuity_health=annuity_health)
+    output, dict_optimizer = resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, cost_insulation,
+                                                           flow_built, post_inputs, policies_heater, policies_insulation,
+                                                           list_year, list_trajectory_scc, scenario_cost,
+                                                           config_eoles=config_eoles, max_iter=max_iter,
+                                                           add_CH4_demand=False, one_shot_setting=one_shot_setting,
+                                                           fix_sub_heater=fix_sub_heater, sub_design=sub_design,
+                                                           health=health, carbon_constraint=carbon_constraint,
+                                                           lifetime_heater=lifetime_heater,
+                                                           discount_rate=discount_rate, rebound=rebound,
+                                                           technical_progress=technical_progress, optimization=True,
+                                                           financing_cost=financing_cost)
+
+    # output = resirf_eoles_coupling_dynamic_no_opti(list_sub_heater=[1.0, 0.68], list_sub_insulation=[0.23, 0.40],
+    #                                                                buildings=buildings, energy_prices=energy_prices,
+    #                                                                taxes=taxes, cost_heater=cost_heater, cost_insulation=cost_insulation,
+    #                                                                flow_built=flow_built, post_inputs=post_inputs, policies_heater=policies_heater,
+    #                                                                policies_insulation=policies_insulation, list_year=list_year,
+    #                                                                list_trajectory_scc=list_trajectory_scc, scenario_cost=scenario_cost,
+    #                                                                config_eoles=config_eoles, add_CH4_demand=False,
+    #                                                                 one_shot_setting=one_shot_setting, sub_design=sub_design,
+    #                                                                health=health, carbon_constraint=carbon_constraint, discount_rate=discount_rate,
+    #                                                                rebound=rebound, technical_progress=technical_progress, financing_cost=None)
+
+    # # TEST
+    timestep = 2
+    year = 2025
+    start = year
+    end = year + timestep
+
+    sub_heater = 0.5
+    sub_insulation = 0.8333
+
+    buildings._debug_mode = False
+    output, consumption = simu_res_irf(buildings, sub_heater, sub_insulation, start, end, energy_prices, taxes,
+                 cost_heater, cost_insulation, lifetime_heater, flow_built, post_inputs, policies_heater, policies_insulation, climate=2006,
+                 smooth=False, efficiency_hour=True, output_consumption=True, full_output=True, sub_design=None, technical_progress=technical_progress,
+                                       financing_cost=financing_cost)
+
     #
     # list_year = [2025, 2030, 2035, 2040, 2045]
     # list_trajectory_scc = [180, 250, 350, 500, 650]  # SCC trajectory from Quinet
@@ -411,7 +384,7 @@ if __name__ == '__main__':
     #                  optimizer.suggest_next_locations())
     #
     # output, optimizer = test_convergence_2030()
-    optimizer.plot_acquisition()
-    plot_acquisition([(0.5, 1), (0, 0.5)], 2, optimizer.model.model, optimizer.model.model.X, optimizer.model.model.Y,
-                     optimizer.acquisition.acquisition_function, optimizer.suggest_next_locations(),
-                     filename=None, label_x=None, label_y=None, color_by_step=True)
+    # optimizer.plot_acquisition()
+    # plot_acquisition([(0.5, 1), (0, 0.5)], 2, optimizer.model.model, optimizer.model.model.X, optimizer.model.model.Y,
+    #                  optimizer.acquisition.acquisition_function, optimizer.suggest_next_locations(),
+    #                  filename=None, label_x=None, label_y=None, color_by_step=True)

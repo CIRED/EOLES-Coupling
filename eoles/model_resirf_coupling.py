@@ -13,7 +13,8 @@ from eoles.utils import get_pandas, process_RTE_demand, calculate_annuities_cape
     extract_spot_price, extract_capacities, extract_energy_capacity, extract_supply_elec, extract_primary_gene, \
     extract_use_elec, extract_renovation_rates, extract_heat_gene, calculate_LCOE_gene_tec, calculate_LCOE_conv_tec, \
     extract_charging_capacity, extract_annualized_costs_investment_new_capa, extract_CH4_to_power, extract_power_to_CH4, \
-    extract_power_to_H2
+    extract_power_to_H2, extract_peak_load, extract_peak_heat_load, extract_annualized_costs_investment_new_capa_nofOM, \
+    extract_functionment_cost
 from pyomo.environ import (
     ConcreteModel,
     RangeSet,
@@ -35,19 +36,42 @@ from pyomo.environ import (
 
 class ModelEOLES():
     def __init__(self, name, config, path, logger, nb_years, hourly_heat_elec, hourly_heat_gas, wood_consumption=0, oil_consumption=0,
-                 existing_capacity=None,
-                 existing_charging_capacity=None, existing_energy_capacity=None, maximum_capacity=None,
+                 existing_capacity=None, existing_charging_capacity=None, existing_energy_capacity=None, maximum_capacity=None,
                  method_hourly_profile="valentin", social_cost_of_carbon=0, year=2050, anticipated_year=2050,
                  scenario_cost=None, existing_annualized_costs_elec=0,
-                 existing_annualized_costs_CH4=0, existing_annualized_costs_H2=0, carbon_constraint=False):
+                 existing_annualized_costs_CH4=0, existing_annualized_costs_H2=0, carbon_constraint=False, discount_rate=0.045):
         """
 
         :param name: str
         :param config: dict
+        :param path: str
+        :param logger:
         :param nb_years: int
-        :param existing_capa: pd.Series
+            Number of years considered in the analysis
+        :param hourly_heat_elec: pd.Series
+            Sequence of hourly electricity demand for heat in the residential sector
+        :param hourly_heat_gas: pd.Series
+            Sequence of hourly gas demand for heat in the residential sector
+        :param wood_consumption: float
+        :param oil_consumption: float
+        :param existing_capacity: pd.Series
+        :param existing_charging_capacity: pd.Series
+        :param existing_energy_capacity: pd.Series
+        :param maximum_capacity: pd.Series
+        :param method_hourly_profile: str
+            Method to calculate the hourly profile for electricity and gas demand related to heat
         :param social_cost_of_carbon: int
             Social cost of carbon used to calculate emissions
+        :param year: int
+        :param anticipated_year: int
+        :param scenario_cost: dict
+        :param existing_annualized_costs_elec: float
+        :param existing_annualized_costs_CH4: float
+        :param existing_annualized_costs_H2: float
+        :param carbon_constraint: bool
+            If true, include a carbon constraint instead of the social cost of carbon
+        :param discount_rate: float
+            Discount rate used to calculate annuities
         """
         self.name = name
         self.config = config
@@ -58,7 +82,10 @@ class ModelEOLES():
         self.model.dual = Suffix(direction=Suffix.IMPORT)
         self.nb_years = nb_years
         self.scc = social_cost_of_carbon
+        self.discount_rate = discount_rate
         self.year = year
+        self.carbon_constraint = carbon_constraint
+        self.capacity_factor_nuclear = self.config["capacity_factor_nuclear"]
         self.anticipated_year = anticipated_year
         self.existing_annualized_costs_elec = existing_annualized_costs_elec
         self.existing_annualized_costs_CH4 = existing_annualized_costs_CH4
@@ -68,14 +95,15 @@ class ModelEOLES():
         assert hourly_heat_gas is not None, "Hourly gas heat profile should be provided to the model"
 
         # loading exogeneous variable data
-        data_variable = read_input_variable(config, self.anticipated_year, method=method_hourly_profile)
-        self.load_factors = data_variable["load_factors"]
-        self.elec_demand1y = data_variable["demand"]
-        self.lake_inflows = data_variable["lake_inflows"]
+        data_hourly_and_anticipated = read_hourly_and_anticipated_data(config, self.anticipated_year, method=method_hourly_profile)
+        self.load_factors = data_hourly_and_anticipated["load_factors"]
+        self.elec_demand1y = data_hourly_and_anticipated["demand"]
+        self.lake_inflows = data_hourly_and_anticipated["lake_inflows"]
+        self.biomass_potential = data_hourly_and_anticipated["biomass_potential"]
 
-        self.hourly_heat_elec_1y = hourly_heat_elec
+        self.hourly_heat_elec = hourly_heat_elec
 
-        self.elec_demand1y = self.elec_demand1y + self.hourly_heat_elec_1y  # we add electricity demand from heating, may require changing if we include multiple weather years
+        self.elec_demand1y = self.elec_demand1y + self.hourly_heat_elec  # we add electricity demand from heating, may require changing if we include multiple weather years
         self.hourly_heat_gas = hourly_heat_gas  # TODO: attention, bien vérifier que ce profil inclut toute la demande en gaz qu'on veut, notamment le tertiaire et ECS également !
         self.wood_consumption = wood_consumption
         self.oil_consumption = oil_consumption
@@ -96,7 +124,7 @@ class ModelEOLES():
         # loading exogeneous static data
         # data_static = read_input_static(self.config, self.year)
         data_technology = read_technology_data(self.config, self.year)  # get current technology data
-        data_annual = read_annual_demand_data(self.config, self.anticipated_year)  # get anticipated demand and energy prices
+        data_annual = read_annual_data(self.config, self.anticipated_year)  # get anticipated demand and energy prices
         data_technology.update(data_annual)
         data_static = data_technology
         if scenario_cost is not None:  # we update costs based on data given in scenario
@@ -146,7 +174,7 @@ class ModelEOLES():
         self.eta_out = data_static["eta_out"]
         self.conversion_efficiency = data_static["conversion_efficiency"]
         self.miscellaneous = data_static["miscellaneous"]
-        self.biomass_potential = data_static["biomass_potential"]
+        # self.biomass_potential = data_static["biomass_potential"]
         self.total_H2_demand = data_static["demand_H2_RTE"]
         self.energy_prices = data_static["energy_prices"]
         self.carbon_budget = data_static["carbon_budget"]
@@ -154,12 +182,12 @@ class ModelEOLES():
             "fuel"] * 1e-3  # €/kWh
 
         # calculate annuities
-        self.annuities = calculate_annuities_capex(self.miscellaneous, self.capex, self.construction_time,
+        self.annuities = calculate_annuities_capex(self.discount_rate, self.capex, self.construction_time,
                                                    self.lifetime)
-        self.storage_annuities = calculate_annuities_storage_capex(self.miscellaneous, self.storage_capex,
+        self.storage_annuities = calculate_annuities_storage_capex(self.discount_rate, self.storage_capex,
                                                                    self.construction_time, self.lifetime)
 
-        if not carbon_constraint:  # on prend en compte le scc mais pas de contrainte sur le budget
+        if not self.carbon_constraint:  # on prend en compte le scc mais pas de contrainte sur le budget
             # Update natural gaz vOM based on social cost of carbon
             self.vOM.loc["natural_gas"] = update_ngas_cost(self.vOM.loc["natural_gas"], scc=self.scc, emission_rate=0.2295)  # €/kWh
             self.vOM["fuel_boiler"] = update_ngas_cost(self.vOM["fuel_boiler"], scc=self.scc, emission_rate=0.271)  # to check !!
@@ -244,12 +272,8 @@ class ModelEOLES():
             self.H2_demand[hour] = self.total_H2_demand / 8760  # We make the assumption that H2 demand profile is flat
 
         # Set the methane demand for each hour
-        if self.hourly_heat_gas is None:
-            for hour in self.model.h:
-                self.CH4_demand[hour] = self.miscellaneous['CH4_demand']
-        else:
-            for hour in self.model.h:
-                self.CH4_demand[hour] = self.gas_demand[hour]  # a bit redundant, could be removed
+        for hour in self.model.h:
+            self.CH4_demand[hour] = self.gas_demand[hour]  # a bit redundant, could be removed
 
     def define_variables(self):
 
@@ -314,6 +338,11 @@ class ModelEOLES():
         def generation_vre_constraint_rule(model, h, vre):
             """Cnstraint on variables renewable profiles generation."""
             return model.gene[vre, h] == model.capacity[vre] * self.load_factors[vre, h]
+
+        def generation_nuclear_constraint_rule(model):
+            """Constraint on total nuclear production which cannot be superior to nuclear capacity times a given
+            capacity factor inferior to 1."""
+            return sum(model.gene["nuclear", h] for h in model.h) <= self.capacity_factor_nuclear * model.capacity["nuclear"] * 8760
 
         def generation_capacity_constraint_rule(model, h, tec):
             """Constraint on maximum power for non-VRE technologies."""
@@ -456,6 +485,8 @@ class ModelEOLES():
         self.model.generation_vre_constraint = \
             Constraint(self.model.h, self.model.vre, rule=generation_vre_constraint_rule)
 
+        self.model.generation_nuclear_constraint = Constraint(rule=generation_nuclear_constraint_rule)
+
         self.model.generation_capacity_constraint = \
             Constraint(self.model.h, self.model.tec, rule=generation_capacity_constraint_rule)
 
@@ -500,7 +531,7 @@ class ModelEOLES():
 
         self.model.electricity_adequacy_constraint = Constraint(self.model.h, rule=electricity_adequacy_constraint_rule)
 
-        if self.carbon_budget:
+        if self.carbon_constraint:  # on ajoute la contrainte carbone
             self.model.carbon_budget_constraint = Constraint(rule=carbon_budget_constraint_rule)
 
     def define_objective(self):
@@ -536,7 +567,8 @@ class ModelEOLES():
         self.define_constraints()
         self.define_objective()
 
-    def solve(self, solver_name, quick_save=False):
+    def solve(self, solver_name, infeasible_value=1000):
+        """Attention au choix de la infeasible_value: c'est la valeur que l'on donne lorsque le problème n'est pas solvable."""
         self.opt = SolverFactory(solver_name)
         self.logger.info("Solving EOLES model using %s", self.opt.name)
         self.solver_results = self.opt.solve(self.model,
@@ -559,7 +591,8 @@ class ModelEOLES():
                 "Optimisation failed with status %s and terminal condition %s"
                 % (status, termination_condition)
             )
-            self.objective = np.nan
+            # self.objective = np.nan
+            self.objective = infeasible_value
         return self.solver_results, status, termination_condition
 
     def extract_optimisation_results(self):
@@ -570,9 +603,11 @@ class ModelEOLES():
         """
         # get value of objective function
         self.objective = self.solver_results["Problem"][0]["Upper bound"]
-        self.technical_cost, self.emissions = get_technical_cost(self.model, self.objective, self.scc)
-        self.hourly_generation = extract_hourly_generation(self.model, self.elec_demand,  list(self.CH4_demand.values()),
-                                                           list(self.H2_demand.values()))
+        self.technical_cost, self.emissions = get_technical_cost(self.model, self.objective, self.scc, self.oil_consumption)
+        self.hourly_generation = extract_hourly_generation(self.model, elec_demand=self.elec_demand,  CH4_demand=list(self.CH4_demand.values()),
+                                                           H2_demand=list(self.H2_demand.values()), hourly_heat_elec=self.hourly_heat_elec, hourly_heat_gas=self.hourly_heat_gas)
+        self.peak_electricity_load_info = extract_peak_load(self.hourly_generation, self.conversion_efficiency)
+        self.peak_heat_load_info = extract_peak_heat_load(self.hourly_generation)
         self.spot_price = extract_spot_price(self.model, self.last_hour)
         self.capacities = extract_capacities(self.model)
         self.energy_capacity = extract_energy_capacity(self.model)
@@ -587,6 +622,7 @@ class ModelEOLES():
             extract_annualized_costs_investment_new_capa(self.capacities, self.energy_capacity,
                                                          self.existing_capacity, self.existing_energy_capacity, self.annuities,
                                                          self.storage_annuities, self.fOM)
+
         # self.use_elec = extract_use_elec(self.model, self.nb_years, self.miscellaneous)
         self.summary, self.generation_per_technology, \
         self.lcoe_per_tec = extract_summary(self.model, self.elec_demand, self.H2_demand, self.CH4_demand,
@@ -594,13 +630,19 @@ class ModelEOLES():
                                             self.storage_annuities, self.fOM, self.vOM, self.conversion_efficiency,
                                             self.existing_annualized_costs_elec, self.existing_annualized_costs_CH4,
                                             self.existing_annualized_costs_H2, self.nb_years)
+        self.new_capacity_annualized_costs_nofOM, self.new_energy_capacity_annualized_costs_nofOM = \
+            extract_annualized_costs_investment_new_capa_nofOM(self.capacities, self.energy_capacity,
+                                                         self.existing_capacity, self.existing_energy_capacity, self.annuities,
+                                                         self.storage_annuities)  # pd.Series
+        self.functionment_cost = extract_functionment_cost(self.capacities, self.fOM, self.vOM,
+                                                           pd.Series(self.generation_per_technology) * 1000, self.oil_consumption, self.wood_consumption)  # pd.Series
         self.results = {'objective': self.objective, 'summary': self.summary,
                         'hourly_generation': self.hourly_generation,
                         'capacities': self.capacities, 'energy_capacity': self.energy_capacity,
                         'supply_elec': self.electricity_generation, 'primary_generation': self.primary_generation}
 
 
-def read_input_variable(config, year, method="valentin"):
+def read_hourly_and_anticipated_data(config, year, method="valentin"):
     """Reads data defined at the hourly scale"""
     load_factors = get_pandas(config["load_factors"],
                               lambda x: pd.read_csv(x, index_col=[0, 1], header=None).squeeze("columns"))
@@ -609,10 +651,14 @@ def read_input_variable(config, year, method="valentin"):
 
     lake_inflows = get_pandas(config["lake_inflows"],
                               lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # GWh
+    biomass_potential = get_pandas(config["biomass_potential"],
+                                   lambda x: pd.read_csv(x, index_col=0))  # 1e6€/GW
+    biomass_potential = biomass_potential[[str(year)]].squeeze()  # get storage capex for year of interest
     o = dict()
     o["load_factors"] = load_factors
     o["demand"] = demand_no_residential
     o["lake_inflows"] = lake_inflows
+    o["biomass_potential"] = biomass_potential
     return o
 
 
@@ -683,11 +729,11 @@ def read_technology_data(config, year):
     o["eta_out"] = eta_out
     o["conversion_efficiency"] = conversion_efficiency
     o["miscellaneous"] = miscellaneous
-    o["biomass_potential"] = biomass_potential
+    # o["biomass_potential"] = biomass_potential
     return o
 
 
-def read_annual_demand_data(config, year):
+def read_annual_data(config, year):
     """Read annual demand data (H2, energy prices)
         config: json file
             Includes paths to files

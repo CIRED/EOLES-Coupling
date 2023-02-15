@@ -15,5 +15,6 @@ hourly_ramping_nuclear,0.3
 len_delay,12
 percentage_co2_from_methanization,0.43
 discount_rate,0.045
+capacity_factor_nuclear,0.9
 construction_time_renov,1
 lifetime_renov,30

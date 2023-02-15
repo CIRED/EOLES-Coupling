@@ -29,6 +29,7 @@
   "vOM": "eoles/inputs/technology_characteristics/vO&M_elec_new.csv",
   "conversion_efficiency": "eoles/inputs/technology_characteristics/conversion_efficiency.csv",
   "miscellaneous": "eoles/inputs/miscellaneous.csv",
+  "capacity_factor_nuclear": 0.9,
   "hp_cop": "eoles/inputs/hourly_profiles/hp_cop.csv",
   "linearized_renovation_costs": "eoles/inputs/linearized_renovation_costs.csv",
   "threshold_linearized_renovation_costs": "eoles/inputs/threshold_linearized_renovation_costs.csv"

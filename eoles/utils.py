@@ -1,3 +1,4 @@
+import math
 from importlib import resources
 from pathlib import Path
 import pandas as pd
@@ -142,6 +143,7 @@ def process_RTE_demand(config, year, demand, method):
     demand_noP2G_RTE = demand_noP2G_RTE_timesteps[year]  # in TWh
     demand_residential_heating = demand_residential_heating_RTE_timesteps[year]  # in TWh
 
+    assert math.isclose(demand.sum(), 580 * 1e3), "Total yearly demand is not correctly calculated."
     adjust_demand = (demand_noP2G_RTE * 1e3 - 580 * 1e3) / 8760  # 580TWh is the total of the profile we use as basis for electricity hourly demand (from RTE)
     demand_elec_RTE_noP2G = demand + adjust_demand  # we adjust demand profile to obtain the correct total amount of demand based on RTE projections without P2G
 
@@ -152,23 +154,23 @@ def process_RTE_demand(config, year, demand, method):
     return demand_elec_RTE_no_residential_heating
 
 
-def calculate_annuities_capex(miscellaneous, capex, construction_time, lifetime):
+def calculate_annuities_capex(discount_rate, capex, construction_time, lifetime):
     """Calculate annuities for energy technologies and renovation technologies based on capex data."""
     annuities = construction_time.copy()
     for i in annuities.index:
-        annuities.at[i] = miscellaneous["discount_rate"] * capex[i] * (
-                miscellaneous["discount_rate"] * construction_time[i] + 1) / (
-                                  1 - (1 + miscellaneous["discount_rate"]) ** (-lifetime[i]))
+        annuities.at[i] = discount_rate * capex[i] * (
+                discount_rate * construction_time[i] + 1) / (
+                                  1 - (1 + discount_rate) ** (-lifetime[i]))
     return annuities
 
 
-def calculate_annuities_storage_capex(miscellaneous, storage_capex, construction_time, lifetime):
+def calculate_annuities_storage_capex(discount_rate, storage_capex, construction_time, lifetime):
     """Calculate annuities for storage technologies based on capex data."""
     storage_annuities = storage_capex.copy()
     for i in storage_annuities.index:
-        storage_annuities.at[i] = miscellaneous["discount_rate"] * storage_capex[i] * (
-                miscellaneous["discount_rate"] * construction_time[i] + 1) / (
-                                          1 - (1 + miscellaneous["discount_rate"]) ** (-lifetime[i]))
+        storage_annuities.at[i] = discount_rate * storage_capex[i] * (
+                discount_rate * construction_time[i] + 1) / (
+                                          1 - (1 + discount_rate) ** (-lifetime[i]))
     return storage_annuities
 
 
@@ -357,7 +359,7 @@ def extract_renovation_rates_detailed(model):
     return renovation_rates_detailed
 
 
-def extract_hourly_generation(model, elec_demand, CH4_demand, H2_demand, heat_demand=None):
+def extract_hourly_generation(model, elec_demand, CH4_demand, H2_demand, heat_demand=None, hourly_heat_elec=None, hourly_heat_gas=None):
     """Extracts hourly defined data, including demand, generation and storage"""
     list_tec = list(model.tec)
     list_storage_in = [e + "_in" for e in model.str]
@@ -370,7 +372,10 @@ def extract_hourly_generation(model, elec_demand, CH4_demand, H2_demand, heat_de
     hourly_generation.loc[:, "H2_demand"] = H2_demand
     if heat_demand is not None:
         hourly_generation.loc[:, "heat_demand"] = heat_demand
-
+    if hourly_heat_elec is not None:
+        hourly_generation.loc[:, "heat_elec"] = hourly_heat_elec
+    if hourly_heat_gas is not None:
+        hourly_generation.loc[:, "heat_gas"] = hourly_heat_gas
     for tec in list_tec:
         hourly_generation[tec] = value(model.gene[tec, :])  # GWh
     for str, str_in in zip(list(model.str), list_storage_in):
@@ -378,6 +383,38 @@ def extract_hourly_generation(model, elec_demand, CH4_demand, H2_demand, heat_de
     for str, str_charge in zip(list(model.str), list_storage_charge):
         hourly_generation[str_charge] = value(model.stored[str, :])  # GWh
     return hourly_generation  # GWh
+
+
+def extract_peak_load(hourly_generation:pd.DataFrame, conversion_efficiency):
+    """Returns the value of peak load for electricity in GW. Includes electricity demand, as well as demand for electrolysis.
+    ATTENTION: cette fonction marche uniquement pour le couplage avec ResIRF, pas pour le social planner. Dans ce cas,
+     il faudrait ajouter également à la valeur de la pointe la demande pour les PAC et radiateurs."""
+    if "heat_elec" in hourly_generation.columns and "heat_gas" in hourly_generation.columns:
+        peak_load = hourly_generation.copy()[["elec_demand", "electrolysis", "methanation", "heat_elec", "heat_gas"]]
+    else:
+        peak_load = hourly_generation.copy()[["elec_demand", "electrolysis", "methanation"]]
+
+    peak_load["peak_electricity_load"] = peak_load["elec_demand"] + peak_load["electrolysis"] / conversion_efficiency[
+        "electrolysis"] + peak_load["methanation"] / conversion_efficiency["methanation"]
+    ind = peak_load.index[peak_load["peak_electricity_load"] == peak_load["peak_electricity_load"].max()]
+    peak_load_info = peak_load.loc[ind].reset_index().rename(columns={"index": "hour"})
+    peak_load_info["date"] = peak_load_info.apply(lambda row: datetime.datetime(2006, 1, 1, 0) + datetime.timedelta(hours=row["hour"]),
+                            axis=1)  # TODO: a changer si on modifie le climat
+
+    return peak_load_info  # GW
+
+
+def extract_peak_heat_load(hourly_generation:pd.DataFrame):
+    """Returns the value of peak load for electricity in GW. Includes electricity demand, as well as demand for electrolysis.
+    ATTENTION: cette fonction marche uniquement pour le couplage avec ResIRF, pas pour le social planner. Dans ce cas,
+     il faudrait ajouter également à la valeur de la pointe la demande pour les PAC et radiateurs."""
+    peak_heat_load = hourly_generation.copy()[["elec_demand", "heat_elec", "heat_gas"]]
+    ind = peak_heat_load.index[peak_heat_load["heat_elec"] == peak_heat_load["heat_elec"].max()]
+    peak_heat_load_info = peak_heat_load.loc[ind].reset_index().rename(columns={"index": "hour"})
+    peak_heat_load_info["date"] = peak_heat_load_info.apply(lambda row: datetime.datetime(2006, 1, 1, 0) + datetime.timedelta(hours=row["hour"]),
+                            axis=1)  # TODO: a changer si on modifie le climat
+
+    return peak_heat_load_info  # GW
 
 
 def extract_spot_price(model, nb_hours):
@@ -492,6 +529,39 @@ def extract_annualized_costs_investment_new_capa(capacities, energy_capacities, 
     costs_new_energy_capacity = pd.concat([new_storage_capacity, storage_annuities], axis=1, ignore_index=True).rename(columns={0: "new_capacity", 1: "storage_annuities"})
     costs_new_energy_capacity["annualized_costs"] = costs_new_energy_capacity["new_capacity"] * costs_new_energy_capacity["storage_annuities"]
     return costs_new_capacity[["annualized_costs"]], costs_new_energy_capacity[["annualized_costs"]]
+
+
+def extract_annualized_costs_investment_new_capa_nofOM(capacities, energy_capacities, existing_capacities, existing_energy_capacities,
+                                                 annuities, storage_annuities):
+    """
+    Returns the annualized investment coming from newly invested capacities and energy capacities, without fOM. Unit: 1e6€/yr
+    :param model: pyomo model
+    :param existing_capacities: pd.Series
+    :return:
+    """
+    new_capacity = capacities - existing_capacities  # pd.Series
+    costs_new_capacity = pd.concat([new_capacity, annuities], axis=1, ignore_index=True).rename(columns={0: "new_capacity", 1: "annuities"})
+    costs_new_capacity = costs_new_capacity.dropna()
+    costs_new_capacity["annualized_costs"] = costs_new_capacity["new_capacity"] * costs_new_capacity["annuities"]  # includes both annuity and fOM ! not to be counted twice in the LCOE
+
+    new_storage_capacity = energy_capacities - existing_energy_capacities
+    costs_new_energy_capacity = pd.concat([new_storage_capacity, storage_annuities], axis=1, ignore_index=True).rename(columns={0: "new_capacity", 1: "storage_annuities"})
+    costs_new_energy_capacity = costs_new_energy_capacity.dropna()
+    costs_new_energy_capacity["annualized_costs"] = costs_new_energy_capacity["new_capacity"] * costs_new_energy_capacity["storage_annuities"]
+    return costs_new_capacity[["annualized_costs"]], costs_new_energy_capacity[["annualized_costs"]]
+
+
+def extract_functionment_cost(capacities, fOM, vOM, generation, oil_consumption, wood_consumption):
+    """Returns investment. Unit: 1e6€/yr"""
+
+    system_fOM_vOM = pd.concat([capacities, fOM, vOM, generation], axis=1, ignore_index=True).rename(columns={0: "capacity", 1: "fOM", 2: "vOM", 3: "generation"})
+    system_fOM_vOM = system_fOM_vOM.dropna()
+    system_fOM_vOM["functionment_cost"] = system_fOM_vOM["capacity"] * system_fOM_vOM["fOM"] + system_fOM_vOM["generation"] * system_fOM_vOM["vOM"]
+    system_fOM_vOM_df = system_fOM_vOM[["functionment_cost"]]
+    oil_functionment_cost, wood_functionment_cost = oil_consumption * vOM["fuel_boiler"], wood_consumption * vOM["wood_boiler"]
+    system_fOM_vOM_df = pd.concat([system_fOM_vOM_df, pd.DataFrame(index=["oil_boiler"], data={'functionment_cost': [oil_functionment_cost]})], axis=0)
+    system_fOM_vOM_df = pd.concat([system_fOM_vOM_df, pd.DataFrame(index=["wood_boiler"], data={'functionment_cost': [wood_functionment_cost]})], axis=0)
+    return system_fOM_vOM_df
 
 
 def annualized_costs_investment_historical(existing_capa_historical_y, annuity_fOM_historical,
