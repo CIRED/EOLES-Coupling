@@ -95,11 +95,10 @@ class ModelEOLES():
         assert hourly_heat_gas is not None, "Hourly gas heat profile should be provided to the model"
 
         # loading exogeneous variable data
-        data_hourly_and_anticipated = read_hourly_and_anticipated_data(config, self.anticipated_year, method=method_hourly_profile)
+        data_hourly_and_anticipated = read_hourly_data(config, self.anticipated_year, method=method_hourly_profile)
         self.load_factors = data_hourly_and_anticipated["load_factors"]
         self.elec_demand1y = data_hourly_and_anticipated["demand"]
         self.lake_inflows = data_hourly_and_anticipated["lake_inflows"]
-        self.biomass_potential = data_hourly_and_anticipated["biomass_potential"]
 
         self.hourly_heat_elec = hourly_heat_elec
 
@@ -174,7 +173,7 @@ class ModelEOLES():
         self.eta_out = data_static["eta_out"]
         self.conversion_efficiency = data_static["conversion_efficiency"]
         self.miscellaneous = data_static["miscellaneous"]
-        # self.biomass_potential = data_static["biomass_potential"]
+        self.biomass_potential = data_static["biomass_potential"]
         self.total_H2_demand = data_static["demand_H2_RTE"]
         self.energy_prices = data_static["energy_prices"]
         self.carbon_budget = data_static["carbon_budget"]
@@ -642,7 +641,7 @@ class ModelEOLES():
                         'supply_elec': self.electricity_generation, 'primary_generation': self.primary_generation}
 
 
-def read_hourly_and_anticipated_data(config, year, method="valentin"):
+def read_hourly_data(config, year, method="valentin"):
     """Reads data defined at the hourly scale"""
     load_factors = get_pandas(config["load_factors"],
                               lambda x: pd.read_csv(x, index_col=[0, 1], header=None).squeeze("columns"))
@@ -651,14 +650,11 @@ def read_hourly_and_anticipated_data(config, year, method="valentin"):
 
     lake_inflows = get_pandas(config["lake_inflows"],
                               lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # GWh
-    biomass_potential = get_pandas(config["biomass_potential"],
-                                   lambda x: pd.read_csv(x, index_col=0))  # 1e6€/GW
-    biomass_potential = biomass_potential[[str(year)]].squeeze()  # get storage capex for year of interest
+
     o = dict()
     o["load_factors"] = load_factors
     o["demand"] = demand_no_residential
     o["lake_inflows"] = lake_inflows
-    o["biomass_potential"] = biomass_potential
     return o
 
 
@@ -706,9 +702,9 @@ def read_technology_data(config, year):
                                        lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))
     miscellaneous = get_pandas(config["miscellaneous"],
                                lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))
-    biomass_potential = get_pandas(config["biomass_potential"],
-                                   lambda x: pd.read_csv(x, index_col=0))  # 1e6€/GW
-    biomass_potential = biomass_potential[[str(year)]].squeeze()  # get storage capex for year of interest
+    # biomass_potential = get_pandas(config["biomass_potential"],
+    #                                lambda x: pd.read_csv(x, index_col=0))  # 1e6€/GW
+    # biomass_potential = biomass_potential[[str(year)]].squeeze()  # get storage capex for year of interest
 
     o = dict()
     o["epsilon"] = epsilon
@@ -743,6 +739,10 @@ def read_annual_data(config, year):
                                      lambda x: pd.read_csv(x, index_col=0).squeeze())
     demand_H2_RTE = demand_H2_timesteps[year]  # TWh
 
+    biomass_potential = get_pandas(config["biomass_potential"],
+                                   lambda x: pd.read_csv(x, index_col=0))  # 1e6€/GW
+    biomass_potential = biomass_potential[[str(year)]].squeeze()  # get storage capex for year of interest
+
     energy_prices = get_pandas(config["energy_prices"],
                                lambda x: pd.read_csv(x, index_col=0))  # €/MWh
     energy_prices = energy_prices[[str(year)]].squeeze()  # get storage capex for year of interest
@@ -753,6 +753,7 @@ def read_annual_data(config, year):
     o["demand_H2_RTE"] = demand_H2_RTE * 1e3  # GWh
     o["energy_prices"] = energy_prices  # € / MWh
     o["carbon_budget"] = carbon_budget  # MtCO2eq
+    o["biomass_potential"] = biomass_potential
     return o
 
 

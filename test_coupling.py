@@ -36,13 +36,15 @@ logger.addHandler(console_handler)
 HOURLY_PROFILE_METHOD = "valentin"
 DICT_CONFIG_RESIRF = {
     "classic": "eoles/inputs/config/config_resirf.json",
-    "landlord": "eoles/inputs/config/config_resirf_nolandlord.json",
-    "multifamily": "eoles/inputs/config/config_resirf_nomultifamily.json",
-    "landlord_multifamily": "eoles/inputs/config/config_resirf_nolandlord_nomultifamily.json",
+    "nolandlord": "eoles/inputs/config/config_resirf_nolandlord.json",
+    "nomultifamily": "eoles/inputs/config/config_resirf_nomultifamily.json",
+    "nolandlord_nomultifamily": "eoles/inputs/config/config_resirf_nolandlord_nomultifamily.json",
     "threshold": "eoles/inputs/config/config_resirf_threshold.json",
-    "technical_progress": "eoles/inputs/config/config_resirf_technical_progress.json",
-    "technical_progress_nolandlord_nomultifamily": "eoles/inputs/config/config_resirf_technical_progress_nolandlord_nomultifamily.json",
-    "test": "eoles/inputs/config/config_resirf_new.json"
+    "classic_simple": "eoles/inputs/config/config_resirf_simple.json",
+    "nolandlord_simple": "eoles/inputs/config/config_resirf_nolandlord_simple.json",
+    "nomultifamily_simple": "eoles/inputs/config/config_resirf_nomultifamily_simple.json",
+    "nolandlord_nomultifamily_simple": "eoles/inputs/config/config_resirf_nolandlord_nomultifamily_simple.json",
+    "threshold_simple": "eoles/inputs/config/config_resirf_threshold_simple.json",
 }
 
 DICT_CONFIG_EOLES = {
@@ -146,6 +148,22 @@ def test_convergence(max_iter, initial_design_numdata, buildings, energy_prices,
 
 if __name__ == '__main__':
 
+    # config_eoles = eoles.utils.get_config(spec="eoles_coupling")
+    # hourly_heat_elec = eoles.utils.create_hourly_residential_demand_profile(total_consumption=45,
+    #                                                      method=HOURLY_PROFILE_METHOD)
+    # hourly_heat_gas = eoles.utils.create_hourly_residential_demand_profile(total_consumption=95,
+    #                                                      method=HOURLY_PROFILE_METHOD)
+    # m_eoles = ModelEOLES(name="trajectory", config=config_eoles, path="eoles/outputs", logger=logger, nb_years=1,
+    #                      hourly_heat_elec=hourly_heat_elec, hourly_heat_gas=hourly_heat_gas,
+    #                      wood_consumption=0, oil_consumption=0,
+    #                      existing_capacity=None, existing_charging_capacity=None,
+    #                      existing_energy_capacity=None, maximum_capacity=None,
+    #                      method_hourly_profile="valentin",
+    #                      social_cost_of_carbon=100, year=2050, anticipated_year=2050,
+    #                      scenario_cost=None, carbon_constraint=False)
+    # m_eoles.build_model()
+    # solver_results, status, termination_condition = m_eoles.solve(solver_name="gurobi")
+
     config_coupling = {
         'config_resirf': "classic",
         'calibration_threshold': False,
@@ -188,7 +206,7 @@ if __name__ == '__main__':
     }
 
     config_coupling = {
-        'config_resirf': "test",
+        'config_resirf': "classic_simple",
         "config_eoles": "eoles_classic",  # includes costs assumptions
         'calibration_threshold': False,
         'h2ccgt': False,
@@ -231,11 +249,11 @@ if __name__ == '__main__':
     import_calibration = os.path.join('eoles', 'outputs', 'calibration', '{}.pkl'.format(name_calibration))
 
     # initialization
-    buildings, energy_prices, taxes, cost_heater, cost_insulation, lifetime_heater, flow_built, post_inputs, policies_heater, policies_insulation, technical_progress, financing_cost = ini_res_irf(
+    buildings, energy_prices, taxes, cost_heater, cost_insulation, lifetime_heater, demolition_rate, flow_built, post_inputs, policies_heater, policies_insulation, technical_progress, financing_cost = ini_res_irf(
         path=os.path.join('eoles', 'outputs', 'ResIRF'),
         logger=None,
         config=config_resirf_path,
-        import_calibration='eoles/outputs/calibration/calibration.pkl',
+        import_calibration=None,
         export_calibration=None)
 
     list_year = config_coupling["list_year"]
@@ -259,7 +277,7 @@ if __name__ == '__main__':
                                                                     config_coupling["discount_rate"], config_coupling["rebound"], config_coupling["carbon_constraint"]
 
     output, dict_optimizer = resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, cost_insulation,
-                                                           flow_built, post_inputs, policies_heater, policies_insulation,
+                                                           demolition_rate, flow_built, post_inputs, policies_heater, policies_insulation,
                                                            list_year, list_trajectory_scc, scenario_cost,
                                                            config_eoles=config_eoles, max_iter=max_iter,
                                                            add_CH4_demand=False, one_shot_setting=one_shot_setting,
@@ -267,8 +285,10 @@ if __name__ == '__main__':
                                                            health=health, carbon_constraint=carbon_constraint,
                                                            lifetime_heater=lifetime_heater,
                                                            discount_rate=discount_rate, rebound=rebound,
-                                                           technical_progress=technical_progress, optimization=True,
-                                                           financing_cost=financing_cost)
+                                                           technical_progress=technical_progress, financing_cost=financing_cost,
+                                                           optimization=True, list_sub_heater=[1, 1, 1, 1, 1],
+                                                           list_sub_insulation=[0.5, 0.5, 0.5, 0.5, 0.5])
+
 
     # output = resirf_eoles_coupling_dynamic_no_opti(list_sub_heater=[1.0, 0.68], list_sub_insulation=[0.23, 0.40],
     #                                                                buildings=buildings, energy_prices=energy_prices,

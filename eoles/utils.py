@@ -516,7 +516,8 @@ def extract_use_elec(model, nb_years, miscellaneous):
 def extract_annualized_costs_investment_new_capa(capacities, energy_capacities, existing_capacities, existing_energy_capacities,
                                                  annuities, storage_annuities, fOM):
     """
-    Returns the LCOE coming from newly invested capacities and energy capacities
+    Returns the annualized costs coming from newly invested capacities and energy capacities. This includes annualized CAPEX + fOM.
+    Unit: 1e6€/yr
     :param model: pyomo model
     :param existing_capacities: pd.Series
     :return:
@@ -552,7 +553,7 @@ def extract_annualized_costs_investment_new_capa_nofOM(capacities, energy_capaci
 
 
 def extract_functionment_cost(capacities, fOM, vOM, generation, oil_consumption, wood_consumption):
-    """Returns investment. Unit: 1e6€/yr"""
+    """Returns functionment cost, including fOM and vOM. vOM for gas and oil include the SCC. Unit: 1e6€/yr"""
 
     system_fOM_vOM = pd.concat([capacities, fOM, vOM, generation], axis=1, ignore_index=True).rename(columns={0: "capacity", 1: "fOM", 2: "vOM", 3: "generation"})
     system_fOM_vOM = system_fOM_vOM.dropna()
@@ -566,7 +567,7 @@ def extract_functionment_cost(capacities, fOM, vOM, generation, oil_consumption,
 
 def annualized_costs_investment_historical(existing_capa_historical_y, annuity_fOM_historical,
                                            existing_energy_capacity_historical_y, storage_annuity_historical):
-    """Same as previous function but for historical LCOE"""
+    """Returns the annualized costs coming from historical capacities and energy capacities. This includes annualized CAPEX + fOM."""
     costs_capacity_historical = pd.concat([existing_capa_historical_y, annuity_fOM_historical], axis=1, ignore_index=True)  # we only include nonzero historical capacities
     costs_capacity_historical = costs_capacity_historical.rename(columns={0: 'capacity_historical', 1: 'annuity_fOM'}).fillna(0)
     costs_capacity_historical["annualized_costs"] = costs_capacity_historical["capacity_historical"] * costs_capacity_historical["annuity_fOM"]
@@ -578,7 +579,7 @@ def annualized_costs_investment_historical(existing_capa_historical_y, annuity_f
 
 
 def process_annualized_costs_per_vector(annualized_costs_capacity, annualized_costs_energy_capacity):
-    """Calculates annualized costs related to investment for the different vectors (namely, electricity, methane and hydrogen)"""
+    """Calculates annualized costs related to investment for the different energy vectors (namely, electricity, methane and hydrogen)"""
     elec_balance = ["offshore_f", "offshore_g", "onshore", "pv_g", "pv_c", "river", "lake", "nuclear", "phs",
      "battery1", "battery4", "ocgt", "ccgt", "h2_ccgt"]
     elec_str = ["phs", "battery1", "battery4"]

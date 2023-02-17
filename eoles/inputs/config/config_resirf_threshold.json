@@ -1,12 +1,17 @@
 {
   "Reference": {
     "end": 2051,
+    "step": 1,
     "debug_mode": false,
     "full_output": true,
-    "demolition_rate": 0.0035,
-    "construction": true,
-    "income_rate": 0.012,
     "start": 2018,
+    "building_stock": "project/input/stock/buildingstock_sdes2018_medium_3.csv",
+    "financing_cost": {
+      "activated": true,
+      "interest_rate": 0.04,
+      "saving_rate": 0.025,
+      "duration": 10
+    },
     "renovation": {
       "endogenous": true,
       "renovation_rate_ini": "project/input/revealed_data/renovation_rate_ini_agg.csv",
@@ -23,24 +28,61 @@
         "number": 700000,
         "target": "worst"
       },
-      "threshold": true
+       "threshold": true
     },
     "ms_insulation": {
         "endogenous": true,
         "ms_insulation_ini": "project/input/revealed_data/market_share_insulation_ini.csv",
         "minimum_performance": null
     },
-    "building_stock": "project/input/stock/buildingstock_sdes2018_medium_3.csv",
-    "population": "project/input/population.csv",
     "ms_heater": "project/input/revealed_data/market_share_heater_transition2050.csv",
     "ms_heater_built": "project/input/revealed_data/market_share_heater_built.csv",
-    "cost_heater": "project/input/cost_heater.csv",
-    "cost_insulation": "project/input/cost_insulation.csv",
-    "financing_cost": true,
-    "efficiency": "project/input/efficiency.csv",
-    "energy_prices": "project/input/energy_prices_ht.csv",
-    "energy_taxes": "project/input/energy_taxes.csv",
-    "carbon_emission": "project/input/policies/carbon_emission.csv",
+    "technical": {
+      "cost_heater": "project/input/technical/cost_heater.csv",
+      "cost_insulation": "project/input/technical/cost_insulation.csv",
+      "efficiency": "project/input/technical/efficiency.csv",
+      "lifetime_heater": "project/input/technical/lifetime_heater.csv",
+      "carbon_emission": "project/input/technical/carbon_emission.csv",
+      "technical_progress": {
+        "insulation": {
+          "activated": true,
+          "start": 2020,
+          "end": 2035,
+          "value_end": -0.1
+        },
+        "heater": {
+          "activated": true,
+          "start": 2020,
+          "end": 2035,
+          "value_end": -0.2
+        }
+      },
+      "footprint": {
+        "Traditional material": 1.0,
+        "Bio material": 0.0,
+        "construction": "project/input/technical/footprint_construction.csv",
+        "renovation": "project/input/technical/footprint_renovation.csv"
+      },
+      "surface": "project/input/technical/surface.csv",
+      "ratio_surface": "project/input/technical/ratio_surface.csv"
+    },
+    "macro": {
+      "construction": true,
+      "population": "project/input/macro/population.csv",
+      "income": "project/input/macro/income.csv",
+      "energy_prices": "project/input/macro/energy_prices_ht.csv",
+      "energy_taxes": "project/input/macro/energy_taxes.csv",
+      "flow_construction": "project/input/macro/flow_construction_sfec.csv",
+      "pop_housing": null,
+      "share_multi_family": null,
+      "share_single_family_construction": "project/input/macro/share_singlefamily_construction.csv",
+      "surface_built": null,
+      "income_rate": 0.012,
+      "demolition_rate": "project/input/macro/demolition_rate_sfec.csv",
+      "stock_ini": 29037000,
+      "available_income": 1421000000000,
+      "rotation_rate": "project/input/macro/rotation_rate.csv"
+    },
     "health_cost": "project/input/policies/health_cost.csv",
     "carbon_value": "project/input/policies/carbon_value.csv",
     "policies": {
@@ -48,10 +90,12 @@
         "start": 2019,
         "end": 2020,
         "insulation": "project/input/policies/mpr_serenite.csv",
-        "cap": "project/input/policies/mpr_serenite_cap.csv"
+        "cap": "project/input/policies/mpr_serenite_cap_sfec.csv",
+        "non_cumulative": ["cite", "mpr"],
+        "target": "mpr_serenite"
       },
       "cee": {
-        "start": 2019,
+        "start": 2018,
         "end": 2020,
         "heater": "project/input/policies/cee_heater.csv",
         "insulation": "project/input/policies/cee_insulation.csv",
@@ -64,8 +108,8 @@
         "insulation": "project/input/policies/subsidies_cap.csv"
       },
       "carbon_tax": {
-        "start": 2019,
-        "end": 2051,
+        "start": 2018,
+        "end": 2020,
         "tax": "project/input/policies/carbon_tax.csv",
         "emission": "project/input/policies/carbon_tax_emission.csv"
       },
@@ -76,18 +120,10 @@
         "insulation": "project/input/policies/cite_insulation.csv",
         "cap": 4800
       },
-      "reduced_tax": {
+      "reduced_vta": {
         "start": 2019,
         "end": 2020,
         "value": 0.055
-      },
-      "obligation": {
-        "start": 2019,
-        "end": 2019,
-        "value": "project/input/policies/agenda_obligation.csv",
-        "frequency": null,
-        "intensive": "market_share",
-        "minimum_performance": null
       },
       "landlord": {
         "start": 2020,
@@ -97,12 +133,6 @@
         "start": 2020,
         "end": 2020
       }
-    },
-    "footprint": {
-      "Traditional material": 1.0,
-      "Bio material": 0.0,
-      "construction": "project/input/footprint_construction.csv",
-      "renovation": "project/input/footprint_renovation.csv"
     },
     "simple": {
       "quintiles": false,
@@ -114,22 +144,6 @@
       "prices_constant": false,
       "taxes_constant": false
     },
-    "pop_housing": null,
-    "share_multi_family": null,
-    "surface_built": null,
-        "technical_progress": {
-    "insulation": {
-      "activated": true,
-      "start": 2020,
-      "end": 2035,
-      "value_end": -0.1
-    },
-      "heater": {
-    "activated": true,
-    "start": 2020,
-    "end": 2035,
-    "value_end": -0.2
-  }
-}
+    "calibration": "project/input/calibration/calibration.pkl"
   }
 }

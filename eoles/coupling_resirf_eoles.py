@@ -61,57 +61,7 @@ def load_building(filename: Path):
     return building
 
 
-def run_resirf(sub_heater, sub_insulation, buildings, energy_prices, taxes, cost_heater, cost_insulation, flow_built,
-               post_inputs, policies_heater, policies_insulation, start_year_resirf, timestep_resirf):
-    # TODO: a modifier avec les changements dans ResIRF
-    endyear_resirf = start_year_resirf + timestep_resirf
-
-    buildings_copy = deepcopy(buildings)
-
-    # simulation between start and end - flow output represents annual values for year "end"
-
-    output, heating_consumption = simu_res_irf(buildings_copy, sub_heater, sub_insulation, start_year_resirf,
-                                               endyear_resirf,
-                                               energy_prices, taxes, cost_heater, cost_insulation, lifetime_heater, flow_built,
-                                               post_inputs, policies_heater, policies_insulation,
-                                               climate=2006, smooth=False, efficiency_hour=True,
-                                               output_consumption=True,
-                                               full_output=True)
-
-    investment_heater_cost = output.loc["Investment heater (Billion euro)"].sum()  # 1e9 €
-    investment_insulation_cost = output.loc["Investment insulation (Billion euro)"].sum()  # 1e9 €
-    subsidies_heater_cost = output.loc["Subsidies heater (Billion euro)"].sum()  # 1e9 €
-    subsidies_insulation_cost = output.loc["Subsidies insulation (Billion euro)"].sum()  # 1e9 €
-    health_cost = output.loc["Health cost (Billion euro)"].sum()  # 1e9 €
-    # TODO: a voir si je peux enlever l'appel à la consommation horaire
-    heating_consumption = output[endyear_resirf - 1]['Consumption (kWh/h)']
-
-    electricity_consumption = heating_consumption.sum(axis=1)["Electricity"] * 1e-6  # in GWh
-    gas_consumption = heating_consumption.sum(axis=1)["Natural gas"] * 1e-6
-    wood_consumption = heating_consumption.sum(axis=1)["Wood fuel"] * 1e-6
-    oil_consumption = heating_consumption.sum(axis=1)["Oil fuel"] * 1e-6
-
-    replacement_output = output.loc[[ind for ind in output.index if "Replacement" in ind]].sum(axis=1).to_dict()
-
-    # stock_output = {key: output[endyear_resirf - 1][key] for key in list(output[endyear_resirf - 1].keys()) if
-    #                 "Stock" in key}
-
-    o = dict()
-    o["Electricity (TWh)"] = electricity_consumption
-    o["Natural gas (TWh)"] = gas_consumption
-    o["Wood fuel (TWh)"] = wood_consumption
-    o["Oil fuel (TWh)"] = oil_consumption
-    o["Investment heater (Billion euro)"] = investment_heater_cost
-    o["Investment insulation (Billion euro)"] = investment_insulation_cost
-    o["Subsidies heater (Billion euro)"] = subsidies_heater_cost
-    o["Subsidies insulation (Billion euro)"] = subsidies_insulation_cost
-    o["Health cost (Billion euro)"] = health_cost
-    o.update(replacement_output)
-    # o.update(stock_output)
-    return sub_heater, sub_insulation, o
-
-
-def resirf_eoles_coupling_static(subvention, buildings, energy_prices, taxes, cost_heater, cost_insulation, flow_built,
+def resirf_eoles_coupling_static(subvention, buildings, energy_prices, taxes, cost_heater, cost_insulation, demolition_rate, flow_built,
                                  post_inputs, policies_heater, policies_insulation,
                                  start_year_resirf, timestep_resirf, config_eoles,
                                  year_eoles, anticipated_year_eoles, scc, hourly_gas_exogeneous,
@@ -135,7 +85,7 @@ def resirf_eoles_coupling_static(subvention, buildings, energy_prices, taxes, co
     # print(f'Subvention: {sub_heater}, {sub_insulation}')
 
     buildings_copy = deepcopy(buildings)
-    energy_prices_copy, taxes_copy, cost_heater_copy, cost_insulation_copy, lifetime_heater_copy = deepcopy(energy_prices), deepcopy(taxes), deepcopy(cost_heater), deepcopy(cost_insulation), deepcopy(lifetime_heater)
+    energy_prices_copy, taxes_copy, cost_heater_copy, cost_insulation_copy, lifetime_heater_copy, demolition_rate_copy = deepcopy(energy_prices), deepcopy(taxes), deepcopy(cost_heater), deepcopy(cost_insulation), deepcopy(lifetime_heater), deepcopy(demolition_rate)
     flow_built_copy, post_inputs_copy, policies_heater_copy, policies_insulation_copy = deepcopy(flow_built), deepcopy(post_inputs), deepcopy(policies_heater), deepcopy(policies_insulation)
     technical_progress_copy, financing_cost_copy = deepcopy(technical_progress), deepcopy(financing_cost)
 
@@ -144,7 +94,7 @@ def resirf_eoles_coupling_static(subvention, buildings, energy_prices, taxes, co
     output, heating_consumption = simu_res_irf(buildings=buildings_copy, sub_heater=sub_heater, sub_insulation=sub_insulation,
                                                start=start_year_resirf, end=endyear_resirf, energy_prices=energy_prices_copy,
                                                taxes=taxes_copy, cost_heater=cost_heater_copy, cost_insulation=cost_insulation_copy,
-                                               lifetime_heater=lifetime_heater_copy, flow_built=flow_built_copy,
+                                               lifetime_heater=lifetime_heater_copy, demolition_rate=demolition_rate_copy, flow_built=flow_built_copy,
                                                post_inputs=post_inputs_copy, policies_heater=policies_heater_copy,
                                                policies_insulation=policies_insulation_copy,
                                                sub_design=sub_design, financing_cost=financing_cost_copy, climate=2006, smooth=False, efficiency_hour=True,
@@ -171,7 +121,7 @@ def resirf_eoles_coupling_static(subvention, buildings, energy_prices, taxes, co
 
     # TODO: attention, certains coûts sont peut-être déjà la somme de coûts annuels !!
 
-    annuity_investment_cost = calculate_annuities_resirf(investment_heater_cost, lifetime=lifetime_heater, discount_rate=discount_rate) + \
+    annuity_investment_cost = calculate_annuities_resirf(investment_heater_cost, lifetime=int(lifetime_heater.mean()), discount_rate=discount_rate) + \
                               calculate_annuities_resirf(investment_insulation_cost, lifetime=lifetime_renov, discount_rate=discount_rate)
     if health:
         annuity_health_cost = health_cost
@@ -205,7 +155,7 @@ def resirf_eoles_coupling_static(subvention, buildings, energy_prices, taxes, co
     return np.array([objective])  # return an array
 
 
-def optimize_blackbox_resirf_eoles_coupling(buildings, energy_prices, taxes, cost_heater, cost_insulation, flow_built,
+def optimize_blackbox_resirf_eoles_coupling(buildings, energy_prices, taxes, cost_heater, cost_insulation, demolition_rate, flow_built,
                                             post_inputs, policies_heater, policies_insulation,
                                             start_year_resirf, timestep_resirf, config_eoles,
                                             year_eoles, anticipated_year_eoles, scc, hourly_gas_exogeneous,
@@ -229,7 +179,7 @@ def optimize_blackbox_resirf_eoles_coupling(buildings, energy_prices, taxes, cos
     optimizer = BayesianOptimization(
         f=lambda x: resirf_eoles_coupling_static(x, buildings=buildings, energy_prices=energy_prices,
                                                  taxes=taxes, cost_heater=cost_heater,
-                                                 cost_insulation=cost_insulation, flow_built=flow_built,
+                                                 cost_insulation=cost_insulation, demolition_rate=demolition_rate, flow_built=flow_built,
                                                  post_inputs=post_inputs, policies_heater=policies_heater,
                                                  policies_insulation=policies_insulation, start_year_resirf=start_year_resirf,
                                                  timestep_resirf=timestep_resirf,
@@ -271,13 +221,14 @@ def optimize_blackbox_resirf_eoles_coupling(buildings, energy_prices, taxes, cos
     return optimizer, optimizer.x_opt
 
 
-def resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, cost_insulation, flow_built,
+def resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, cost_insulation, demolition_rate, flow_built,
                                   post_inputs, policies_heater, policies_insulation,
                                   list_year, list_trajectory_scc, scenario_cost, config_eoles, max_iter,
                                   add_CH4_demand=False, one_shot_setting=False, fix_sub_heater=False,
                                   sub_design=None, health=True, carbon_constraint=False,
                                   lifetime_renov=50, lifetime_heater=20, discount_rate=0.045,
-                                  rebound=True, technical_progress=None, financing_cost=None, t10=None, optimization=True,
+                                  rebound=True, technical_progress=None, financing_cost=None, anticipated_scc=False,
+                                  anticipated_demand_t10=False, optimization=True,
                                   list_sub_heater=None, list_sub_insulation=None):
     """Performs multistep optimization of capacities and subsidies.
     :param fix_sub_heater: bool
@@ -291,7 +242,10 @@ def resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, 
     :param rebound: bool
     :param technical_progress: bool
     :param financing_cost: ??
-    :param t10:
+    :param anticipated_scc: bool
+        If True, the social planner considers the social cost at t+5 when computing optimal subsidies and investment decisions.
+    :param anticipated_demand_t10: bool
+        If True, we anticipate electricity demand at t+10, instead of anticipating it at t+5.
     :param optimization: bool
         If set to True, blackbox optimization is performed. If set to False, subsidies are provided as inputs, and the model is simply simulated.
     :param list_sub_heater: list
@@ -345,7 +299,8 @@ def resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, 
     annualized_costs_new_energy_capacity = pd.DataFrame(0, index=existing_energy_capacity_historical.index,
                                                         columns=["annualized_costs"], dtype=float)
 
-    list_sub_heater, list_sub_insulation = [], []
+    if optimization:
+        list_sub_heater, list_sub_insulation = [], []
     list_cost_rebound = []
     list_electricity_consumption, list_gas_consumption, list_wood_consumption, list_oil_consumption = [], [], [], []
     resirf_costs_df = pd.DataFrame(dtype=float)
@@ -366,19 +321,22 @@ def resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, 
     for t, (y, scc) in enumerate(zip(list_year, list_trajectory_scc)):
         print(f"Year {y}, SCC {scc}")
         if not one_shot_setting:  # classical setting
-            if t10 is None:  # classical setting
+            if not anticipated_demand_t10:  # classical setting
                 if y < 2050:
                     year_eoles, anticipated_year_eoles, start_year_resirf, timestep_resirf = y, y + 5, y, 5
                 else:  # specific case for 2050
                     year_eoles, anticipated_year_eoles, start_year_resirf, timestep_resirf = y, y, y, 5
             else:
-                assert t10, "t10 should be equal to True."
                 if y < 2045:
                     year_eoles, anticipated_year_eoles, start_year_resirf, timestep_resirf = y, y + 10, y, 5
                 else:  # specific case for 2050
                     year_eoles, anticipated_year_eoles, start_year_resirf, timestep_resirf = y, 2050, y, 5
         else:  # one shot setting
             year_eoles, anticipated_year_eoles, start_year_resirf, timestep_resirf = 2050, 2050, 2025, 5
+
+        if anticipated_scc:  # we modify the scc to consider the scc at t+5
+            if y < 2050:
+                scc = list_trajectory_scc[t+1]
 
         #### Get existing and maximum capacities
         existing_capa_historical_y = existing_capacity_historical[
@@ -445,7 +403,7 @@ def resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, 
             # Find optimal subsidy
             optimizer, opt_sub = \
                 optimize_blackbox_resirf_eoles_coupling(buildings, energy_prices, taxes, cost_heater, cost_insulation,
-                                                        flow_built, post_inputs, policies_heater, policies_insulation,
+                                                        demolition_rate, flow_built, post_inputs, policies_heater, policies_insulation,
                                                         start_year_resirf, timestep_resirf,
                                                         config_eoles, year_eoles, anticipated_year_eoles, scc,
                                                         hourly_gas_exogeneous=hourly_exogeneous_CH4,
@@ -475,11 +433,14 @@ def resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, 
         endyear_resirf = start_year_resirf + timestep_resirf
 
         buildings._debug_mode = True  # we want to get the whole ResIRF output
-        output_opt, heating_consumption = simu_res_irf(buildings, opt_sub_heater, opt_sub_insulation, start_year_resirf,
-                                                       endyear_resirf,
-                                                       energy_prices, taxes, cost_heater, cost_insulation, lifetime_heater, flow_built,
-                                                       post_inputs, policies_heater, policies_insulation,
-                                                       climate=2006, smooth=False, efficiency_hour=True,
+        output_opt, heating_consumption = simu_res_irf(buildings=buildings, sub_heater=opt_sub_heater,
+                                                       sub_insulation=opt_sub_insulation, start=start_year_resirf,
+                                                       end=endyear_resirf, energy_prices=energy_prices, taxes=taxes,
+                                                       cost_heater=cost_heater, cost_insulation=cost_insulation,
+                                                       lifetime_heater=lifetime_heater, flow_built=flow_built,
+                                                       post_inputs=post_inputs, policies_heater=policies_heater,
+                                                       policies_insulation=policies_insulation,
+                                                       climate=2006, smooth=False, efficiency_hour=True, demolition_rate=demolition_rate,
                                                        output_consumption=True,
                                                        full_output=True, sub_design=sub_design, rebound=rebound, technical_progress=technical_progress,
                                                        financing_cost=financing_cost)
@@ -510,7 +471,7 @@ def resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, 
         resirf_consumption_saving_df = pd.concat([resirf_consumption_saving_df, consumption_saving], axis=1)
 
         annuity_investment_heater_cost = calculate_annuities_resirf(output_opt.loc["Investment heater (Billion euro)"].sum(),
-                                                                    lifetime=lifetime_heater, discount_rate=discount_rate)
+                                                                    lifetime=int(lifetime_heater.mean()), discount_rate=discount_rate)
         annuity_investment_insulation_cost = calculate_annuities_resirf( output_opt.loc["Investment insulation (Billion euro)"].sum(), lifetime=lifetime_renov,
                                                                     discount_rate=discount_rate)
 
@@ -705,7 +666,7 @@ def resirf_eoles_coupling_dynamic_no_opti(list_sub_heater, list_sub_insulation, 
                                           carbon_constraint=False,
                                           lifetime_renov=50, lifetime_heater=20, discount_rate=0.045,
                                           rebound=True, technical_progress=None, financing_cost=None):
-    # TODO: a modifier avec les changements dans ResIRF
+    # TODO: OUTDATED a priori --> a enlever
     """Computes multistep optimization of capacities. (Optimal) subsidies are taken as input."""
     # INITIALIZATION OF EOLES PARAMETERS
 
@@ -1070,7 +1031,7 @@ def resirf_eoles_coupling_dynamic_no_opti(list_sub_heater, list_sub_insulation, 
 
 
 def electricity_price_ht(system_lcoe, year):
-    """Estimates electricity price without tax in € / MWh."""
+    """Estimates electricity price without tax in €/MWh."""
     electricity_prices_snbc = get_pandas("eoles/inputs/electricity_price_snbc.csv", lambda x: pd.read_csv(x, index_col=0).squeeze("columns"))
     electricity_prices_snbc_year = electricity_prices_snbc[[str(year)]].squeeze()
     commercial, transport, distribution = electricity_prices_snbc_year["Commercial costs"], electricity_prices_snbc_year["Distribution network"], \
@@ -1093,7 +1054,7 @@ def calibration_price(config_eoles, existing_capacity, existing_charging_capacit
                          existing_capacity=existing_capacity, existing_charging_capacity=existing_charging_capacity,
                          existing_energy_capacity=existing_energy_capacity, maximum_capacity=None,
                          method_hourly_profile="valentin",
-                         social_cost_of_carbon=scc, year=2025, anticipated_year=2025,
+                         social_cost_of_carbon=scc, year=2050, anticipated_year=2050,
                          scenario_cost=None, existing_annualized_costs_elec=existing_annualized_costs_elec,
                          existing_annualized_costs_CH4=existing_annualized_costs_CH4,
                          existing_annualized_costs_H2=existing_annualized_costs_H2, carbon_constraint=False)
@@ -1104,3 +1065,67 @@ def calibration_price(config_eoles, existing_capacity, existing_charging_capacit
     calibration_lcoe = snbc_lcoe_2020 / lcoe_elec
 
     return calibration_lcoe
+
+
+if __name__ == '__main__':
+    config_eoles = eoles.utils.get_config(spec="eoles_coupling")
+    existing_capacity_historical, existing_charging_capacity_historical, existing_energy_capacity_historical, \
+    maximum_capacity_evolution, heating_gas_demand_RTE_timesteps, ECS_gas_demand_RTE_timesteps, annuity_fOM_historical, storage_annuity_historical = eoles.utils.load_evolution_data()
+
+    existing_capacity_historical = existing_capacity_historical.drop(
+        ["heat_pump", "resistive", "gas_boiler", "fuel_boiler", "wood_boiler"], axis=0)
+
+    anticipated_year = 2025
+    new_capacity_tot = pd.Series(0, index=existing_capacity_historical.index, dtype=float)
+    new_charging_capacity_tot = pd.Series(0, index=existing_charging_capacity_historical.index, dtype=float)
+    new_energy_capacity_tot = pd.Series(0, index=existing_energy_capacity_historical.index, dtype=float)
+    annualized_costs_new_capacity = pd.DataFrame(0, index=existing_capacity_historical.index,
+                                                 columns=["annualized_costs"], dtype=float)
+    annualized_costs_new_energy_capacity = pd.DataFrame(0, index=existing_energy_capacity_historical.index,
+                                                        columns=["annualized_costs"], dtype=float)
+
+    #### Get existing and maximum capacities
+    existing_capa_historical_y = existing_capacity_historical[
+        [str(anticipated_year)]].squeeze()  # get historical capacity still installed for year of interest
+    existing_charging_capacity_historical_y = existing_charging_capacity_historical[
+        [str(anticipated_year)]].squeeze()
+    existing_energy_capacity_historical_y = existing_energy_capacity_historical[
+        [str(anticipated_year)]].squeeze()
+
+    new_maximum_capacity_y = maximum_capacity_evolution[
+        [str(anticipated_year)]].squeeze()  # get maximum new capacity to be built
+
+    # Existing capacities at year y
+    existing_capacity = existing_capa_historical_y + new_capacity_tot  # existing capacity are equal to newly built
+    # capacities over the whole time horizon before t + existing capacity (from before 2020)
+    existing_charging_capacity = existing_charging_capacity_historical_y + new_charging_capacity_tot
+    existing_energy_capacity = existing_energy_capacity_historical_y + new_energy_capacity_tot
+
+    maximum_capacity = (
+            existing_capacity + new_maximum_capacity_y).dropna()  # we drop nan values, which correspond to technologies without any upper bound
+
+    #### Historical LCOE based on historical costs
+    annualized_costs_capacity_historical, annualized_costs_energy_capacity_historical = eoles.utils.annualized_costs_investment_historical(
+        existing_capa_historical_y, annuity_fOM_historical,
+        existing_energy_capacity_historical_y, storage_annuity_historical)
+
+    ### Compile total annualized investment costs from existing capacities (both historical capacities + newly built capacities before t)
+    # Necessary for calculus of LCOE accounting for evolution of capacities
+    annualized_costs_capacity = pd.concat(
+        [annualized_costs_capacity_historical.rename(columns={'annualized_costs': 'historical_annualized_costs'}),
+         annualized_costs_new_capacity], axis=1)
+    annualized_costs_capacity['annualized_costs'] = annualized_costs_capacity['historical_annualized_costs'] + \
+                                                    annualized_costs_capacity['annualized_costs']
+    annualized_costs_energy_capacity = pd.concat([annualized_costs_energy_capacity_historical.rename(
+        columns={'annualized_costs': 'historical_annualized_costs'}), annualized_costs_new_energy_capacity], axis=1)
+    annualized_costs_energy_capacity['annualized_costs'] = annualized_costs_energy_capacity[
+                                                               'historical_annualized_costs'] + \
+                                                           annualized_costs_energy_capacity['annualized_costs']
+
+    existing_annualized_costs_elec, existing_annualized_costs_CH4, existing_annualized_costs_H2 = eoles.utils.process_annualized_costs_per_vector(
+        annualized_costs_capacity[["annualized_costs"]].squeeze(),
+        annualized_costs_energy_capacity[["annualized_costs"]].squeeze())
+
+    calibration_lcoe = calibration_price(config_eoles, existing_capacity=None, existing_charging_capacity=None, existing_energy_capacity=None,
+                      existing_annualized_costs_elec=0, existing_annualized_costs_CH4=0, existing_annualized_costs_H2=0,
+                      scc=100)
