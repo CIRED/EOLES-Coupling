@@ -211,7 +211,7 @@ if __name__ == '__main__':
         'calibration_threshold': False,
         'h2ccgt': False,
         'max_iter': 1,
-        'sub_design': None,
+        'sub_design': "global_renovation",
         "health": True,  # on inclut les coûts de santé
         "discount_rate": 0.032,
         "rebound": True,
