@@ -251,10 +251,7 @@ if __name__ == '__main__':
     # initialization
     buildings, energy_prices, taxes, cost_heater, cost_insulation, lifetime_heater, demolition_rate, flow_built, post_inputs, policies_heater, policies_insulation, technical_progress, financing_cost = ini_res_irf(
         path=os.path.join('eoles', 'outputs', 'ResIRF'),
-        logger=None,
-        config=config_resirf_path,
-        import_calibration=None,
-        export_calibration=None)
+        config=config_resirf_path)
 
     list_year = config_coupling["list_year"]
     list_trajectory_scc = config_coupling["list_trajectory_scc"]  # SCC trajectory

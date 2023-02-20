@@ -142,7 +142,6 @@
       "income": false,
       "prices_constant": false,
       "taxes_constant": false
-    },
-    "calibration": "project/input/calibration/calibration.pkl"
+    }
   }
 }

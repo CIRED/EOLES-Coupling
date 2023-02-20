@@ -79,10 +79,7 @@ def run_optimization_scenario(config_coupling, name_config_coupling="default"):
     # initialization
     buildings, energy_prices, taxes, cost_heater, cost_insulation, lifetime_heater, demolition_rate, flow_built, post_inputs, policies_heater, policies_insulation, technical_progress, financing_cost = ini_res_irf(
         path=os.path.join('eoles', 'outputs', 'ResIRF'),
-        logger=None,
-        config=config_resirf_path,
-        import_calibration=None,
-        export_calibration=None)
+        config=config_resirf_path)
 
     list_year = config_coupling["list_year"]
     list_trajectory_scc = config_coupling["list_trajectory_scc"]  # SCC trajectory
@@ -1002,6 +999,25 @@ if __name__ == '__main__':
             'anticipated_scc': True,
             'scenario_cost_eoles': {}
         },
+        "global_renovation_simple_anticipatedSCC_anticipateddemand": {
+            'config_resirf': "classic_simple",
+            "config_eoles": "eoles_classic",  # includes costs assumptions
+            'calibration_threshold': False,
+            'h2ccgt': False,
+            'max_iter': 18,
+            'sub_design': "global_renovation",
+            "health": True,  # on inclut les coûts de santé
+            "discount_rate": 0.032,
+            "rebound": True,
+            "carbon_constraint": False,
+            'one_shot_setting': False,
+            'fix_sub_heater': False,
+            'list_year': [2025, 2030, 2035, 2040, 2045],
+            'list_trajectory_scc': [250, 350, 500, 650, 775],
+            'anticipated_scc': True,
+            'anticipated_demand_t10': True,
+            'scenario_cost_eoles': {}
+        }
     }
 
     # name_config_coupling, optimizer = run_optimization_scenario(config_coupling, name_config_coupling="classic_oneshot_scc650_nobiogas_subdesignGas_annuityFalse")
