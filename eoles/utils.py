@@ -268,8 +268,9 @@ def get_technical_cost(model, objective, scc, heat_fuel):
     """Returns technical cost (social cost without CO2 emissions-related cost"""
     gene_ngas = sum(value(model.gene["natural_gas", hour]) for hour in model.h)   # GWh
     net_emissions = gene_ngas * 0.2295 / 1000 + heat_fuel * 0.271 / 1000  # MtCO2
+    emissions = pd.Series({"natural_gas": gene_ngas * 0.2295 / 1000, "Oil fuel": heat_fuel * 0.271 / 1000})
     technical_cost = objective - net_emissions * scc / 1000
-    return technical_cost, net_emissions
+    return technical_cost, emissions
 
 
 def extract_capacities(model):

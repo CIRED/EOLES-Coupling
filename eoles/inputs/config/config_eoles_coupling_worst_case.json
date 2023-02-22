@@ -2,8 +2,10 @@
   "input_years": 2006,
   "biomass_potential": "eoles/inputs/technology_potential/biomass_evolution_S3.csv",
   "construction_time": "eoles/inputs/technology_characteristics/construction_time.csv",
+  "capacity_factor_nuclear": 0.8,
   "capex": "eoles/inputs/technology_characteristics/overnight_capex_evolution_high.csv",
   "carbon_budget": "eoles/inputs/carbon_budget.csv",
+  "conversion_efficiency": "eoles/inputs/technology_characteristics/conversion_efficiency.csv",
   "demand": "eoles/inputs/demand/demand2050_RTE.csv",
   "demand_noP2G_RTE_timesteps": "eoles/inputs/demand/demand_noP2G_timesteps.csv",
   "demand_residential_heating_RTE_timesteps": "eoles/inputs/demand/demand_residential_heating_timesteps.csv",
@@ -22,11 +24,11 @@
   "maximum_capacity": "eoles/inputs/technology_potential/maximum_capacity.csv",
   "maximum_charging_capacity": "eoles/inputs/technology_potential/maximum_charging_capacity.csv",
   "maximum_energy_capacity": "eoles/inputs/technology_potential/maximum_energy_capacity.csv",
+  "miscellaneous": "eoles/inputs/miscellaneous.csv",
   "percentage_hourly_residential_heating_profile": "eoles/inputs/hourly_profiles/percentage_hourly_residential_heating_profile_RTE.csv",
+  "prediction_transport_distribution": "eoles/inputs/technology_characteristics/prediction_transport_and_distrib_annuity.csv",
+  "prediction_transport_offshore": "eoles/inputs/technology_characteristics/prediction_transport_offshore_annuity.csv",
   "lifetime": "eoles/inputs/technology_characteristics/lifetime.csv",
   "storage_capex": "eoles/inputs/technology_characteristics/storage_capex_evolution_high.csv",
-  "vOM": "eoles/inputs/technology_characteristics/vO&M_elec_new.csv",
-  "conversion_efficiency": "eoles/inputs/technology_characteristics/conversion_efficiency.csv",
-  "miscellaneous": "eoles/inputs/miscellaneous.csv",
-  "capacity_factor_nuclear": 0.8
+  "vOM": "eoles/inputs/technology_characteristics/vO&M_elec_new.csv"
 }

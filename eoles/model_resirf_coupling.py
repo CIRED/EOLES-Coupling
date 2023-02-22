@@ -173,6 +173,8 @@ class ModelEOLES():
         self.eta_out = data_static["eta_out"]
         self.conversion_efficiency = data_static["conversion_efficiency"]
         self.miscellaneous = data_static["miscellaneous"]
+        self.prediction_transport_and_distrib_annuity = data_static["prediction_transport_and_distrib_annuity"]
+        self.prediction_transport_offshore_annuity = data_static["prediction_transport_offshore_annuity"]
         self.biomass_potential = data_static["biomass_potential"]
         self.total_H2_demand = data_static["demand_H2_RTE"]
         self.energy_prices = data_static["energy_prices"]
@@ -189,7 +191,7 @@ class ModelEOLES():
         if not self.carbon_constraint:  # on prend en compte le scc mais pas de contrainte sur le budget
             # Update natural gaz vOM based on social cost of carbon
             self.vOM.loc["natural_gas"] = update_ngas_cost(self.vOM.loc["natural_gas"], scc=self.scc, emission_rate=0.2295)  # €/kWh
-            self.vOM["fuel_boiler"] = update_ngas_cost(self.vOM["fuel_boiler"], scc=self.scc, emission_rate=0.271)  # to check !!
+            self.vOM["fuel_boiler"] = update_ngas_cost(self.vOM["fuel_boiler"], scc=self.scc, emission_rate=0.324)  # to check !!
             self.vOM["wood_boiler"] = update_ngas_cost(self.vOM["wood_boiler"], scc=self.scc,
                                                        emission_rate=0)  # to check !!
 
@@ -418,8 +420,7 @@ class ModelEOLES():
             return sum(model.reserve[frr, h] for frr in model.frr) == res_req + load_req
 
         def hydrogen_balance_constraint_rule(model, h):
-            """Constraint on hydrogen's balance. Hydrogen production must satisfy CCGT-H2 plants, H2 demand and
-            methanation demand."""
+            """Constraint on hydrogen's balance. Hydrogen production must satisfy CCGT-H2 plants and H2 demand."""
             gene_e_h = model.gene['electrolysis', h] + model.gene['hydrogen', h]
             dem_sto = model.gene['h2_ccgt', h] / self.conversion_efficiency['h2_ccgt'] + self.H2_demand[h] + \
                       model.storage[
@@ -628,7 +629,7 @@ class ModelEOLES():
                                             self.existing_capacity, self.existing_energy_capacity, self.annuities,
                                             self.storage_annuities, self.fOM, self.vOM, self.conversion_efficiency,
                                             self.existing_annualized_costs_elec, self.existing_annualized_costs_CH4,
-                                            self.existing_annualized_costs_H2, self.nb_years)
+                                            self.existing_annualized_costs_H2, self.prediction_transport_and_distrib_annuity, self.nb_years)
         self.new_capacity_annualized_costs_nofOM, self.new_energy_capacity_annualized_costs_nofOM = \
             extract_annualized_costs_investment_new_capa_nofOM(self.capacities, self.energy_capacity,
                                                          self.existing_capacity, self.existing_energy_capacity, self.annuities,
@@ -702,6 +703,10 @@ def read_technology_data(config, year):
                                        lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))
     miscellaneous = get_pandas(config["miscellaneous"],
                                lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))
+    prediction_transport_and_distrib_annuity = get_pandas(config["prediction_transport_distribution"],
+                               lambda x: pd.read_csv(x, index_col=0).squeeze("columns"))
+    prediction_transport_offshore_annuity = get_pandas(config["prediction_transport_offshore"],
+                               lambda x: pd.read_csv(x, index_col=0).squeeze("columns"))
     # biomass_potential = get_pandas(config["biomass_potential"],
     #                                lambda x: pd.read_csv(x, index_col=0))  # 1e6€/GW
     # biomass_potential = biomass_potential[[str(year)]].squeeze()  # get storage capex for year of interest
@@ -725,6 +730,8 @@ def read_technology_data(config, year):
     o["eta_out"] = eta_out
     o["conversion_efficiency"] = conversion_efficiency
     o["miscellaneous"] = miscellaneous
+    o["prediction_transport_and_distrib_annuity"] = prediction_transport_and_distrib_annuity
+    o["prediction_transport_offshore_annuity"] = prediction_transport_offshore_annuity
     # o["biomass_potential"] = biomass_potential
     return o
 
@@ -830,7 +837,8 @@ def read_input_static(config, year):
 
 def extract_summary(model, demand, H2_demand, CH4_demand, existing_capacity, existing_energy_capacity, annuities,
                     storage_annuities, fOM, vOM, conversion_efficiency, existing_annualized_costs_elec,
-                    existing_annualized_costs_CH4, existing_annualized_costs_H2, nb_years):
+                    existing_annualized_costs_CH4, existing_annualized_costs_H2, prediction_transport_and_distrib_annuity, nb_years):
+    """This function compiles different general statistics of the electricity mix, including in particular LCOE."""
     # TODO: A CHANGER !!!
     summary = {}  # final dictionary for output
     elec_demand_tot = sum(demand[hour] for hour in model.h) / 1000  # electricity demand in TWh
@@ -999,47 +1007,21 @@ def extract_summary(model, demand, H2_demand, CH4_demand, existing_capacity, exi
     costs_elec_to_H2_value = costs_elec * gene_from_elec_to_H2_value / (
             elec_demand_tot_value + gene_from_elec_to_H2_value + gene_from_elec_to_CH4_value)
 
-    lcoe_elec_value = (
-                              costs_CH4_to_elec_value + costs_H2_to_elec_value + costs_elec_to_demand_value) / elec_demand_tot  # € / MWh
+    lcoe_elec_value = (costs_CH4_to_elec_value + costs_H2_to_elec_value + costs_elec_to_demand_value) / elec_demand_tot  # € / MWh
     lcoe_CH4_value = (costs_elec_to_CH4_value + costs_CH4_to_demand_value) / CH4_demand_tot  # € / MWh
     lcoe_H2_value = (costs_elec_to_H2_value + costs_H2_to_demand_value) / H2_demand_tot  # € / MWh
     summary["lcoe_elec_value"], summary["lcoe_CH4_value"], summary["lcoe_H2_value"] = \
         lcoe_elec_value, lcoe_CH4_value, lcoe_H2_value
 
+    solar_capacity = value(model.capacity["pv_g"]) + value(model.capacity["pv_c"])
+    onshore_capacity = value(model.capacity["onshore"])
+    transport_and_distrib_annuity = prediction_transport_and_distrib_annuity["intercept"] + \
+                                    prediction_transport_and_distrib_annuity["solar"] * solar_capacity + \
+                                    prediction_transport_and_distrib_annuity["onshore"] * onshore_capacity   # 1e9 €/yr
+    transport_and_distrib_lcoe = transport_and_distrib_annuity * 1000 / elec_demand_tot  # € / MWh
 
-    # Pas à jour, ancienne version du code
-    # # The whole electricity input for storage in TWh
-    # nSTORAGE = {}
-    # for storage in model.str:
-    #     for hour in model.h:
-    #         nSTORAGE[(storage, hour)] = value(model.storage[storage, hour])
-    #
-    # # Electricity cost per MWh produced (euros/MWh)
-    # lcoe_sys = value(model.objective) * 1000 / gene_tot
-    # summary["lcoe_sys"] = lcoe_sys
+    summary["transport_and_distrib_lcoe"] = transport_and_distrib_lcoe
 
-    # # Yearly storage related loss in % of power production and in TWh
-    # str_loss_percent = 100 * (
-    #         sum(value(model.storage[storage, hour]) for storage in model.str for hour in model.h) -
-    #         sum(gene_per_tec[storage] * 1000 for storage in model.str)) / (gene_tot * 1000)
-    # str_loss_TWh = gene_per_tec['electrolysis'] / miscellaneous['eta_electrolysis'] - hydrogen_tot / miscellaneous[
-    #     'eta_electrolysis'] - gene_per_tec[
-    #                    'h2_ccgt']  # TODO: je ne comprends pas pourquoi on a besoin de cette ligne alors qu'on n'en avait pas besoin avant quand on calculait en pourcentage
-    # # TODO: aussi, pourquoi on ne prend pas en compte la production des centrales CCGT ? et donc la méthanation et ses pertes ?
-    # for storage in model.str:
-    #     if storage != 'hydrogen' and storage != 'methane':
-    #         str_loss_TWh += sum(nSTORAGE[storage, hour] for hour in model.h) / 1000 - gene_per_tec[storage]
-    #
-    # summary["str_loss_percent"] = str_loss_percent
-    # summary["str_loss_TWh"] = str_loss_TWh
-    #
-    # # Load curtailment in % of power production and in TWh
-    # lc_percent = (100 * (
-    #         gene_tot - demand_tot - hydrogen_tot / miscellaneous['eta_electrolysis']) / gene_tot) - str_loss_percent
-    # lc_TWh = (gene_tot - demand_tot - hydrogen_tot / miscellaneous['eta_electrolysis']) - str_loss_TWh
-    #
-    # summary["load_curtail_percent"] = lc_percent
-    # summary["load_curtail_TWh"] = lc_TWh
     summary_df = pd.Series(summary)
     return summary_df, gene_per_tec, lcoe_per_tec
 

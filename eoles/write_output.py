@@ -159,7 +159,7 @@ def comparison_simulations(dict_output:dict, ref, health=False, save_path=None):
         save_path_plot = os.path.join(save_path, "total_annualized_system_costs.png")
     make_stacked_bar_plot(annualized_system_costs_df.T, subset=subset_annualized_costs, y_label="Total annualized system costs (Md€ / year)",
                           colors=resources_data["colors_eoles"], format_y=lambda y, _: '{:.0f}'.format(y), index_int=False,
-                          rotation=90, dict_legend=DICT_TRANSFORM_LEGEND, save=os.path.join(save_path_plot))
+                          rotation=90, dict_legend=DICT_TRANSFORM_LEGEND, save=save_path_plot)
 
     annualized_system_costs_df = annualized_system_costs_df.T
     annualized_system_costs_df["Annualized total costs HC excluded"] = annualized_system_costs_df["Annualized total costs"] - \
@@ -335,6 +335,9 @@ def plot_simulation(output, save_path):
     peak_electricity_load_df = output["Peak electricity load"]
     peak_heat_load_df = output["Peak heat load"]
     emissions = output["Emissions (MtCO2)"]
+    annualized_new_investment_df = output["Annualized new investments (1e9€/yr)"]
+    annualized_new_energy_capacity_df = output["Annualized costs new energy capacity (1e9€/yr)"]
+    functionment_costs_df = output["System functionment (1e9€/yr)"]
 
     # Plot capacities
     # # Electricity generation capacities
@@ -408,26 +411,29 @@ def plot_simulation(output, save_path):
                    y_label="Heating consumption (TWh)", colors=resources_data["colors_resirf"],
                    save=os.path.join(save_path, "resirf_consumption.png"), format_y=lambda y, _: '{:.0f}'.format(y))
 
-    # Plot savings ResIRF
-    make_area_plot(resirf_consumption_saving_df, y_label="Consumption savings (TWh)",
-                   save=os.path.join(save_path, "resirf_savings.png"), format_y=lambda y, _: '{:.0f}'.format(y),
-                   rotation=45, x_ticks=resirf_consumption_saving_df.index[::2])
+    try:  # TODO: ajout temporaire pour gérer un problème de savings négatif
+        # Plot savings ResIRF
+        make_area_plot(resirf_consumption_saving_df, y_label="Consumption savings (TWh)",
+                       save=os.path.join(save_path, "resirf_savings.png"), format_y=lambda y, _: '{:.0f}'.format(y),
+                       rotation=45, x_ticks=resirf_consumption_saving_df.index[::2])
 
-    # Unique plot consumption + savings
-    resirf_consumption_saving_df = resirf_consumption_saving_df.reset_index().rename(columns={'index': 'year'})
-    resirf_consumption_saving_df["Consumption saving heater cumulated (TWh)"] = resirf_consumption_saving_df["Consumption saving heater (TWh)"].cumsum()
-    resirf_consumption_saving_df["Consumption saving insulation cumulated (TWh)"] = resirf_consumption_saving_df[
-        "Consumption saving insulation (TWh)"].cumsum()
-    resirf_consumption_saving_df = resirf_consumption_saving_df.loc[resirf_consumption_saving_df["year"] % 5 == 4]  # we only keep rows like 2029, 2034, etc...
-    resirf_consumption_saving_df["year"] = resirf_consumption_saving_df["year"] + 1  # we modify the year
-    resirf_consumption_saving_df = resirf_consumption_saving_df.set_index("year")
-    # resirf_consumption_saving_df["period"] = resirf_consumption_saving_df.apply(lambda row: (row["year"] - 2025) // 5, axis=1)
-    # resirf_consumption_saving_df = resirf_consumption_saving_df.groupby("period").agg(
-    #     {"year": np.min, "Consumption saving heater (TWh)": np.sum, "Consumption saving insulation (TWh)": np.sum}).set_index("year")
+        # Unique plot consumption + savings
+        resirf_consumption_saving_df = resirf_consumption_saving_df.reset_index().rename(columns={'index': 'year'})
+        resirf_consumption_saving_df["Consumption saving heater cumulated (TWh)"] = resirf_consumption_saving_df["Consumption saving heater (TWh)"].cumsum()
+        resirf_consumption_saving_df["Consumption saving insulation cumulated (TWh)"] = resirf_consumption_saving_df[
+            "Consumption saving insulation (TWh)"].cumsum()
+        resirf_consumption_saving_df = resirf_consumption_saving_df.loc[resirf_consumption_saving_df["year"] % 5 == 4]  # we only keep rows like 2029, 2034, etc...
+        resirf_consumption_saving_df["year"] = resirf_consumption_saving_df["year"] + 1  # we modify the year
+        resirf_consumption_saving_df = resirf_consumption_saving_df.set_index("year")
+        # resirf_consumption_saving_df["period"] = resirf_consumption_saving_df.apply(lambda row: (row["year"] - 2025) // 5, axis=1)
+        # resirf_consumption_saving_df = resirf_consumption_saving_df.groupby("period").agg(
+        #     {"year": np.min, "Consumption saving heater (TWh)": np.sum, "Consumption saving insulation (TWh)": np.sum}).set_index("year")
 
-    resirf_consumption_total_df = pd.concat([resirf_consumption_df, resirf_consumption_saving_df[["Consumption saving heater cumulated (TWh)", "Consumption saving insulation cumulated (TWh)"]]], axis=1)
-    make_area_plot(resirf_consumption_total_df, y_label="Consumption and savings (TWh)", colors=resources_data["colors_resirf"],
-                   save=os.path.join(save_path, "resirf_consumption_savings.png"), format_y=lambda y, _: '{:.0f}'.format(y))
+        resirf_consumption_total_df = pd.concat([resirf_consumption_df, resirf_consumption_saving_df[["Consumption saving heater cumulated (TWh)", "Consumption saving insulation cumulated (TWh)"]]], axis=1)
+        make_area_plot(resirf_consumption_total_df, y_label="Consumption and savings (TWh)", colors=resources_data["colors_resirf"],
+                       save=os.path.join(save_path, "resirf_consumption_savings.png"), format_y=lambda y, _: '{:.0f}'.format(y))
+    except:
+        pass
 
     # Plot costs ResIRF
     make_line_plot(resirf_costs_df, y_label="Costs (Billion euro)", save=os.path.join(save_path, "resirf_costs.png"),
@@ -445,14 +451,13 @@ def plot_simulation(output, save_path):
                    rotation=45, x_ticks=resirf_replacement_heater.index[::2])
 
     resirf_stock_heater = resirf_stock_heater.T
-    resirf_stock_heater["Heat pump air"] = resirf_stock_heater["Stock Electricity-Heat pump air (Thousand households)"]
-    resirf_stock_heater["Heat pump water"] = resirf_stock_heater["Stock Electricity-Heat pump water (Thousand households)"]
-    resirf_stock_heater["Electric heating"] = resirf_stock_heater["Stock Electricity-Performance boiler (Thousand households)"]
-    resirf_stock_heater["Natural gas"] = resirf_stock_heater["Stock Natural gas-Performance boiler (Thousand households)"] + resirf_stock_heater["Stock Natural gas-Standard boiler (Thousand households)"]
-    resirf_stock_heater["Oil fuel"] = resirf_stock_heater["Stock Oil fuel-Performance boiler (Thousand households)"] + resirf_stock_heater["Stock Oil fuel-Standard boiler (Thousand households)"]
-    resirf_stock_heater["Wood fuel"] = resirf_stock_heater["Stock Wood fuel-Performance boiler (Thousand households)"] + resirf_stock_heater["Stock Wood fuel-Standard boiler (Thousand households)"]
+    resirf_stock_heater["Heat pump"] = resirf_stock_heater["Stock Heat pump (Million)"]
+    resirf_stock_heater["Electric heating"] = resirf_stock_heater["Stock Direct electric (Million)"]
+    resirf_stock_heater["Natural gas"] = resirf_stock_heater["Stock Natural gas (Million)"]
+    resirf_stock_heater["Oil fuel"] = resirf_stock_heater[ "Stock Oil fuel (Million)"]
+    resirf_stock_heater["Wood fuel"] = resirf_stock_heater["Stock Wood fuel (Million)"]
     resirf_stock_heater.index += 1  # we increase the index to get the correct years
-    make_area_plot(resirf_stock_heater[["Heat pump air", "Heat pump water", "Electric heating", "Natural gas", "Oil fuel", "Wood fuel"]], y_label="Stock heater (Thousand households)",
+    make_area_plot(resirf_stock_heater[["Heat pump", "Electric heating", "Natural gas", "Oil fuel", "Wood fuel"]], y_label="Stock heater (Million)",
                    save=os.path.join(save_path, "resirf_stock.png"), format_y=lambda y, _: '{:.0f}'.format(y), colors=resources_data["colors_eoles"])
 
     # Plot annualized system costs
