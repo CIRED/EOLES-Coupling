@@ -541,25 +541,6 @@ if __name__ == '__main__':
             'anticipated_scc': True,
             'scenario_cost_eoles': {}
         },
-        "global_renovation_simple_anticipatedSCC_pricefeedback": {
-            'config_resirf': "classic_simple",
-            "config_eoles": "eoles_classic",  # includes costs assumptions
-            'calibration_threshold': False,
-            'h2ccgt': False,
-            'max_iter': 18,
-            'sub_design': "global_renovation",
-            "health": True,  # on inclut les coûts de santé
-            "discount_rate": 0.032,
-            "rebound": True,
-            "carbon_constraint": False,
-            'one_shot_setting': False,
-            'fix_sub_heater': False,
-            "price_feedback": True,
-            'list_year': [2025, 2030, 2035, 2040, 2045],
-            'list_trajectory_scc': [250, 350, 500, 650, 775],
-            'anticipated_scc': True,
-            'scenario_cost_eoles': {}
-        },
         "efficiency100_simple_carbonbudget": {
             'config_resirf': "classic_simple",
             "config_eoles": "eoles_classic",  # includes costs assumptions
@@ -692,6 +673,25 @@ if __name__ == '__main__':
                     "offshore_f": 0
                 }
             }
+        },
+        "global_renovation_simple_anticipatedSCC_pricefeedback": {
+            'config_resirf': "classic_simple",
+            "config_eoles": "eoles_classic",  # includes costs assumptions
+            'calibration_threshold': False,
+            'h2ccgt': False,
+            'max_iter': 18,
+            'sub_design': "global_renovation",
+            "health": True,  # on inclut les coûts de santé
+            "discount_rate": 0.032,
+            "rebound": True,
+            "carbon_constraint": False,
+            'one_shot_setting': False,
+            'fix_sub_heater': False,
+            "price_feedback": True,
+            'list_year': [2025, 2030, 2035, 2040, 2045],
+            'list_trajectory_scc': [250, 350, 500, 650, 775],
+            'anticipated_scc': True,
+            'scenario_cost_eoles': {}
         }
     }
 
