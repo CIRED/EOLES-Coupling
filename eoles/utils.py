@@ -115,7 +115,9 @@ def load_evolution_data():
     maximum_capacity_evolution = get_pandas("eoles/inputs/technology_potential/maximum_capacity_evolution.csv",
                                             lambda x: pd.read_csv(x, index_col=0))  # GW
 
-    annuity_fOM_historical = get_pandas("eoles/inputs/historical_data/annuity_fOM_historical.csv",
+    capex_annuity_fOM_historical = get_pandas("eoles/inputs/historical_data/capex_annuity_fOM_historical.csv",
+                                              lambda x: pd.read_csv(x, index_col=0).squeeze())
+    capex_annuity_historical = get_pandas("eoles/inputs/historical_data/capex_annuity_historical.csv",
                                               lambda x: pd.read_csv(x, index_col=0).squeeze())
     storage_annuity_historical = get_pandas("eoles/inputs/historical_data/storage_annuity_historical.csv",
                                               lambda x: pd.read_csv(x, index_col=0).squeeze())
@@ -128,7 +130,7 @@ def load_evolution_data():
 
     return existing_capacity_historical, existing_charging_capacity_historical, existing_energy_capacity_historical,\
            maximum_capacity_evolution, heating_gas_demand_RTE_timesteps, ECS_gas_demand_RTE_timesteps, \
-           annuity_fOM_historical, storage_annuity_historical
+           capex_annuity_fOM_historical, capex_annuity_historical, storage_annuity_historical
 
 ### Defining the model
 
@@ -553,8 +555,18 @@ def extract_annualized_costs_investment_new_capa_nofOM(capacities, energy_capaci
     return costs_new_capacity[["annualized_costs"]], costs_new_energy_capacity[["annualized_costs"]]
 
 
-def extract_functionment_cost(capacities, fOM, vOM, generation, oil_consumption, wood_consumption):
-    """Returns functionment cost, including fOM and vOM. vOM for gas and oil include the SCC. Unit: 1e6€/yr"""
+def extract_functionment_cost(capacities, fOM, vOM, generation, oil_consumption, wood_consumption, anticipated_scc, actual_scc):
+    """Returns functionment cost, including fOM and vOM. vOM for gas and oil include the SCC. Unit: 1e6€/yr
+    This function has to update vOM for natural gas and fossil fuel based on the actual scc, and no longer based on the
+    anticipated_scc which was used to find optimal investment and dispatch.
+    :param anticipated_scc: int
+        Anticipated social cost of carbon used to estimate optimal power mix.
+    :param actual_scc: int
+        Actual social cost of carbon, used to calculate functionment cost.
+    """
+    # Updating actual values for the SCC
+    vOM.loc["natural_gas"] = update_ngas_cost(vOM.loc["natural_gas"], scc=(actual_scc - anticipated_scc), emission_rate=0.2295)  # €/kWh
+    vOM["fuel_boiler"] = update_ngas_cost(vOM["fuel_boiler"], scc=(actual_scc - anticipated_scc), emission_rate=0.324)
 
     system_fOM_vOM = pd.concat([capacities, fOM, vOM, generation], axis=1, ignore_index=True).rename(columns={0: "capacity", 1: "fOM", 2: "vOM", 3: "generation"})
     system_fOM_vOM = system_fOM_vOM.dropna()
@@ -577,6 +589,16 @@ def annualized_costs_investment_historical(existing_capa_historical_y, annuity_f
     costs_energy_capacity_historical = costs_energy_capacity_historical.rename(columns={0: 'energy_capacity_historical', 1: 'storage_annuity'}).fillna(0)
     costs_energy_capacity_historical["annualized_costs"] = costs_energy_capacity_historical["energy_capacity_historical"] * costs_energy_capacity_historical["storage_annuity"]
     return costs_capacity_historical[["annualized_costs"]], costs_energy_capacity_historical[["annualized_costs"]]
+
+
+def annualized_costs_investment_historical_nofOM(existing_capa_historical_y, capex_annuity_historical,
+                                           existing_energy_capacity_historical_y, storage_annuity_historical):
+    """Returns the annualized costs coming from historical capacities and energy capacities. This includes only annualized CAPEX, no fOM."""
+    costs_capacity_historical = pd.concat([existing_capa_historical_y, capex_annuity_historical], axis=1, ignore_index=True)  # we only include nonzero historical capacities
+    costs_capacity_historical = costs_capacity_historical.rename(columns={0: 'capacity_historical', 1: 'capex_annuity'}).fillna(0)
+    costs_capacity_historical["annualized_costs"] = costs_capacity_historical["capacity_historical"] * costs_capacity_historical["capex_annuity"]
+
+    return costs_capacity_historical[["annualized_costs"]]
 
 
 def process_annualized_costs_per_vector(annualized_costs_capacity, annualized_costs_energy_capacity):

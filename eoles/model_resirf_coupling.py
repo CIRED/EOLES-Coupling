@@ -37,7 +37,7 @@ from pyomo.environ import (
 class ModelEOLES():
     def __init__(self, name, config, path, logger, nb_years, hourly_heat_elec, hourly_heat_gas, wood_consumption=0, oil_consumption=0,
                  existing_capacity=None, existing_charging_capacity=None, existing_energy_capacity=None, maximum_capacity=None,
-                 method_hourly_profile="valentin", social_cost_of_carbon=0, year=2050, anticipated_year=2050,
+                 method_hourly_profile="valentin", anticipated_social_cost_of_carbon=0, actual_social_cost_of_carbon=0, year=2050, anticipated_year=2050,
                  scenario_cost=None, existing_annualized_costs_elec=0,
                  existing_annualized_costs_CH4=0, existing_annualized_costs_H2=0, carbon_constraint=False, discount_rate=0.045):
         """
@@ -60,8 +60,8 @@ class ModelEOLES():
         :param maximum_capacity: pd.Series
         :param method_hourly_profile: str
             Method to calculate the hourly profile for electricity and gas demand related to heat
-        :param social_cost_of_carbon: int
-            Social cost of carbon used to calculate emissions
+        :param anticipated_social_cost_of_carbon: int
+            Anticipated social cost of carbon used to calculate emissions and to find optimal power mix.
         :param year: int
         :param anticipated_year: int
         :param scenario_cost: dict
@@ -81,7 +81,8 @@ class ModelEOLES():
         # Dual Variable, used to get the marginal value of an equation.
         self.model.dual = Suffix(direction=Suffix.IMPORT)
         self.nb_years = nb_years
-        self.scc = social_cost_of_carbon
+        self.anticipated_scc = anticipated_social_cost_of_carbon
+        self.actual_scc = actual_social_cost_of_carbon
         self.discount_rate = discount_rate
         self.year = year
         self.carbon_constraint = carbon_constraint
@@ -190,9 +191,9 @@ class ModelEOLES():
 
         if not self.carbon_constraint:  # on prend en compte le scc mais pas de contrainte sur le budget
             # Update natural gaz vOM based on social cost of carbon
-            self.vOM.loc["natural_gas"] = update_ngas_cost(self.vOM.loc["natural_gas"], scc=self.scc, emission_rate=0.2295)  # €/kWh
-            self.vOM["fuel_boiler"] = update_ngas_cost(self.vOM["fuel_boiler"], scc=self.scc, emission_rate=0.324)  # to check !!
-            self.vOM["wood_boiler"] = update_ngas_cost(self.vOM["wood_boiler"], scc=self.scc,
+            self.vOM.loc["natural_gas"] = update_ngas_cost(self.vOM.loc["natural_gas"], scc=self.anticipated_scc, emission_rate=0.2295)  # €/kWh
+            self.vOM["fuel_boiler"] = update_ngas_cost(self.vOM["fuel_boiler"], scc=self.anticipated_scc, emission_rate=0.324)  # to check !!
+            self.vOM["wood_boiler"] = update_ngas_cost(self.vOM["wood_boiler"], scc=self.anticipated_scc,
                                                        emission_rate=0)  # to check !!
 
         # defining needed time steps
@@ -603,7 +604,7 @@ class ModelEOLES():
         """
         # get value of objective function
         self.objective = self.solver_results["Problem"][0]["Upper bound"]
-        self.technical_cost, self.emissions = get_technical_cost(self.model, self.objective, self.scc, self.oil_consumption)
+        self.technical_cost, self.emissions = get_technical_cost(self.model, self.objective, self.anticipated_scc, self.oil_consumption)
         self.hourly_generation = extract_hourly_generation(self.model, elec_demand=self.elec_demand,  CH4_demand=list(self.CH4_demand.values()),
                                                            H2_demand=list(self.H2_demand.values()), hourly_heat_elec=self.hourly_heat_elec, hourly_heat_gas=self.hourly_heat_gas)
         self.peak_electricity_load_info = extract_peak_load(self.hourly_generation, self.conversion_efficiency)
@@ -624,18 +625,20 @@ class ModelEOLES():
                                                          self.storage_annuities, self.fOM)
 
         # self.use_elec = extract_use_elec(self.model, self.nb_years, self.miscellaneous)
+        self.transport_distribution_cost = transportation_distribution_cost(self.model, self.prediction_transport_and_distrib_annuity)
         self.summary, self.generation_per_technology, \
         self.lcoe_per_tec = extract_summary(self.model, self.elec_demand, self.H2_demand, self.CH4_demand,
                                             self.existing_capacity, self.existing_energy_capacity, self.annuities,
                                             self.storage_annuities, self.fOM, self.vOM, self.conversion_efficiency,
                                             self.existing_annualized_costs_elec, self.existing_annualized_costs_CH4,
-                                            self.existing_annualized_costs_H2, self.prediction_transport_and_distrib_annuity, self.nb_years)
+                                            self.existing_annualized_costs_H2, self.transport_distribution_cost, self.nb_years)
         self.new_capacity_annualized_costs_nofOM, self.new_energy_capacity_annualized_costs_nofOM = \
             extract_annualized_costs_investment_new_capa_nofOM(self.capacities, self.energy_capacity,
                                                          self.existing_capacity, self.existing_energy_capacity, self.annuities,
                                                          self.storage_annuities)  # pd.Series
         self.functionment_cost = extract_functionment_cost(self.capacities, self.fOM, self.vOM,
-                                                           pd.Series(self.generation_per_technology) * 1000, self.oil_consumption, self.wood_consumption)  # pd.Series
+                                                           pd.Series(self.generation_per_technology) * 1000, self.oil_consumption, self.wood_consumption,
+                                                           self.anticipated_scc, self.actual_scc)  # pd.Series
         self.results = {'objective': self.objective, 'summary': self.summary,
                         'hourly_generation': self.hourly_generation,
                         'capacities': self.capacities, 'energy_capacity': self.energy_capacity,
@@ -837,7 +840,7 @@ def read_input_static(config, year):
 
 def extract_summary(model, demand, H2_demand, CH4_demand, existing_capacity, existing_energy_capacity, annuities,
                     storage_annuities, fOM, vOM, conversion_efficiency, existing_annualized_costs_elec,
-                    existing_annualized_costs_CH4, existing_annualized_costs_H2, prediction_transport_and_distrib_annuity, nb_years):
+                    existing_annualized_costs_CH4, existing_annualized_costs_H2, transportation_distribution_cost, nb_years):
     """This function compiles different general statistics of the electricity mix, including in particular LCOE."""
     # TODO: A CHANGER !!!
     summary = {}  # final dictionary for output
@@ -1013,16 +1016,20 @@ def extract_summary(model, demand, H2_demand, CH4_demand, existing_capacity, exi
     summary["lcoe_elec_value"], summary["lcoe_CH4_value"], summary["lcoe_H2_value"] = \
         lcoe_elec_value, lcoe_CH4_value, lcoe_H2_value
 
-    solar_capacity = value(model.capacity["pv_g"]) + value(model.capacity["pv_c"])
-    onshore_capacity = value(model.capacity["onshore"])
-    transport_and_distrib_annuity = prediction_transport_and_distrib_annuity["intercept"] + \
-                                    prediction_transport_and_distrib_annuity["solar"] * solar_capacity + \
-                                    prediction_transport_and_distrib_annuity["onshore"] * onshore_capacity   # 1e9 €/yr
-    transport_and_distrib_lcoe = transport_and_distrib_annuity * 1000 / elec_demand_tot  # € / MWh
+    transport_and_distrib_lcoe = transportation_distribution_cost * 1000 / elec_demand_tot  # € / yr / MWh
 
     summary["transport_and_distrib_lcoe"] = transport_and_distrib_lcoe
 
     summary_df = pd.Series(summary)
     return summary_df, gene_per_tec, lcoe_per_tec
 
+
+def transportation_distribution_cost(model, prediction_transport_and_distrib_annuity):
+    """Estimation of annualized transport and distribution cost, based on solar and onshore wind capacities."""
+    solar_capacity = value(model.capacity["pv_g"]) + value(model.capacity["pv_c"])
+    onshore_capacity = value(model.capacity["onshore"])
+    transport_and_distrib_annuity = prediction_transport_and_distrib_annuity["intercept"] + \
+                                    prediction_transport_and_distrib_annuity["solar"] * solar_capacity + \
+                                    prediction_transport_and_distrib_annuity["onshore"] * onshore_capacity   # 1e9 €/yr
+    return transport_and_distrib_annuity
 

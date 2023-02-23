@@ -150,7 +150,7 @@ def resirf_eoles_coupling_static(subvention, buildings, energy_prices, taxes, co
                          existing_capacity=existing_capacity, existing_charging_capacity=existing_charging_capacity,
                          existing_energy_capacity=existing_energy_capacity, maximum_capacity=maximum_capacity,
                          method_hourly_profile=method_hourly_profile,
-                         social_cost_of_carbon=scc, year=year_eoles, anticipated_year=anticipated_year_eoles,
+                         anticipated_social_cost_of_carbon=scc, year=year_eoles, anticipated_year=anticipated_year_eoles,
                          scenario_cost=scenario_cost, existing_annualized_costs_elec=existing_annualized_costs_elec,
                          existing_annualized_costs_CH4=existing_annualized_costs_CH4,
                          existing_annualized_costs_H2=existing_annualized_costs_H2, carbon_constraint=carbon_constraint,
@@ -267,11 +267,13 @@ def resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, 
     if not optimization:
         assert list_sub_heater is not None, "Parameter list_sub_heater should be provided when optimization is set to False."
         assert list_sub_insulation is not None, "Parameter list_sub_insulation should be provided when optimization is set to False."
+    assert anticipated_scc in [False, "t5", "average"], "Parameter anticipated_scc is not in the allowed range of parameters."
     # INITIALIZATION OF EOLES PARAMETERS
 
     # importing evolution of historical capacity and expected evolution of demand
     existing_capacity_historical, existing_charging_capacity_historical, existing_energy_capacity_historical, \
-    maximum_capacity_evolution, heating_gas_demand_RTE_timesteps, ECS_gas_demand_RTE_timesteps, annuity_fOM_historical, storage_annuity_historical = eoles.utils.load_evolution_data()
+    maximum_capacity_evolution, heating_gas_demand_RTE_timesteps, ECS_gas_demand_RTE_timesteps, capex_annuity_fOM_historical, \
+    capex_annuity_historical, storage_annuity_historical = eoles.utils.load_evolution_data()
 
     existing_capacity_historical = existing_capacity_historical.drop(
         ["heat_pump", "resistive", "gas_boiler", "fuel_boiler", "wood_boiler"], axis=0)
@@ -299,12 +301,13 @@ def resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, 
     peak_electricity_load_df, peak_heat_load_df = pd.DataFrame(dtype=float), pd.DataFrame(dtype=float)
 
     weighted_average_elec_price, weighted_average_CH4_price, weighted_average_H2_price = [], [], []
-    lcoe_elec, lcoe_elec_volume, lcoe_elec_value = [], [], []
+    list_lcoe_elec, list_lcoe_elec_volume, list_lcoe_elec_value, list_lcoe_CH4_value, list_lcoe_CH4_volume = [], [], [], [], []
     list_emissions = []
-    list_electricity_price_ht, list_transport_distribution = [], []
-    list_elec_annualized, list_insulation_annualized, list_heater_annualized, list_healthcost_annualized = [], [], [], []
+    list_electricity_price_ht, list_transport_distribution_lcoe = [], []
+    list_elec_annualized, list_transport_distrib_annualized, list_insulation_annualized, list_heater_annualized, list_healthcost_annualized = [], [], [], [], []
 
     annualized_new_investment_df, annualized_new_energy_capacity_df, functionment_costs_df = pd.DataFrame(dtype=float), pd.DataFrame(dtype=float), pd.DataFrame(dtype=float)  # used to estimate costs
+    annualized_historical_capacity_df, annualized_historical_energy_capacity_df = pd.DataFrame(dtype=float), pd.DataFrame(dtype=float)
 
     annualized_costs_new_capacity = pd.DataFrame(0, index=existing_capacity_historical.index,
                                                  columns=["annualized_costs"], dtype=float)
@@ -326,12 +329,10 @@ def resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, 
     list_global_annualized_costs = []
     dict_optimizer = {}
 
-    # if one_shot_setting:
-    #     list_year = [2025]
-    #     list_scc = [1000]  # we impose a very high SCC
-
     list_anticipated_year = [y+5 for y in list_year]  # we create list of years used for supply = demand
+    list_scc_year = list_scc_yearly()
     for t, (y, scc) in enumerate(zip(list_year, list_trajectory_scc)):
+        # IMPORTANT REMARK: here, list_trajectory_scc is already compiled so that list_trajectory_scc[t] corresponds to the SCC at the END of the period !
         print(f"Year {y}, SCC {scc}")
         if not one_shot_setting:  # classical setting
             if not anticipated_demand_t10:  # classical setting
@@ -347,9 +348,15 @@ def resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, 
         else:  # one shot setting
             year_eoles, anticipated_year_eoles, start_year_resirf, timestep_resirf = 2050, 2050, 2025, 5
 
-        if anticipated_scc:  # we modify the scc to consider the scc at t+5
+        if anticipated_scc == "t5":  # we modify the scc to consider the scc at t+5
             if y < 2045:
                 scc = list_trajectory_scc[t+1]
+                actual_scc = list_trajectory_scc[t]
+        elif anticipated_scc == "average":  # we modify the scc to consider the average scc over time period of new system
+            scc = average_scc(list_scc_year, lifetime=25, initial_time=t)
+            actual_scc = list_trajectory_scc[t]
+        else:
+            actual_scc = scc  # no difference between anticipated and actual scc
 
         #### Get existing and maximum capacities
         existing_capa_historical_y = existing_capacity_historical[
@@ -371,22 +378,23 @@ def resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, 
         maximum_capacity = (
                 existing_capacity + new_maximum_capacity_y).dropna()  # we drop nan values, which correspond to technologies without any upper bound
 
-        #### Historical LCOE based on historical costs
+        #### Historical annualized costs based on historical costs
         annualized_costs_capacity_historical, annualized_costs_energy_capacity_historical = eoles.utils.annualized_costs_investment_historical(
-            existing_capa_historical_y, annuity_fOM_historical,
+            existing_capa_historical_y, capex_annuity_fOM_historical,
+            existing_energy_capacity_historical_y, storage_annuity_historical)
+
+        annualized_costs_capacity_nofOM_historical = eoles.utils.annualized_costs_investment_historical_nofOM(
+            existing_capa_historical_y, capex_annuity_historical,
             existing_energy_capacity_historical_y, storage_annuity_historical)
 
         ### Compile total annualized investment costs from existing capacities (both historical capacities + newly built capacities before t)
         # Necessary for calculus of LCOE accounting for evolution of capacities
-        annualized_costs_capacity = pd.concat(
-            [annualized_costs_capacity_historical.rename(columns={'annualized_costs': 'historical_annualized_costs'}),
+        annualized_costs_capacity = pd.concat([annualized_costs_capacity_historical.rename(columns={'annualized_costs': 'historical_annualized_costs'}),
              annualized_costs_new_capacity], axis=1)
-        annualized_costs_capacity['annualized_costs'] = annualized_costs_capacity['historical_annualized_costs'] + \
-                                                        annualized_costs_capacity['annualized_costs']
+        annualized_costs_capacity['annualized_costs'] = annualized_costs_capacity['historical_annualized_costs'] + annualized_costs_capacity['annualized_costs']
         annualized_costs_energy_capacity = pd.concat([annualized_costs_energy_capacity_historical.rename(
             columns={'annualized_costs': 'historical_annualized_costs'}), annualized_costs_new_energy_capacity], axis=1)
-        annualized_costs_energy_capacity['annualized_costs'] = annualized_costs_energy_capacity[
-                                                                   'historical_annualized_costs'] + \
+        annualized_costs_energy_capacity['annualized_costs'] = annualized_costs_energy_capacity['historical_annualized_costs'] + \
                                                                annualized_costs_energy_capacity['annualized_costs']
 
         existing_annualized_costs_elec, existing_annualized_costs_CH4, existing_annualized_costs_H2 = eoles.utils.process_annualized_costs_per_vector(
@@ -528,7 +536,7 @@ def resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, 
                              existing_capacity=existing_capacity, existing_charging_capacity=existing_charging_capacity,
                              existing_energy_capacity=existing_energy_capacity, maximum_capacity=maximum_capacity,
                              method_hourly_profile="valentin",
-                             social_cost_of_carbon=scc, year=year_eoles, anticipated_year=anticipated_year_eoles,
+                             anticipated_social_cost_of_carbon=scc, actual_social_cost_of_carbon=actual_scc, year=year_eoles, anticipated_year=anticipated_year_eoles,
                              scenario_cost=scenario_cost, existing_annualized_costs_elec=existing_annualized_costs_elec,
                              existing_annualized_costs_CH4=existing_annualized_costs_CH4,
                              existing_annualized_costs_H2=existing_annualized_costs_H2, carbon_constraint=config_coupling["carbon_constraint"],
@@ -545,29 +553,40 @@ def resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, 
             else:
                 resirf_subsidies_df = pd.DataFrame({'Heater': list_sub_heater[:t+1], 'Insulation': list_sub_insulation[:t+1]},
                                                    index=list_year[:t+1])
-            return {"Capacities (GW)": capacity_df,
-                    "New capacities (GW)": new_capacity_df,
-                    "Generation (TWh)": generation_df,
-                    "Primary generation (TWh)": primary_generation_df,
-                    "Conversion generation (TWh)": conversion_generation_df,
-                    "Charging capacity (GW)": charging_capacity_df,
-                    "Energy capacity (GW)": energy_capacity_df,
-                    "Annualized new investments (1e9€/yr)": annualized_new_investment_df,
-                    "Annualized costs new energy capacity (1e9€/yr)": annualized_new_energy_capacity_df,
-                    "System functionment (1e9€/yr)": functionment_costs_df,
-                    "Emissions (MtCO2)": pd.DataFrame({"Emissions": list_emissions}, index=list_anticipated_year[:t+1]),
-                    "Peak electricity load": peak_electricity_load_df,
-                    "Peak heat load": peak_heat_load_df,
-                    "Subsidies (%)": resirf_subsidies_df,
-                    "ResIRF costs (Billion euro)": resirf_costs_df.T,
-                    "ResIRF costs eff (euro/kWh)": investment_cost_eff_df.T,
-                    "ResIRF consumption yearly (TWh)": resirf_consumption_yearly_df.T,
-                    "ResIRF consumption savings (TWh)": resirf_consumption_saving_df.T,
-                    "ResIRF replacement heater (Thousand)": replacement_heater_df.T,
-                    "ResIRF stock heater (Thousand)": stock_heater_df,
-                    "Output global ResIRF ()": output_global_ResIRF,
-                    "Spot price EOLES (€ / MWh)": spot_price_df
-                }, dict_optimizer
+            output = {
+                "Capacities (GW)": capacity_df,
+                 "New capacities (GW)": new_capacity_df,
+                 "Generation (TWh)": generation_df,
+                 "Primary generation (TWh)": primary_generation_df,
+                 "Conversion generation (TWh)": conversion_generation_df,
+                 "Charging capacity (GW)": charging_capacity_df,
+                 "Energy capacity (GW)": energy_capacity_df,
+                 "Annualized new investments (1e9€/yr)": annualized_new_investment_df,
+                 "Annualized costs new energy capacity (1e9€/yr)": annualized_new_energy_capacity_df,
+                "Annualized costs historical capacity (1e9€/yr)": annualized_historical_capacity_df,
+                "Annualized costs historical energy capacity (1e9€/yr)": annualized_historical_energy_capacity_df,
+                 "System functionment (1e9€/yr)": functionment_costs_df,
+                 "Emissions (MtCO2)": pd.DataFrame({"Emissions": list_emissions}, index=list_anticipated_year[:t + 1]),
+                 "Peak electricity load": peak_electricity_load_df,
+                 "Peak heat load": peak_heat_load_df,
+                 "Subsidies (%)": resirf_subsidies_df,
+                 "ResIRF costs (Billion euro)": resirf_costs_df.T,
+                 "ResIRF costs eff (euro/kWh)": investment_cost_eff_df.T,
+                 "ResIRF consumption yearly (TWh)": resirf_consumption_yearly_df.T,
+                 "ResIRF consumption savings (TWh)": resirf_consumption_saving_df.T,
+                 "ResIRF replacement heater (Thousand)": replacement_heater_df.T,
+                 "ResIRF stock heater (Thousand)": stock_heater_df,
+                 "Output global ResIRF ()": output_global_ResIRF,
+                 "Spot price EOLES (€ / MWh)": spot_price_df
+             }
+            if price_feedback:
+                output.update({
+                    "Electricity price without tax": pd.DataFrame(
+                        {"Electricity price without tax": list_electricity_price_ht}, index=list_anticipated_year[:t + 1]),
+                    "Transport and distribution price": pd.DataFrame(
+                        {"Transport and distribution price": list_transport_distribution_lcoe}, index=list_anticipated_year[:t + 1])
+                })
+            return output, dict_optimizer
 
         if anticipated_demand_t10:  # here, we modify the value of anticipated_year_eoles for saving dataframes
             anticipated_year_eoles = anticipated_year_eoles - 5
@@ -578,8 +597,8 @@ def resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, 
             elec_price_ht = electricity_price_ht(lcoe_elec, transport_and_distribution_lcoe,
                                                  calib_lcoe=config_coupling["calibration_lcoe"], year=anticipated_year_eoles)
             list_electricity_price_ht.append(elec_price_ht)
-            list_transport_distribution.append(transport_and_distribution_lcoe)
-            energy_prices = new_projection_prices(elec_price_ht, energy_prices_ht, energy_taxes, start=anticipated_year_eoles, end=anticipated_year_eoles+5)  # we update energy prices beliefs
+            list_transport_distribution_lcoe.append(transport_and_distribution_lcoe)
+            energy_prices = new_projection_prices(energy_prices, elec_price_ht, energy_taxes, start=anticipated_year_eoles, end=anticipated_year_eoles+5)  # we update energy prices beliefs for the coming years
 
         ### Spot price
         spot_price = m_eoles.spot_price.rename(columns={"elec_spot_price": f"elec_spot_price_{anticipated_year_eoles}",
@@ -596,7 +615,7 @@ def resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, 
 
         list_emissions.append(m_eoles.emissions.sum())  # TODO: à verifier
 
-        # Get annuity and functionment cost corresponding to each technology
+        #### Get annuity and functionment cost corresponding to each technology
         new_capacity_annualized_costs_nofOM = m_eoles.new_capacity_annualized_costs_nofOM / 1000  # 1e9 € / yr
         new_capacity_annualized_costs_nofOM = pd.concat([new_capacity_annualized_costs_nofOM,
                    pd.DataFrame(index=["investment_heater", "investment_insulation"], data={'annualized_costs': [annuity_investment_heater_cost, annuity_investment_insulation_cost]})], axis=0)
@@ -609,6 +628,12 @@ def resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, 
         functionment_cost = pd.concat([functionment_cost,
                    pd.DataFrame(index=["health_costs"], data={'functionment_cost': [annuity_health_cost]})], axis=0)
         functionment_costs_df = pd.concat([functionment_costs_df, functionment_cost.rename(columns={"functionment_cost": anticipated_year_eoles})], axis=1)
+
+        # Historical annuity cost
+        annualized_costs_capacity_nofOM_historical = annualized_costs_capacity_nofOM_historical / 1000  # 1e9 € / yr
+        annualized_costs_energy_capacity_historical = annualized_costs_energy_capacity_historical / 1000  # 1e9 € / yr
+        annualized_historical_capacity_df = pd.concat([annualized_historical_capacity_df, annualized_costs_capacity_nofOM_historical.rename(columns={'annualized_costs': anticipated_year_eoles})], axis=1)
+        annualized_historical_energy_capacity_df = pd.concat([annualized_historical_energy_capacity_df, annualized_costs_energy_capacity_historical.rename(columns={'annualized_costs': anticipated_year_eoles})], axis=1)
 
         #### Update total capacities and new capacities
         new_capacity = m_eoles.capacities - existing_capacity  # we get the newly installed capacities at year y
@@ -656,6 +681,7 @@ def resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, 
         conversion_generation_df = pd.concat([conversion_generation_df, conversion_generation.rename(columns={0: anticipated_year_eoles})], axis=1)
 
         list_elec_annualized.append(m_eoles.objective)
+        list_transport_distrib_annualized.append(m_eoles.transport_distribution_cost)
         total_annualized_costs = annuity_investment_heater_cost + annuity_investment_insulation_cost + annuity_health_cost + m_eoles.objective
         list_global_annualized_costs.append(total_annualized_costs)
 
@@ -663,14 +689,17 @@ def resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, 
         weighted_average_CH4_price.append(m_eoles.summary["weighted_CH4_price_demand"])
         weighted_average_H2_price.append(m_eoles.summary["weighted_H2_price_demand"])
 
-        lcoe_elec.append(m_eoles.summary["lcoe_elec"])
-        lcoe_elec_volume.append(m_eoles.summary["lcoe_elec_volume"])
-        lcoe_elec_value.append(m_eoles.summary["lcoe_elec_value"])
+        list_lcoe_elec.append(m_eoles.summary["lcoe_elec"])
+        list_lcoe_elec_volume.append(m_eoles.summary["lcoe_elec_volume"])
+        list_lcoe_elec_value.append(m_eoles.summary["lcoe_elec_value"])
+        list_lcoe_CH4_value.append(m_eoles.summary["lcoe_CH4_value"])
+        list_lcoe_CH4_volume.append(m_eoles.summary["lcoe_CH4_volume"])
 
     price_df = pd.DataFrame(
         {'Average electricity price': weighted_average_elec_price, 'Average CH4 price': weighted_average_CH4_price,
          'Average H2 price': weighted_average_H2_price,
-         'LCOE electricity': lcoe_elec, 'LCOE electricity value': lcoe_elec_value, 'LCOE electricity volume': lcoe_elec_volume},
+         'LCOE electricity': list_lcoe_elec, 'LCOE electricity value': list_lcoe_elec_value, 'LCOE electricity volume': list_lcoe_elec_volume,
+         'LCOE CH4 value': list_lcoe_CH4_value, 'LCOE CH4 volume': list_lcoe_CH4_volume},
         index=list_anticipated_year)
 
     annualized_system_costs_df = pd.DataFrame(
@@ -698,13 +727,13 @@ def resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, 
         "Energy capacity (GW)": energy_capacity_df,
         "Annualized new investments (1e9€/yr)": annualized_new_investment_df,
         "Annualized costs new energy capacity (1e9€/yr)": annualized_new_energy_capacity_df,
+        "Annualized costs historical capacity (1e9€/yr)": annualized_historical_capacity_df,
+        "Annualized costs historical energy capacity (1e9€/yr)": annualized_historical_energy_capacity_df,
         "System functionment (1e9€/yr)": functionment_costs_df,
         "Prices (€/MWh)": price_df,
         "Emissions (MtCO2)": pd.DataFrame({"Emissions": list_emissions}, index=list_anticipated_year),
         "Peak electricity load": peak_electricity_load_df,
         "Peak heat load": peak_heat_load_df,
-        "Electricity price without tax": list_electricity_price_ht,
-        "Transport and distribution price": list_transport_distribution,
         "Subsidies (%)": resirf_subsidies_df,
         "ResIRF costs (Billion euro)": resirf_costs_df.T,
         "ResIRF costs eff (euro/kWh)": investment_cost_eff_df.T,
@@ -714,15 +743,25 @@ def resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, 
         "ResIRF replacement heater (Thousand)": replacement_heater_df.T,
         "ResIRF stock heater (Thousand)": stock_heater_df,
         "Annualized system costs (Billion euro / year)": annualized_system_costs_df,
+        'Transport and distribution costs (Billion euro / year)': pd.DataFrame({"Transport and distribution": list_transport_distrib_annualized}, index=list_anticipated_year),
         "Output global ResIRF ()": output_global_ResIRF,
-        "Spot price EOLES (€ / MWh)": spot_price_df
+        "Spot price EOLES (€ / MWh)": spot_price_df,
+        "Energy prices (€/kWh)": energy_prices
     }
+
+    if price_feedback:
+        output.update({
+            "Electricity price without tax": pd.DataFrame({"Electricity price without tax": list_electricity_price_ht}, index=list_anticipated_year),
+            "Transport and distribution price": pd.DataFrame({"Transport and distribution price": list_transport_distribution_lcoe}, index=list_anticipated_year)
+        })
 
     return output, dict_optimizer
 
 
-def list_scc_yearly(list_scc):
-    """Returns a list of social cost of carbon by extrapolating linearly the values for each year. After 2050, we assume that the value does not evolve anymore."""
+def list_scc_yearly():
+    """Returns a list of social cost of carbon by extrapolating linearly the values for each year. After 2050, we
+    assume that the value does not evolve anymore.
+    ATTENTION: on prend ici les valeurs de SCC commençant à 2030 ! A changer si on change d'autres choses d'ici là."""
     list_scc = [250, 350, 500, 650, 775]
     new_L = []
     for t in range(len(list_scc)-1):
@@ -742,7 +781,7 @@ def average_scc(list_scc, lifetime, initial_time):
     final_time_yearly = initial_time_yearly + lifetime
     return np.array(list_scc[initial_time_yearly:final_time_yearly]).mean()
 
-list_scc = list_scc_yearly([250, 350, 500, 650, 775])
+list_scc = list_scc_yearly()
 avg_scc = average_scc(list_scc, 30, 0)
 
 
@@ -755,29 +794,67 @@ def electricity_price_ht(system_lcoe, system_transport_and_distrib, calib_lcoe, 
     return price_ht
 
 
-def new_projection_prices(price_elec_ht, energy_prices_ht, energy_taxes, start, end):
-    """Modification of energy prices (from SNBC) based on EOLES output"""
-    new_energy_prices = energy_prices_ht.copy()
-    new_energy_prices.loc[start:end-1, "Electricity"] = price_elec_ht / 1000  # only interested in the given time interval
+def elec_gas_price_ht(elec_system_cost, gas_furniture_cost, calib_elec, calib_gas, year):
+    electricity_prices_snbc = get_pandas("eoles/inputs/electricity_price_snbc.csv", lambda x: pd.read_csv(x, index_col=0).squeeze("columns"))
+    electricity_prices_snbc_year = electricity_prices_snbc[[str(year)]].squeeze()
+    gas_prices_snbc = get_pandas("eoles/inputs/gas_price_snbc.csv", lambda x: pd.read_csv(x, index_col=0).squeeze("columns"))
+    gas_prices_snbc_year = gas_prices_snbc[[str(year)]].squeeze()
+    # TODO: a modifier !
+    return 0
+
+
+def new_projection_prices(energy_prices, price_elec_ht, energy_taxes, start, end):
+    """Modification of energy prices (from SNBC) based on EOLES output
+    :param energy_prices: pd.DataFrame
+        Contains energy prices with tax, as estimated by SNBC.
+    :param energy_prices_ht: pd.DataFrame
+        Contains energy prices without tax, as estimated by SNBC.
+        """
+    anticipated_energy_prices = energy_prices.copy().loc[start:end-1, "Electricity"]
+    anticipated_energy_prices[:] = price_elec_ht / 1000  # €/kWh
+    # anticipated_energy_prices.loc[start:end-1, "Electricity"] = price_elec_ht / 1000  # only interested in the given time interval. Unit: €/kWh
     # new_energy_prices.loc[:, "Natural gas"] = price_gas_ht  # TODO: ajouter la modification du prix du gaz
 
-    energy_vta = new_energy_prices * generic_input['vta_energy_prices']
+    energy_vta = anticipated_energy_prices * generic_input['vta_energy_prices']["Electricity"]
 
-    new_energy_prices = new_energy_prices.add(energy_taxes.loc[start:end-1, :], fill_value=0)  # we add exogenous taxes, as we would in ResIRF
-    new_energy_prices = new_energy_prices.add(energy_vta, fill_value=0)  # we add VTA
-    return new_energy_prices
+    anticipated_energy_prices = anticipated_energy_prices.add(energy_taxes.loc[start:end-1, "Electricity"], fill_value=0)  # we add exogenous taxes, as we would in ResIRF
+    anticipated_energy_prices = anticipated_energy_prices.add(energy_vta, fill_value=0)  # we add VTA
+    energy_prices.loc[start:end-1, "Electricity"] = anticipated_energy_prices
+    return energy_prices
+
+
+def new_projection_prices_with_gas(energy_prices, price_elec_ht, price_gas_ht, energy_taxes, start, end):
+    """Modification of energy prices (from SNBC) based on EOLES output
+    :param energy_prices: pd.DataFrame
+        Contains energy prices with tax, as estimated by SNBC.
+    :param energy_prices_ht: pd.DataFrame
+        Contains energy prices without tax, as estimated by SNBC.
+        """
+    anticipated_energy_prices = energy_prices.copy().loc[start:end-1, ["Electricity", "Natural gas"]]
+    anticipated_energy_prices[:, "Electricity"] = price_elec_ht / 1000
+    anticipated_energy_prices[:, "Natural gas"] = price_gas_ht / 1000
+    # anticipated_energy_prices.loc[start:end-1, "Electricity"] = price_elec_ht / 1000  # only interested in the given time interval. Unit: €/kWh
+    # new_energy_prices.loc[:, "Natural gas"] = price_gas_ht  # TODO: ajouter la modification du prix du gaz
+
+    energy_vta = anticipated_energy_prices * generic_input['vta_energy_prices'][["Electricity"]]
+
+    anticipated_energy_prices = anticipated_energy_prices.add(energy_taxes.loc[start:end-1, ["Electricity", "Natural gas"]], fill_value=0)  # we add exogenous taxes, as we would in ResIRF
+    anticipated_energy_prices = anticipated_energy_prices.add(energy_vta, fill_value=0)  # we add VTA
+    energy_prices.loc[start:end-1, ["Electricity", "Natural gas"]] = anticipated_energy_prices
+    return energy_prices
 
 
 def calibration_price(config_eoles, scc=100):
     """Returns calibration factor based on the SNBC LCOE."""
     # Initialization needed for calibration
     existing_capacity_historical, existing_charging_capacity_historical, existing_energy_capacity_historical, \
-    maximum_capacity_evolution, heating_gas_demand_RTE_timesteps, ECS_gas_demand_RTE_timesteps, annuity_fOM_historical, storage_annuity_historical = eoles.utils.load_evolution_data()
+    maximum_capacity_evolution, heating_gas_demand_RTE_timesteps, ECS_gas_demand_RTE_timesteps, capex_annuity_fOM_historical, capex_annuity_historical, storage_annuity_historical = eoles.utils.load_evolution_data()
 
     existing_capacity_historical = existing_capacity_historical.drop(
         ["heat_pump", "resistive", "gas_boiler", "fuel_boiler", "wood_boiler"], axis=0)
 
-    anticipated_year = 2025
+    anticipated_year = 2020
+    anticipated_historical = 2025  # ce sont les memes valeurs que en 2020, avec nos hypothèses
     new_capacity_tot = pd.Series(0, index=existing_capacity_historical.index, dtype=float)
     new_charging_capacity_tot = pd.Series(0, index=existing_charging_capacity_historical.index, dtype=float)
     new_energy_capacity_tot = pd.Series(0, index=existing_energy_capacity_historical.index, dtype=float)
@@ -788,14 +865,14 @@ def calibration_price(config_eoles, scc=100):
 
     #### Get existing and maximum capacities
     existing_capa_historical_y = existing_capacity_historical[
-        [str(anticipated_year)]].squeeze()  # get historical capacity still installed for year of interest
+        [str(anticipated_historical)]].squeeze()  # get historical capacity still installed for year of interest
     existing_charging_capacity_historical_y = existing_charging_capacity_historical[
-        [str(anticipated_year)]].squeeze()
+        [str(anticipated_historical)]].squeeze()
     existing_energy_capacity_historical_y = existing_energy_capacity_historical[
-        [str(anticipated_year)]].squeeze()
+        [str(anticipated_historical)]].squeeze()
 
     new_maximum_capacity_y = maximum_capacity_evolution[
-        [str(anticipated_year)]].squeeze()  # get maximum new capacity to be built
+        [str(anticipated_historical)]].squeeze()  # get maximum new capacity to be built
 
     # Existing capacities at year y
     existing_capacity = existing_capa_historical_y + new_capacity_tot  # existing capacity are equal to newly built
@@ -808,7 +885,7 @@ def calibration_price(config_eoles, scc=100):
 
     #### Historical LCOE based on historical costs
     annualized_costs_capacity_historical, annualized_costs_energy_capacity_historical = eoles.utils.annualized_costs_investment_historical(
-        existing_capa_historical_y, annuity_fOM_historical,
+        existing_capa_historical_y, capex_annuity_fOM_historical,
         existing_energy_capacity_historical_y, storage_annuity_historical)
 
     ### Compile total annualized investment costs from existing capacities (both historical capacities + newly built capacities before t)
@@ -831,7 +908,7 @@ def calibration_price(config_eoles, scc=100):
     # Hourly profiles for residential demand
     hourly_heat_elec = eoles.utils.create_hourly_residential_demand_profile(total_consumption=45 * 1e3,
                                                          method=HOURLY_PROFILE_METHOD)
-    hourly_heat_gas = eoles.utils.create_hourly_residential_demand_profile(total_consumption=0 * 1e3,
+    hourly_heat_gas = eoles.utils.create_hourly_residential_demand_profile(total_consumption=128 * 1e3,
                                                          method=HOURLY_PROFILE_METHOD)  # on ne se préoccupe pas du gaz chauffage ici, considéré comme indépendant (réaliste pour la situation actuelle)
     m_eoles = ModelEOLES(name="trajectory", config=config_eoles, path="eoles/outputs", logger=logger, nb_years=1,
                          hourly_heat_elec=hourly_heat_elec, hourly_heat_gas=hourly_heat_gas,
@@ -839,7 +916,7 @@ def calibration_price(config_eoles, scc=100):
                          existing_capacity=existing_capacity, existing_charging_capacity=existing_charging_capacity,
                          existing_energy_capacity=existing_energy_capacity, maximum_capacity=maximum_capacity,
                          method_hourly_profile="valentin",
-                         social_cost_of_carbon=scc, year=2025, anticipated_year=2025,
+                         anticipated_social_cost_of_carbon=scc, actual_social_cost_of_carbon=scc, year=anticipated_year + 5, anticipated_year=anticipated_year,
                          scenario_cost=None, existing_annualized_costs_elec=existing_annualized_costs_elec,
                          existing_annualized_costs_CH4=existing_annualized_costs_CH4,
                          existing_annualized_costs_H2=existing_annualized_costs_H2, carbon_constraint=False,

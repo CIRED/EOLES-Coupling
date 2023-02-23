@@ -11,6 +11,7 @@ from project.utils import save_fig
 sns.set_theme(context="talk", style="white")
 
 COLORS_SCENARIOS = {}  # a ajouter des couleurs par simulation
+STYLES = ['-', '--', ':', "-.",  '*-', 's-', 'o-', '^-', 's-', 'o-', '^-', '*-']
 
 DICT_TRANSFORM_LEGEND = {
     "Annualized electricity system costs": "electricity",
@@ -19,11 +20,11 @@ DICT_TRANSFORM_LEGEND = {
     "Annualized health costs": "health",
     "Annualized total costs HC excluded": "total costs",
     "Annualized total costs": "total costs",
-    "Investment electricity costs": "electricity investment",
-    "Functionment costs": "energy operational costs",
-    "Investment heater costs": "heater investment",
-    "Investment insulation costs": "insulation investment",
-    "Health costs": "health costs",
+    "Investment electricity costs": "electricity",
+    "Functionment costs": "energy operational",
+    "Investment heater costs": "heater",
+    "Investment insulation costs": "insulation",
+    "Health costs": "health",
     "Total costs HC excluded": "total costs",
     "Total costs": "total costs",
     "Consumption saving insulation (TWh)": "insulation",
@@ -104,6 +105,7 @@ def comparison_simulations(dict_output:dict, ref, health=False, save_path=None):
     annualized_system_costs_dict = {}
     subsidies_insulation_dict = {}
     subsidies_heater_dict = {}
+    capacities_dict = {}
 
     for path, name_config in zip(dict_output.values(), [n for n in dict_output.keys()]):
         with open(os.path.join(path, 'coupling_results.pkl'), "rb") as file:
@@ -149,6 +151,14 @@ def comparison_simulations(dict_output:dict, ref, health=False, save_path=None):
 
             subsidies_insulation_dict[name_config] = dataframe_subsidy[["Insulation"]].squeeze()
             subsidies_heater_dict[name_config] = dataframe_subsidy[["Heater"]].squeeze()
+
+            capacities_df = output["Capacities (GW)"].T
+            selected_capacities = ["offshore_f", "offshore_g", "pv_g", "pv_c", "battery1", "battery4"]
+            capacities_df = capacities_df[selected_capacities]
+            capacities_df["offshore"] = capacities_df["offshore_f"] + capacities_df["offshore_g"]
+            capacities_df["pv"] = capacities_df["pv_g"] + capacities_df["pv_c"]
+            capacities_df["battery"] = capacities_df["battery1"] + capacities_df["battery4"]
+            capacities_dict[name_config] = capacities_df[["offshore", "pv", "battery"]]
 
     # Total annualized system costs
     subset_annualized_costs = ["Annualized electricity system costs", "Annualized investment heater costs",
@@ -297,10 +307,30 @@ def comparison_simulations(dict_output:dict, ref, health=False, save_path=None):
         stacked_bars(consumption_saving_evolution_dict, y_label="Consumption savings (TWh)", format_y=lambda y, _: '{:.0f}'.format(y),
                      colors=None, x_ticks=None, index_int=True, save=save_path_plot, rotation=0, n=len(consumption_saving_evolution_dict.keys()),
                      dict_legend=DICT_TRANSFORM_LEGEND)
-    return annualized_system_costs_df, total_system_costs_df, consumption_savings_tot_df, emissions_dict
+
+    # Evolution of electricity capacities
+    if save_path is None:
+        save_path_plot = None
+    else:
+        save_path_plot = os.path.join(save_path, "electricity_capacities.png")
+    make_line_plots(capacities_dict, y_label="Capacities (GW)", format_y=lambda y, _: '{:.0f}'.format(y),
+                    index_int=True, colors=resources_data["colors_eoles"], multiple_legend=True, save=save_path_plot)
+
+    return annualized_system_costs_df, total_system_costs_df, consumption_savings_tot_df, capacities_dict
 
 
 def process_total_costs(annualized_new_investment_df, annualized_new_energy_capacity_df, functionment_costs_df):
+    """
+    Calculates total system (new) costs over the considered time period. This adds investment annuity for each year when the investment was present.
+    Remark: we only include new costs, not costs of historical capacities.
+    :param annualized_new_investment_df: pd.DataFrame
+        Annualized costs of new investment done during the considered year.
+    :param annualized_new_energy_capacity_df: pd.DataFrame
+        Annualized costs of new energy capacity investment done during the considered year.
+    :param functionment_costs_df: pd.DataFrame
+        Functionment cost of the system for one year.
+    :return:
+    """
     dict_count = {2030: 5*5, 2035: 4*5, 2040: 3*5, 2045: 2*5, 2050: 5}
     for col in annualized_new_investment_df.columns:  # attention à vérifier que les colonnes sont des int
         annualized_new_investment_df[col] = annualized_new_investment_df[col] * dict_count[col]
@@ -316,6 +346,22 @@ def process_total_costs(annualized_new_investment_df, annualized_new_energy_capa
     total_system_costs = pd.Series(index=["Investment electricity costs", "Investment heater costs", "Investment insulation costs", "Functionment costs", "Health costs", "Total costs"],
                                    data=[elec_inv, heater_inv, insulation_inv, functionment_cost, health_costs, total_costs])
     return total_system_costs
+
+
+def process_evolution_annualized_energy_system_cost(annualized_new_investment_df, annualized_new_energy_capacity_df, functionment_costs_df,
+                                             historical_capacity_df, historical_energy_capacity_df):
+    """Process the evolution of complete energy annualized system costs, in 1e9 €/yr."""
+    total_cost = annualized_new_investment_df.drop(index=["investment_heater", "investment_insulation"])  # we are only interested in the energy system cost
+    total_cost = total_cost.add(annualized_new_energy_capacity_df, fill_value=0)  # we add the value of investments
+    for i in range(1, annualized_new_investment_df.shape[1]):  # we estimate cumulated costs from new investments which are still active in following years
+        total_cost[total_cost.columns[i]] = total_cost[total_cost.columns[i-1]] + total_cost[total_cost.columns[i]]
+
+    total_cost = total_cost.add(functionment_costs_df.drop(index=["health_costs"]), fill_value=0)  # we add functionment cost for each year, and not interested in health costs
+    total_cost = total_cost.add(historical_capacity_df, fill_value=0)  # we add historical capacity cost present during the considered year
+    total_cost = total_cost.add(historical_energy_capacity_df, fill_value=0)  # we add historical energy capacity cost present during the considered year
+    total_cost = total_cost.sum(axis=0)
+    return total_cost.T.squeeze()
+
 
 
 def plot_simulation(output, save_path):
@@ -389,7 +435,7 @@ def plot_simulation(output, save_path):
                    format_y=lambda y, _: '{:.0f}'.format(y))
 
     # Plot LCOE and price
-    make_line_plot(prices_df, y_label="Prices (€ / MWh)", colors=resources_data["colors_eoles"],
+    make_line_plot(prices_df, y_label="Prices (€/MWh)", colors=resources_data["colors_eoles"],
                    save=os.path.join(save_path, "prices.png"),
                    format_y=lambda y, _: '{:.0f}'.format(y))
 
@@ -525,6 +571,27 @@ def format_legend(ax, dict_legend=None):
     else:
         ax.legend(loc='center left', bbox_to_anchor=(1, 0.5), frameon=False)
 
+
+def format_legend_multiple(ax, d, n_style, n_color):
+    """Format legend when we want multiple legends for color and linestyle."""
+    dummy_lines_color = []
+    labels_color = []
+    labels_style = []
+    dummy_lines_style = []
+    for i, l in enumerate(ax.get_lines()):
+        if i % n_color == 1:
+            dummy_lines_style.append(l)
+            labels_style.append(list(d.keys())[i // n_color])
+        if i // n_color == 0:
+            dummy_lines_color.append(l)
+            labels_color.append(l._label)
+
+    box = ax.get_position()
+    ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
+    legend_style = plt.legend(dummy_lines_style, labels_style, loc='upper left', bbox_to_anchor=(1, 0.5), frameon=False)
+    legend_color = plt.legend(dummy_lines_color, labels_color, loc='lower left', bbox_to_anchor=(1, 0.5), frameon=False)
+    ax.add_artist(legend_style)
+    ax.add_artist(legend_color)
 
 
 def format_ax(ax: plt.Axes, title=None, y_label=None, x_label=None, x_ticks=None, format_y=lambda y, _: y,
@@ -708,27 +775,32 @@ def make_line_plot(df, subset=None, y_label=None, colors=None, format_y=lambda y
     save_fig(fig, save=save)
 
 
-def make_line_plots(dict_df, y_label, format_y=lambda y, _: y, colors=None, x_ticks=None, index_int=True, save=None, rotation=None):
+def make_line_plots(dict_df, y_label, format_y=lambda y, _: y, colors=None, x_ticks=None, index_int=True, save=None, rotation=None,
+                    multiple_legend=False):
     """Make line plot by combining different scenarios."""
     if save is None:
         fig, ax = plt.subplots(1, 1)
     else:  # we change figure size when saving figure
         fig, ax = plt.subplots(1, 1, figsize=(12.8, 9.6))
-    for key, df in dict_df.items():
-        df = df.rename(key)
+    for i, (key, df) in enumerate(dict_df.items()):
+        if isinstance(df, pd.Series):
+            df = df.rename(key)
         if index_int:
             df.index = df.index.astype(int)
         if colors is None:
-            df.plot.line(ax=ax)
+            df.plot.line(ax=ax, style=STYLES[i])
         else:
-            df.plot.line(ax=ax, color=colors)
+            df.plot.line(ax=ax, color=colors, style=STYLES[i])
 
     if x_ticks is None:
         ax = format_ax(ax, title=y_label, x_ticks=df.index, format_y=format_y, rotation=rotation)
     else:
         ax = format_ax(ax, title=y_label, x_ticks=x_ticks, format_y=format_y, rotation=rotation)
 
-    format_legend(ax)
+    if not multiple_legend:
+        format_legend(ax)
+    else:
+        format_legend_multiple(ax, dict_df, n_style=len(list(dict_df.keys())), n_color=df.shape[1])
 
     save_fig(fig, save=save)
 

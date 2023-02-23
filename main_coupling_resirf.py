@@ -523,7 +523,7 @@ if __name__ == '__main__':
             'list_trajectory_scc': [250, 350, 500, 650, 775],
             'scenario_cost_eoles': {}
         },
-        "global_renovation_simple_anticipatedSCC": {
+        "global_renovation_simple_anticipatedSCCt5": {
             'config_resirf': "classic_simple",
             "config_eoles": "eoles_classic",  # includes costs assumptions
             'calibration_threshold': False,
@@ -538,22 +538,23 @@ if __name__ == '__main__':
             'fix_sub_heater': False,
             'list_year': [2025, 2030, 2035, 2040, 2045],
             'list_trajectory_scc': [250, 350, 500, 650, 775],
-            'anticipated_scc': True,
+            'anticipated_scc': "t5",
             'scenario_cost_eoles': {}
         },
-        "efficiency100_simple_carbonbudget": {
+        "global_renovation_simple_pricefeedback": {
             'config_resirf': "classic_simple",
             "config_eoles": "eoles_classic",  # includes costs assumptions
             'calibration_threshold': False,
             'h2ccgt': False,
-            'max_iter': 15,
-            'sub_design': "efficiency_100",
+            'max_iter': 18,
+            'sub_design': "global_renovation",
             "health": True,  # on inclut les coûts de santé
             "discount_rate": 0.032,
             "rebound": True,
-            "carbon_constraint": True,
+            "carbon_constraint": False,
             'one_shot_setting': False,
             'fix_sub_heater': False,
+            "price_feedback": True,
             'list_year': [2025, 2030, 2035, 2040, 2045],
             'list_trajectory_scc': [250, 350, 500, 650, 775],
             'scenario_cost_eoles': {}
@@ -583,7 +584,7 @@ if __name__ == '__main__':
             "config_eoles": "eoles_classic",  # includes costs assumptions
             'calibration_threshold': False,
             'h2ccgt': False,
-            'max_iter': 15,
+            'max_iter': 18,
             'sub_design': "efficiency_100",
             "health": True,  # on inclut les coûts de santé
             "discount_rate": 0.032,
@@ -646,51 +647,21 @@ if __name__ == '__main__':
             'list_trajectory_scc': [250, 350, 500, 650, 775],
             'scenario_cost_eoles': {}
         },
-        "global_renovation_elec_worst_simple": {
-            'config_resirf': "classic_simple",
-            "config_eoles": "eoles_worst_case",  # includes costs assumptions
-            'calibration_threshold': False,
-            'h2ccgt': False,
-            'max_iter': 18,
-            'sub_design': "global_renovation",
-            "health": True,  # on inclut les coûts de santé
-            "discount_rate": 0.032,
-            "rebound": True,
-            "carbon_constraint": False,
-            'one_shot_setting': False,
-            'fix_sub_heater': False,
-            'list_year': [2025, 2030, 2035, 2040, 2045],
-            'list_trajectory_scc': [250, 350, 500, 650, 775],
-            'scenario_cost_eoles': {  # add assumptions on available technologies
-                "biomass_potential": {
-                    "methanization": 0,
-                    "pyrogazification": 0
-                },
-                "existing_capacity": {
-                    "offshore_f": 0
-                },
-                "maximum_capacity": {
-                    "offshore_f": 0
-                }
-            }
-        },
-        "global_renovation_simple_anticipatedSCC_pricefeedback": {
+        "efficiency100_simple_carbonbudget": {
             'config_resirf': "classic_simple",
             "config_eoles": "eoles_classic",  # includes costs assumptions
             'calibration_threshold': False,
             'h2ccgt': False,
             'max_iter': 18,
-            'sub_design': "global_renovation",
+            'sub_design': "efficiency_100",
             "health": True,  # on inclut les coûts de santé
             "discount_rate": 0.032,
             "rebound": True,
-            "carbon_constraint": False,
+            "carbon_constraint": True,
             'one_shot_setting': False,
             'fix_sub_heater': False,
-            "price_feedback": True,
             'list_year': [2025, 2030, 2035, 2040, 2045],
             'list_trajectory_scc': [250, 350, 500, 650, 775],
-            'anticipated_scc': True,
             'scenario_cost_eoles': {}
         }
     }

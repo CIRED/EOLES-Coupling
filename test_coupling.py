@@ -17,7 +17,8 @@ from eoles.model_resirf_coupling import ModelEOLES
 from eoles.utils import get_config, get_pandas, calculate_annuities_resirf
 from eoles.write_output import plot_simulation
 import eoles.utils
-from eoles.coupling_resirf_eoles import resirf_eoles_coupling_dynamic, optimize_blackbox_resirf_eoles_coupling, calibration_price
+from eoles.coupling_resirf_eoles import resirf_eoles_coupling_dynamic, optimize_blackbox_resirf_eoles_coupling, \
+    calibration_price, get_energy_prices_and_taxes
 import logging
 import argparse
 import copy
@@ -244,7 +245,7 @@ if __name__ == '__main__':
         "health": True,  # on inclut les coûts de santé
         "discount_rate": 0.032,
         "rebound": True,
-        "carbon_constraint": True,
+        "carbon_constraint": False,
         'one_shot_setting': False,
         'fix_sub_heater': False,
         'price_feedback': True,
@@ -288,6 +289,13 @@ if __name__ == '__main__':
             }
 
     max_iter, one_shot_setting, fix_sub_heater = config_coupling["max_iter"], config_coupling["one_shot_setting"], config_coupling["fix_sub_heater"]
+    price_feedback = False
+    if "price_feedback" in config_coupling.keys():
+        price_feedback = config_coupling["price_feedback"]
+
+    energy_prices_ht, energy_taxes = get_energy_prices_and_taxes(config_resirf_path)
+    calibration_lcoe, m_eoles = calibration_price(config_eoles, scc=100)
+    config_coupling["calibration_lcoe"] = calibration_lcoe
 
     output, dict_optimizer = resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, cost_insulation,
                                                            demolition_rate, flow_built, post_inputs, policies_heater, policies_insulation,
@@ -296,8 +304,9 @@ if __name__ == '__main__':
                                                            add_CH4_demand=False, one_shot_setting=one_shot_setting,
                                                            lifetime_heater=lifetime_heater,
                                                            technical_progress=technical_progress, financing_cost=financing_cost,
-                                                           optimization=False, list_sub_heater=[1.0, 1.0],
-                                                           list_sub_insulation=[1.0, 1.0])
+                                                           optimization=False, list_sub_heater=[1.0, 0.4],
+                                                           list_sub_insulation=[0.0, 0.5], price_feedback=price_feedback,
+                                                           energy_prices_ht=energy_prices_ht, energy_taxes=energy_taxes)
 
     # output = resirf_eoles_coupling_dynamic_no_opti(list_sub_heater=[1.0, 0.68], list_sub_insulation=[0.23, 0.40],
     #                                                                buildings=buildings, energy_prices=energy_prices,
@@ -463,7 +472,7 @@ if __name__ == '__main__':
     # print(f"Intercept for predicting transport and distribution: {reg.intercept_}")
 
     ################### Calibration LCOE ##############
-    #
+    # #
     # config_eoles = eoles.utils.get_config(spec="eoles_coupling")
     # calibration_lcoe, m_eoles = calibration_price(config_eoles, scc=100)
 
