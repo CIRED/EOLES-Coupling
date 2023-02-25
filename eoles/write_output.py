@@ -256,6 +256,14 @@ def comparison_simulations(dict_output:dict, ref, health=False, save_path=None):
                                          save=save_path_plot, colors=resources_data["colors_eoles"],
                                          format_y=lambda y, _: '{:.0f}'.format(y), rotation=90,
                                          dict_legend=DICT_TRANSFORM_LEGEND)
+    else:
+        make_stacked_investment_plot(df=total_system_costs_df.drop(columns=[ref]).T,
+                                     y_label="Difference of total system costs over 2025-2050 (Billion €)",
+                                     subset=subset_costs,
+                                     scatter=total_system_costs_df.drop(columns=[ref]).T["Total costs"],
+                                     save=None, colors=resources_data["colors_eoles"],
+                                     format_y=lambda y, _: '{:.0f}'.format(y), rotation=90,
+                                     dict_legend=DICT_TRANSFORM_LEGEND)
 
     # Total consumption savings
     if save_path is None:
@@ -522,7 +530,7 @@ def plot_simulation(output, save_path):
 
     peak_heat_load = peak_heat_load_df[["heat_elec", "year"]].groupby(["year"]).mean()
     make_line_plot(peak_heat_load, y_label="Heat peak load (GW)", save=os.path.join(save_path, "peak_load_heat.png"),
-                   format_y=lambda y, _: '{:.0f}'.format(y))
+                   format_y=lambda y, _: '{:.2f}'.format(y))
 
     # Emissions
     make_line_plot(emissions, y_label="Emissions (MtCO2)", save=os.path.join(save_path, "emissions.png"),

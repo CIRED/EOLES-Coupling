@@ -90,11 +90,13 @@
       "surface": false,
       "ratio_surface": false,
       "stock": false,
-      "no_policies": true,
+      "no_policy": true,
       "policies": false,
       "income": false,
       "prices_constant": false,
-      "taxes_constant": false
+      "taxes_constant": false,
+      "heating_system": false,
+      "insulation": true
     }
   }
 }

@@ -781,6 +781,16 @@ def average_scc(list_scc, lifetime, initial_time):
     final_time_yearly = initial_time_yearly + lifetime
     return np.array(list_scc[initial_time_yearly:final_time_yearly]).mean()
 
+
+def average_scc_discounted(list_scc, lifetime, initial_time, discount_rate):  # TODO: a modifier !
+    """Calculates average scc during the global lifetime of the system, with a discount factor."""
+    initial_time_yearly = initial_time * 5
+    final_time_yearly = initial_time_yearly + lifetime
+    discount_rate_list = [1/(1+discount_rate)**i for i in range(lifetime)]
+    discounted_scc = [scc*discount_factor for (scc, discount_factor) in zip(list_scc[initial_time_yearly:final_time_yearly], discount_rate_list)]
+    return np.array(discounted_scc).mean()
+
+
 list_scc = list_scc_yearly()
 avg_scc = average_scc(list_scc, 30, 0)
 

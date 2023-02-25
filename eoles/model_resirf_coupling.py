@@ -49,7 +49,7 @@ class ModelEOLES():
         :param nb_years: int
             Number of years considered in the analysis
         :param hourly_heat_elec: pd.Series
-            Sequence of hourly electricity demand for heat in the residential sector
+            Sequence of hourly electricity demand for heat in the residential sector. 
         :param hourly_heat_gas: pd.Series
             Sequence of hourly gas demand for heat in the residential sector
         :param wood_consumption: float
@@ -62,6 +62,8 @@ class ModelEOLES():
             Method to calculate the hourly profile for electricity and gas demand related to heat
         :param anticipated_social_cost_of_carbon: int
             Anticipated social cost of carbon used to calculate emissions and to find optimal power mix.
+        :param actual_social_cost_of_carbon
+            Actual social cost of carbon, used when calculating the real functionment cost in post processing.
         :param year: int
         :param anticipated_year: int
         :param scenario_cost: dict
