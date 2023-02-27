@@ -565,14 +565,15 @@ def extract_functionment_cost(capacities, fOM, vOM, generation, oil_consumption,
         Actual social cost of carbon, used to calculate functionment cost.
     """
     # Updating actual values for the SCC
-    vOM.loc["natural_gas"] = update_ngas_cost(vOM.loc["natural_gas"], scc=(actual_scc - anticipated_scc), emission_rate=0.2295)  # €/kWh
-    vOM["fuel_boiler"] = update_ngas_cost(vOM["fuel_boiler"], scc=(actual_scc - anticipated_scc), emission_rate=0.324)
+    new_vOM = vOM.copy()
+    new_vOM.loc["natural_gas"] = update_ngas_cost(new_vOM.loc["natural_gas"], scc=(actual_scc - anticipated_scc), emission_rate=0.2295)  # €/kWh
+    new_vOM["fuel_boiler"] = update_ngas_cost(new_vOM["fuel_boiler"], scc=(actual_scc - anticipated_scc), emission_rate=0.324)
 
-    system_fOM_vOM = pd.concat([capacities, fOM, vOM, generation], axis=1, ignore_index=True).rename(columns={0: "capacity", 1: "fOM", 2: "vOM", 3: "generation"})
+    system_fOM_vOM = pd.concat([capacities, fOM, new_vOM, generation], axis=1, ignore_index=True).rename(columns={0: "capacity", 1: "fOM", 2: "vOM", 3: "generation"})
     system_fOM_vOM = system_fOM_vOM.dropna()
     system_fOM_vOM["functionment_cost"] = system_fOM_vOM["capacity"] * system_fOM_vOM["fOM"] + system_fOM_vOM["generation"] * system_fOM_vOM["vOM"]
     system_fOM_vOM_df = system_fOM_vOM[["functionment_cost"]]
-    oil_functionment_cost, wood_functionment_cost = oil_consumption * vOM["fuel_boiler"], wood_consumption * vOM["wood_boiler"]
+    oil_functionment_cost, wood_functionment_cost = oil_consumption * new_vOM["fuel_boiler"], wood_consumption * new_vOM["wood_boiler"]
     system_fOM_vOM_df = pd.concat([system_fOM_vOM_df, pd.DataFrame(index=["oil_boiler"], data={'functionment_cost': [oil_functionment_cost]})], axis=0)
     system_fOM_vOM_df = pd.concat([system_fOM_vOM_df, pd.DataFrame(index=["wood_boiler"], data={'functionment_cost': [wood_functionment_cost]})], axis=0)
     return system_fOM_vOM_df
@@ -580,7 +581,7 @@ def extract_functionment_cost(capacities, fOM, vOM, generation, oil_consumption,
 
 def annualized_costs_investment_historical(existing_capa_historical_y, annuity_fOM_historical,
                                            existing_energy_capacity_historical_y, storage_annuity_historical):
-    """Returns the annualized costs coming from historical capacities and energy capacities. This includes annualized CAPEX + fOM."""
+    """Returns the annualized costs coming from historical capacities and energy capacities. This includes annualized CAPEX + fOM. 1e6 €"""
     costs_capacity_historical = pd.concat([existing_capa_historical_y, annuity_fOM_historical], axis=1, ignore_index=True)  # we only include nonzero historical capacities
     costs_capacity_historical = costs_capacity_historical.rename(columns={0: 'capacity_historical', 1: 'annuity_fOM'}).fillna(0)
     costs_capacity_historical["annualized_costs"] = costs_capacity_historical["capacity_historical"] * costs_capacity_historical["annuity_fOM"]

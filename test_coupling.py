@@ -241,16 +241,16 @@ if __name__ == '__main__':
         'calibration_threshold': False,
         'h2ccgt': False,
         'max_iter': 14,
-        'sub_design': None,
+        'sub_design': "global_renovation",
         "health": True,  # on inclut les coûts de santé
         "discount_rate": 0.032,
         "rebound": True,
         "carbon_constraint": False,
         'one_shot_setting': False,
         'fix_sub_heater': False,
+        'list_year': [2025, 2030, 2035, 2040, 2045],
+        'list_trajectory_scc': [250, 350, 500, 650, 775],
         'price_feedback': True,
-        'list_year': [2025, 2030],
-        'list_trajectory_scc': [250, 350],
         'scenario_cost_eoles': {}
     }
 
@@ -294,18 +294,18 @@ if __name__ == '__main__':
         price_feedback = config_coupling["price_feedback"]
 
     energy_prices_ht, energy_taxes = get_energy_prices_and_taxes(config_resirf_path)
-    calibration_lcoe, m_eoles = calibration_price(config_eoles, scc=100)
-    config_coupling["calibration_lcoe"] = calibration_lcoe
+    calibration_elec_lcoe, calibration_gas, m_eoles = calibration_price(config_eoles, scc=100)
+    config_coupling["calibration_elec_lcoe"] = calibration_elec_lcoe
+    config_coupling["calibration_gas_lcoe"] = calibration_gas
 
     output, dict_optimizer = resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, cost_insulation,
                                                            demolition_rate, flow_built, post_inputs, policies_heater, policies_insulation,
                                                            list_year, list_trajectory_scc, scenario_cost,
                                                            config_eoles=config_eoles, config_coupling=config_coupling,
                                                            add_CH4_demand=False, one_shot_setting=one_shot_setting,
-                                                           lifetime_heater=lifetime_heater,
                                                            technical_progress=technical_progress, financing_cost=financing_cost,
-                                                           optimization=False, list_sub_heater=[1.0, 0.4],
-                                                           list_sub_insulation=[0.0, 0.5], price_feedback=price_feedback,
+                                                           optimization=False, list_sub_heater=[1.0, 0.165, 0.938, 1.0, 1.0],
+                                                           list_sub_insulation=[0.606, 0.610, 0.526, 0.578, 0.573], price_feedback=price_feedback,
                                                            energy_prices_ht=energy_prices_ht, energy_taxes=energy_taxes)
 
     # output = resirf_eoles_coupling_dynamic_no_opti(list_sub_heater=[1.0, 0.68], list_sub_insulation=[0.23, 0.40],

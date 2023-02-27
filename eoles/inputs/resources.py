@@ -86,6 +86,8 @@ colors_resirf = {
     'Wall': 'darkslategrey',
     "Consumption saving heater (TWh)": '#029E73',
     "Consumption saving insulation (TWh)": '#FBAFE4',
+    "Consumption saving heater (TWh/year)": '#029E73',
+    "Consumption saving insulation (TWh/year)": '#FBAFE4',
     "Consumption saving heater cumulated (TWh)": '#029E73',
     "Consumption saving insulation cumulated (TWh)": '#FBAFE4'
 }

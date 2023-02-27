@@ -27,6 +27,8 @@ DICT_TRANSFORM_LEGEND = {
     "Health costs": "health",
     "Total costs HC excluded": "total costs",
     "Total costs": "total costs",
+    "Consumption saving insulation (TWh/year)": "insulation",
+    "Consumption saving heater (TWh/year)": "heater",
     "Consumption saving insulation (TWh)": "insulation",
     "Consumption saving heater (TWh)": "heater",
     "Investment heater (Billion euro)": "investment heater",
@@ -98,6 +100,7 @@ def plot_comparison(output1, output2, name1, name2):
 def comparison_simulations(dict_output:dict, ref, health=False, save_path=None):
     annualized_system_costs_df = pd.DataFrame(dtype=float)
     total_system_costs_df = pd.DataFrame(dtype=float)
+    complete_system_costs_2050_df = pd.DataFrame(dtype=float)
     consumption_savings_tot_df = pd.DataFrame(dtype=float)
     peak_electricity_load_dict = {}
     consumption_saving_evolution_dict = {}
@@ -122,15 +125,28 @@ def comparison_simulations(dict_output:dict, ref, health=False, save_path=None):
             total_system_costs = total_system_costs.to_frame().rename(columns={0: name_config})
             total_system_costs_df = pd.concat([total_system_costs_df, total_system_costs], axis=1)
 
-            consumption_savings = output["ResIRF consumption savings (TWh)"]
+            annualized_new_investment_df = output["Annualized new investments (1e9€/yr)"]
+            annualized_new_energy_capacity_df = output["Annualized costs new energy capacity (1e9€/yr)"]
+            functionment_costs_df = output["System functionment (1e9€/yr)"]
+            complete_system_costs_2050 = process_complete_system_cost_2050(annualized_new_investment_df, annualized_new_energy_capacity_df, functionment_costs_df)
+            complete_system_costs_2050 = complete_system_costs_2050.to_frame().rename(columns={0: name_config})
+            complete_system_costs_2050_df = pd.concat([complete_system_costs_2050_df, complete_system_costs_2050], axis=1)
+
+            try:
+                consumption_savings = output["ResIRF consumption savings (TWh/year)"]
+            except:
+                consumption_savings = output["ResIRF consumption savings (TWh)"]
+                consumption_savings = consumption_savings.rename(
+                    columns={"Consumption saving heater (TWh)": "Consumption saving heater (TWh/year)",
+                             "Consumption saving insulation (TWh)": "Consumption saving insulation (TWh/year)"})
             consumption_savings_tot = consumption_savings.sum(axis=0).to_frame().rename(columns={0: name_config})
             consumption_savings_tot_df = pd.concat([consumption_savings_tot_df, consumption_savings_tot], axis=1)
 
             consumption_savings_evolution = consumption_savings.reset_index().rename(columns={'index': 'year'})
             consumption_savings_evolution["period"] = consumption_savings_evolution.apply(lambda row: (row["year"] - 2025) // 5, axis=1)
             consumption_savings_evolution = consumption_savings_evolution.groupby("period").agg(
-                {"year": np.min, "Consumption saving heater (TWh)": np.sum,
-                 "Consumption saving insulation (TWh)": np.sum}).set_index("year")
+                {"year": np.min, "Consumption saving heater (TWh/year)": np.sum,
+                 "Consumption saving insulation (TWh/year)": np.sum}).set_index("year")
             consumption_savings_evolution.index.name = None
             consumption_saving_evolution_dict[name_config] = consumption_savings_evolution
             #
@@ -265,6 +281,43 @@ def comparison_simulations(dict_output:dict, ref, health=False, save_path=None):
                                      format_y=lambda y, _: '{:.0f}'.format(y), rotation=90,
                                      dict_legend=DICT_TRANSFORM_LEGEND)
 
+    # Complete system costs in 2050
+    subset_complete_costs = ["Investment electricity costs", "Investment heater costs",
+                                   "Investment insulation costs", "Functionment costs", "Health costs"]
+    if save_path is None:
+        save_path_plot = None
+    else:
+        save_path_plot = os.path.join(save_path, "complete_system_costs_2050.png")
+    make_stacked_bar_plot(complete_system_costs_2050_df.T, subset=subset_complete_costs, y_label="Complete system costs in 2050 (Md€/year)",
+                          colors=resources_data["colors_eoles"], format_y=lambda y, _: '{:.0f}'.format(y), index_int=False,
+                          rotation=90, dict_legend=DICT_TRANSFORM_LEGEND, save=save_path_plot)
+
+    for col in complete_system_costs_2050_df.columns:
+        if col != ref:
+            complete_system_costs_2050_df[col] = complete_system_costs_2050_df[col] - complete_system_costs_2050_df[ref]
+
+    if len(total_system_costs_df.columns) >= 3:  # ie, at least two scenarios to compare to the ref
+        if save_path is None:
+            save_path_plot = None
+        else:
+            save_path_plot = os.path.join(save_path, "difference_complete_system_costs_2050.png")
+        make_stacked_investment_plot(df=complete_system_costs_2050_df.drop(columns=[ref]).T,
+                                     y_label="Difference of complete system costs in 2050 (Billion € / year)",
+                                     subset=subset_complete_costs,
+                                     scatter=complete_system_costs_2050_df.drop(columns=[ref]).T[
+                                         ["Total costs"]].squeeze(),
+                                     save=save_path_plot, colors=resources_data["colors_eoles"],
+                                     format_y=lambda y, _: '{:.0f}'.format(y), rotation=90,
+                                     dict_legend=DICT_TRANSFORM_LEGEND)
+    else:
+        make_stacked_investment_plot(df=complete_system_costs_2050_df.drop(columns=[ref]).T,
+                                     y_label="Difference of complete system costs in 2050 (Billion € / year)",
+                                     subset=subset_complete_costs,
+                                     scatter=complete_system_costs_2050_df.drop(columns=[ref]).T["Total costs"],
+                                     save=None, colors=resources_data["colors_eoles"],
+                                     format_y=lambda y, _: '{:.0f}'.format(y), rotation=90,
+                                     dict_legend=DICT_TRANSFORM_LEGEND)
+
     # Total consumption savings
     if save_path is None:
         save_path_plot = None
@@ -324,7 +377,7 @@ def comparison_simulations(dict_output:dict, ref, health=False, save_path=None):
     make_line_plots(capacities_dict, y_label="Capacities (GW)", format_y=lambda y, _: '{:.0f}'.format(y),
                     index_int=True, colors=resources_data["colors_eoles"], multiple_legend=True, save=save_path_plot)
 
-    return annualized_system_costs_df, total_system_costs_df, consumption_savings_tot_df, capacities_dict
+    return annualized_system_costs_df, total_system_costs_df, consumption_savings_tot_df, complete_system_costs_2050_df
 
 
 def process_total_costs(annualized_new_investment_df, annualized_new_energy_capacity_df, functionment_costs_df):
@@ -357,19 +410,39 @@ def process_total_costs(annualized_new_investment_df, annualized_new_energy_capa
 
 
 def process_evolution_annualized_energy_system_cost(annualized_new_investment_df, annualized_new_energy_capacity_df, functionment_costs_df,
-                                             historical_capacity_df, historical_energy_capacity_df):
-    """Process the evolution of complete energy annualized system costs, in 1e9 €/yr."""
+                                             historical_capacity_df, historical_energy_capacity_df, transport_distribution_costs):
+    """Process the evolution of complete energy annualized system costs, in 1e9 €/yr. This includes in particular
+    historical costs, and transport and distribution costs. Be careful: cannot be compared directly to RTE outputs, since this includes
+    as well the functionment of wood and oil boilers. Otherwise, we do look like RTE. DOES NOT INCLUDE HEATER AND INSULATION INVESTMENT."""
     total_cost = annualized_new_investment_df.drop(index=["investment_heater", "investment_insulation"])  # we are only interested in the energy system cost
     total_cost = total_cost.add(annualized_new_energy_capacity_df, fill_value=0)  # we add the value of investments
     for i in range(1, annualized_new_investment_df.shape[1]):  # we estimate cumulated costs from new investments which are still active in following years
         total_cost[total_cost.columns[i]] = total_cost[total_cost.columns[i-1]] + total_cost[total_cost.columns[i]]
 
-    total_cost = total_cost.add(functionment_costs_df.drop(index=["health_costs"]), fill_value=0)  # we add functionment cost for each year, and not interested in health costs
-    total_cost = total_cost.add(historical_capacity_df, fill_value=0)  # we add historical capacity cost present during the considered year
-    total_cost = total_cost.add(historical_energy_capacity_df, fill_value=0)  # we add historical energy capacity cost present during the considered year
+    total_cost = total_cost.add(functionment_costs_df.drop(index=["health_costs"]), fill_value=0)  # add functionment cost for each year, and not interested in health costs
+    total_cost = total_cost.add(historical_capacity_df, fill_value=0)  # add historical capacity cost present during the considered year
+    total_cost = total_cost.add(historical_energy_capacity_df, fill_value=0)  # add historical energy capacity cost present during the considered year
+    total_cost = total_cost.add(transport_distribution_costs, fill_value=0)  # add transport and distribution costs
     total_cost = total_cost.sum(axis=0)
     return total_cost.T.squeeze()
 
+
+def process_complete_system_cost_2050(annualized_new_investment_df, annualized_new_energy_capacity_df, functionment_costs_df):
+    investment_costs = annualized_new_investment_df  # we are only interested in the energy system cost
+    investment_costs = investment_costs.add(annualized_new_energy_capacity_df, fill_value=0)  # we add the value of investments
+    for i in range(1, annualized_new_investment_df.shape[1]):  # we estimate cumulated costs from new investments which are still active in following years
+        investment_costs[investment_costs.columns[i]] = investment_costs[investment_costs.columns[i-1]] + investment_costs[investment_costs.columns[i]]
+
+    elec_inv = investment_costs.drop(index=["investment_heater", "investment_insulation"]).sum(axis=0)
+    heater_inv = investment_costs.T[["investment_heater"]].squeeze()
+    insulation_inv = investment_costs.T[["investment_insulation"]].squeeze()
+    functionment_cost = functionment_costs_df.drop(index=["health_costs"]).sum(axis=0)
+    health_costs = functionment_costs_df.T[["health_costs"]].squeeze()
+
+    total_cost = investment_costs.add(functionment_costs_df, fill_value=0)  # add functionment cost for each year, and not interested in health costs
+    total_cost = total_cost.sum(axis=0)
+    return pd.Series(data=[elec_inv.loc[2050], heater_inv.loc[2050], insulation_inv.loc[2050], functionment_cost.loc[2050], health_costs.loc[2050], total_cost.loc[2050]],
+                     index=["Investment electricity costs", "Investment heater costs", "Investment insulation costs", "Functionment costs", "Health costs", "Total costs"])
 
 
 def plot_simulation(output, save_path):
@@ -382,7 +455,12 @@ def plot_simulation(output, save_path):
     resirf_costs_df = output["ResIRF costs (Billion euro)"]
     resirf_costs_eff_df = output["ResIRF costs eff (euro/kWh)"]
     resirf_consumption_df = output["ResIRF consumption (TWh)"]
-    resirf_consumption_saving_df = output["ResIRF consumption savings (TWh)"]
+    try:
+        resirf_consumption_saving_df = output["ResIRF consumption savings (TWh/year)"]
+    except:  # old name
+        resirf_consumption_saving_df = output["ResIRF consumption savings (TWh)"]
+        resirf_consumption_saving_df = resirf_consumption_saving_df.rename(columns={"Consumption saving heater (TWh)": "Consumption saving heater (TWh/year)",
+                                                     "Consumption saving insulation (TWh)": "Consumption saving insulation (TWh/year)"})
     resirf_replacement_heater = output["ResIRF replacement heater (Thousand)"]
     resirf_stock_heater = output["ResIRF stock heater (Thousand)"]
     annualized_system_costs = output["Annualized system costs (Billion euro / year)"]
@@ -473,9 +551,9 @@ def plot_simulation(output, save_path):
 
         # Unique plot consumption + savings
         resirf_consumption_saving_df = resirf_consumption_saving_df.reset_index().rename(columns={'index': 'year'})
-        resirf_consumption_saving_df["Consumption saving heater cumulated (TWh)"] = resirf_consumption_saving_df["Consumption saving heater (TWh)"].cumsum()
+        resirf_consumption_saving_df["Consumption saving heater cumulated (TWh)"] = resirf_consumption_saving_df["Consumption saving heater (TWh/year)"].cumsum()
         resirf_consumption_saving_df["Consumption saving insulation cumulated (TWh)"] = resirf_consumption_saving_df[
-            "Consumption saving insulation (TWh)"].cumsum()
+            "Consumption saving insulation (TWh/year)"].cumsum()
         resirf_consumption_saving_df = resirf_consumption_saving_df.loc[resirf_consumption_saving_df["year"] % 5 == 4]  # we only keep rows like 2029, 2034, etc...
         resirf_consumption_saving_df["year"] = resirf_consumption_saving_df["year"] + 1  # we modify the year
         resirf_consumption_saving_df = resirf_consumption_saving_df.set_index("year")
