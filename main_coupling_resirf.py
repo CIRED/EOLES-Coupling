@@ -700,7 +700,7 @@ if __name__ == '__main__':
         }
     }
 
-    DICT_CONFIG_BATCH2 = {
+    DICT_CONFIGS_BATCH2 = {
         "efficiency100_simple_premature3": {
             'config_resirf': "classic_simple_premature3",
             "config_eoles": "eoles_classic",  # includes costs assumptions

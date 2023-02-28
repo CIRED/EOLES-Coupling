@@ -98,7 +98,7 @@ def resirf_eoles_coupling_static(subvention, buildings, energy_prices, taxes, co
     endyear_resirf = start_year_resirf + timestep_resirf
 
     sub_heater, sub_insulation = float(subvention[0, 0]), float(subvention[0, 1])
-    print(f'Subvention: {sub_heater}, {sub_insulation}')
+    # print(f'Subvention: {sub_heater}, {sub_insulation}')
 
     buildings_copy = deepcopy(buildings)
     energy_prices_copy, taxes_copy, cost_heater_copy, cost_insulation_copy, demolition_rate_copy = deepcopy(energy_prices), deepcopy(taxes), deepcopy(cost_heater), deepcopy(cost_insulation), deepcopy(demolition_rate)
@@ -132,7 +132,6 @@ def resirf_eoles_coupling_static(subvention, buildings, energy_prices, taxes, co
 
     investment_heater_cost = output.loc["Investment heater WT (Billion euro)"].sum()  # 1e9 €
     investment_insulation_cost = output.loc["Investment insulation WT (Billion euro)"].sum()  # 1e9 €
-    subsidies_cost = output.loc["Subsidies total (Billion euro)"].sum()  # 1e9 €
     health_cost = output.loc["Health cost (Billion euro)"][endyear_resirf-1]  # 1e9 €  # TODO: a verifier. On ne prend que la dernière valeur pour avoir seulement le flux de coût de santé
 
     # TODO: attention, certains coûts sont peut-être déjà la somme de coûts annuels !!
@@ -143,7 +142,7 @@ def resirf_eoles_coupling_static(subvention, buildings, energy_prices, taxes, co
         annuity_health_cost = health_cost
     else:
         annuity_health_cost = 0
-    print(annuity_health_cost, annuity_investment_cost)
+    # print(annuity_health_cost, annuity_investment_cost)
 
     m_eoles = ModelEOLES(name="trajectory", config=config_eoles, path="eoles/outputs", logger=logger, nb_years=1,
                          hourly_heat_elec=hourly_heat_elec, hourly_heat_gas=hourly_heat_gas, wood_consumption=wood_consumption,
@@ -163,7 +162,7 @@ def resirf_eoles_coupling_static(subvention, buildings, energy_prices, taxes, co
         logger.info("Infeasible problem")
 
     objective = m_eoles.objective
-    print(objective)
+    # print(objective)
 
     # TODO: attention, à changer si on considère plusieurs années météo dans EOLES
     objective += annuity_health_cost

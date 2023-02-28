@@ -309,7 +309,7 @@ if __name__ == '__main__':
                                                            config_eoles=config_eoles, config_coupling=config_coupling,
                                                            add_CH4_demand=False, one_shot_setting=one_shot_setting,
                                                            technical_progress=technical_progress, financing_cost=financing_cost,
-                                                           optimization=False, list_sub_heater=[1.0, 0.248, 1.0, 1.0, 1.0],
+                                                           optimization=True, list_sub_heater=[1.0, 0.248, 1.0, 1.0, 1.0],
                                                            list_sub_insulation=[0.584, 0.497, 0.514, 0.535, 0.520], price_feedback=price_feedback,
                                                            energy_prices_ht=energy_prices_ht, energy_taxes=energy_taxes)
 
