@@ -3,6 +3,7 @@ from copy import deepcopy
 from project.coupling import ini_res_irf, simu_res_irf
 from project.building import AgentBuildings
 from project.input.param import generic_input
+from project.write_output import plot_scenario
 
 from GPyOpt.methods import BayesianOptimization
 import numpy as np
@@ -106,15 +107,15 @@ def resirf_eoles_coupling_static(subvention, buildings, energy_prices, taxes, co
 
     # simulation between start and end - flow output represents annual values for year "end"
 
-    output, heating_consumption = simu_res_irf(buildings=buildings_copy, sub_heater=sub_heater, sub_insulation=sub_insulation,
-                                               start=start_year_resirf, end=endyear_resirf, energy_prices=energy_prices_copy,
-                                               taxes=taxes_copy, cost_heater=cost_heater_copy, cost_insulation=cost_insulation_copy,
-                                               lifetime_heater=lifetime_heater, demolition_rate=demolition_rate_copy, flow_built=flow_built_copy,
-                                               post_inputs=post_inputs_copy, policies_heater=policies_heater_copy,
-                                               policies_insulation=policies_insulation_copy,
-                                               sub_design=sub_design, financing_cost=financing_cost_copy, climate=2006, smooth=False, efficiency_hour=True,
-                                               output_consumption=True, full_output=False, rebound=rebound,
-                                               technical_progress=technical_progress_copy)
+    output, stock, heating_consumption = simu_res_irf(buildings=buildings_copy, sub_heater=sub_heater, sub_insulation=sub_insulation,
+                                                       start=start_year_resirf, end=endyear_resirf, energy_prices=energy_prices_copy,
+                                                       taxes=taxes_copy, cost_heater=cost_heater_copy, cost_insulation=cost_insulation_copy,
+                                                       lifetime_heater=lifetime_heater, demolition_rate=demolition_rate_copy, flow_built=flow_built_copy,
+                                                       post_inputs=post_inputs_copy, policies_heater=policies_heater_copy,
+                                                       policies_insulation=policies_insulation_copy,
+                                                       sub_design=sub_design, financing_cost=financing_cost_copy, climate=2006, smooth=False, efficiency_hour=True,
+                                                       output_consumption=True, full_output=False, rebound=rebound,
+                                                       technical_progress=technical_progress_copy)
 
     # heating_consumption = output[endyear_resirf - 1]['Consumption (kWh/h)']
     heating_consumption = heating_consumption.sort_index(ascending=True)
@@ -299,9 +300,10 @@ def resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, 
     energy_capacity_df = pd.DataFrame(index=existing_energy_capacity_historical.index, dtype=float)
     spot_price_df = pd.DataFrame(dtype=float)
     peak_electricity_load_df, peak_heat_load_df = pd.DataFrame(dtype=float), pd.DataFrame(dtype=float)
+    hourly_generation_2050 = pd.DataFrame()
 
     weighted_average_elec_price, weighted_average_CH4_price, weighted_average_H2_price = [], [], []
-    list_lcoe_elec, list_lcoe_elec_volume, list_lcoe_elec_value, list_lcoe_CH4_value, list_lcoe_CH4_volume = [], [], [], [], []
+    list_lcoe_elec, list_lcoe_elec_volume, list_lcoe_elec_value, list_lcoe_CH4_value, list_lcoe_CH4_volume, list_lcoe_CH4_volume_noSCC = [], [], [], [], [], []
     list_emissions = []
     list_electricity_price_ht, list_transport_distribution_lcoe = [], []
     list_elec_annualized, list_transport_distrib_annualized, list_insulation_annualized, list_heater_annualized, list_healthcost_annualized = [], [], [], [], []
@@ -325,7 +327,7 @@ def resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, 
     stock_heater_df = pd.DataFrame(index=LIST_STOCK_HEATER, dtype=float)
     investment_cost_eff_df = pd.DataFrame(dtype=float)
 
-    output_global_ResIRF = pd.DataFrame(dtype=float)
+    output_global_ResIRF, stock_global_ResIRF = pd.DataFrame(dtype=float), pd.DataFrame(dtype=float)
     list_global_annualized_costs = []
     dict_optimizer = {}
 
@@ -451,7 +453,7 @@ def resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, 
         # Rerun ResIRF with optimal subvention parameters
         endyear_resirf = start_year_resirf + timestep_resirf
 
-        output_opt, heating_consumption = simu_res_irf(buildings=buildings, sub_heater=opt_sub_heater,
+        output_opt, stock_opt, heating_consumption = simu_res_irf(buildings=buildings, sub_heater=opt_sub_heater,
                                                        sub_insulation=opt_sub_insulation, start=start_year_resirf,
                                                        end=endyear_resirf, energy_prices=energy_prices, taxes=taxes,
                                                        cost_heater=cost_heater, cost_insulation=cost_insulation,
@@ -465,6 +467,7 @@ def resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, 
                                                        financing_cost=financing_cost)
         # output_opt['Total'] = output_opt.sum(axis=1)
         output_global_ResIRF = pd.concat([output_global_ResIRF, output_opt], axis=1)
+        stock_global_ResIRF = pd.concat([stock_global_ResIRF, stock_opt], axis=1)
 
         # heating_consumption = output_opt[endyear_resirf - 1]['Consumption (kWh/h)']  # old
         heating_consumption = heating_consumption.sort_index(ascending=True)
@@ -574,6 +577,7 @@ def resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, 
                  "ResIRF replacement heater (Thousand)": replacement_heater_df.T,
                  "ResIRF stock heater (Thousand)": stock_heater_df,
                  "Output global ResIRF ()": output_global_ResIRF,
+                "Stock global ResIRF ()": stock_global_ResIRF,
                  "Spot price EOLES (€ / MWh)": spot_price_df
              }
             if price_feedback:
@@ -591,12 +595,10 @@ def resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, 
         if price_feedback:  # we use EOLES LCOE to estimate future energy prices for period [t+1;t+2[
             lcoe_elec = m_eoles.summary["lcoe_elec"]
             transport_and_distribution_lcoe = m_eoles.summary["transport_and_distrib_lcoe"]
-            elec_system_cost = lcoe_elec + transport_and_distribution_lcoe
             gas_furniture_cost = m_eoles.summary["lcoe_CH4_volume_noSCC"]
-            # elec_price_ht = electricity_price_ht(lcoe_elec, transport_and_distribution_lcoe,
-            #                                      calib_lcoe=config_coupling["calibration_elec_lcoe"], year=anticipated_year_eoles)
-            elec_price_ht, gas_price_ht = electricity_gas_price_ht(elec_system_cost, gas_furniture_cost,
-                                                                   calib_elec=config_coupling["calibration_elec_lcoe"],
+            elec_price_ht, gas_price_ht = electricity_gas_price_ht(lcoe_elec, transport_and_distribution_lcoe, gas_furniture_cost,
+                                                                   calib_elec_lcoe=config_coupling["calibration_elec_lcoe"],
+                                                                   calib_elec_transport_distrib=config_coupling["calibration_elec_transport_distrib"],
                                                                    calib_gas=config_coupling["calibration_gas_lcoe"],
                                                                    year=anticipated_year_eoles)
             list_electricity_price_ht.append(elec_price_ht)
@@ -618,6 +620,9 @@ def resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, 
         peak_heat_load_df = pd.concat([peak_heat_load_df, peak_heat_load], axis=0)
 
         list_emissions.append(m_eoles.emissions.sum())  # TODO: à verifier
+
+        if anticipated_year_eoles == 2050:
+            hourly_generation_2050 = m_eoles.hourly_generation
 
         #### Get annuity and functionment cost corresponding to each technology
         new_capacity_annualized_costs_nofOM = m_eoles.new_capacity_annualized_costs_nofOM / 1000  # 1e9 € / yr
@@ -698,12 +703,13 @@ def resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, 
         list_lcoe_elec_value.append(m_eoles.summary["lcoe_elec_value"])
         list_lcoe_CH4_value.append(m_eoles.summary["lcoe_CH4_value"])
         list_lcoe_CH4_volume.append(m_eoles.summary["lcoe_CH4_volume"])
+        list_lcoe_CH4_volume_noSCC.append(m_eoles.summary["lcoe_CH4_volume_noSCC"])
 
     price_df = pd.DataFrame(
         {'Average electricity price': weighted_average_elec_price, 'Average CH4 price': weighted_average_CH4_price,
          'Average H2 price': weighted_average_H2_price,
          'LCOE electricity': list_lcoe_elec, 'LCOE electricity value': list_lcoe_elec_value, 'LCOE electricity volume': list_lcoe_elec_volume,
-         'LCOE CH4 value': list_lcoe_CH4_value, 'LCOE CH4 volume': list_lcoe_CH4_volume},
+         'LCOE CH4 value': list_lcoe_CH4_value, 'LCOE CH4 volume': list_lcoe_CH4_volume, 'LCOE CH4 volume noSCC': list_lcoe_CH4_volume_noSCC},
         index=list_anticipated_year)
 
     annualized_system_costs_df = pd.DataFrame(
@@ -749,7 +755,9 @@ def resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, 
         "Annualized system costs (Billion euro / year)": annualized_system_costs_df,
         'Transport and distribution costs (Billion euro / year)': pd.DataFrame({"Transport and distribution": list_transport_distrib_annualized}, index=list_anticipated_year),
         "Output global ResIRF ()": output_global_ResIRF,
+        "Stock global ResIRF ()": stock_global_ResIRF,
         "Spot price EOLES (€ / MWh)": spot_price_df,
+        "Hourly generation 2050 (GWh)": hourly_generation_2050,
         "Energy prices (€/kWh)": energy_prices
     }
 
@@ -759,7 +767,7 @@ def resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, 
             "Transport and distribution price": pd.DataFrame({"Transport and distribution price": list_transport_distribution_lcoe}, index=list_anticipated_year)
         })
 
-    return output, dict_optimizer
+    return output, buildings, dict_optimizer
 
 
 def list_scc_yearly():
@@ -772,7 +780,7 @@ def list_scc_yearly():
         for i in range(1,5,1):
             new_L.append(list_scc[t] + (list_scc[t+1] - list_scc[t])/5*i)
     for i in range(30):
-        final_scc = list_scc[-1] * 1.032**i  # we assume an increase following the discount rate trend
+        final_scc = list_scc[-1] * 1.032**(i+1)  # we assume an increase following the discount rate trend
         new_L.append(final_scc)
     new_L = list_scc + new_L
     new_L.sort()
@@ -790,13 +798,9 @@ def average_scc_discounted(list_scc, lifetime, initial_time, discount_rate):  # 
     """Calculates average scc during the global lifetime of the system, with a discount factor."""
     initial_time_yearly = initial_time * 5
     final_time_yearly = initial_time_yearly + lifetime
-    discount_rate_list = [1/(1+discount_rate)**i for i in range(lifetime)]
+    discount_rate_list = [1/(1+discount_rate)**(i+1) for i in range(lifetime)]
     discounted_scc = [scc*discount_factor for (scc, discount_factor) in zip(list_scc[initial_time_yearly:final_time_yearly], discount_rate_list)]
     return np.array(discounted_scc).mean()
-
-
-list_scc = list_scc_yearly()
-avg_scc = average_scc(list_scc, 30, 0)
 
 
 def electricity_price_ht(system_lcoe, system_transport_and_distrib, calib_elec, year):
@@ -808,7 +812,7 @@ def electricity_price_ht(system_lcoe, system_transport_and_distrib, calib_elec, 
     return price_ht
 
 
-def electricity_gas_price_ht(elec_system_cost, gas_furniture_cost, calib_elec, calib_gas, year):
+def electricity_gas_price_ht(elec_lcoe, elec_transport_distrib, gas_furniture_cost, calib_elec_lcoe, calib_elec_transport_distrib, calib_gas, year):
     """
 
     :param elec_system_cost: float
@@ -826,7 +830,7 @@ def electricity_gas_price_ht(elec_system_cost, gas_furniture_cost, calib_elec, c
     electricity_prices_snbc = get_pandas("eoles/inputs/electricity_price_snbc.csv", lambda x: pd.read_csv(x, index_col=0).squeeze("columns"))
     electricity_prices_snbc_year = electricity_prices_snbc[[str(year)]].squeeze()
     commercial_electricity = electricity_prices_snbc_year["Commercial costs"]
-    elec_price_ht = elec_system_cost * calib_elec + commercial_electricity
+    elec_price_ht = elec_lcoe * calib_elec_lcoe + elec_transport_distrib * calib_elec_transport_distrib + commercial_electricity
 
     gas_prices_snbc = get_pandas("eoles/inputs/gas_price_snbc.csv", lambda x: pd.read_csv(x, index_col=0).squeeze("columns"))
     gas_prices_snbc_year = gas_prices_snbc[[str(year)]].squeeze()
@@ -962,13 +966,15 @@ def calibration_price(config_eoles, scc=100):
     transport_and_distribution_lcoe = m_eoles.summary["transport_and_distrib_lcoe"]
     snbc_lcoe_2020 = 48.6
     snbc_transport_distribution = 39.5+10.8  # we make the assumption that since there is very little offshore wind power plants, we can assimilate this to transport and distribution without offshore (as in m_eoles)
-    calibration_elec_lcoe = (snbc_lcoe_2020 + snbc_transport_distribution) / (lcoe_elec + transport_and_distribution_lcoe)
+    # calibration_elec_lcoe = (snbc_lcoe_2020 + snbc_transport_distribution) / (lcoe_elec + transport_and_distribution_lcoe)
+    calibration_elec_lcoe = snbc_lcoe_2020 / lcoe_elec
+    calibration_elec_transport_distrib = snbc_transport_distribution / transport_and_distribution_lcoe
 
     lcoe_CH4_noSCC = m_eoles.summary["lcoe_CH4_volume_noSCC"]
     snbc_gas_price = 23.50
     calibration_gas = snbc_gas_price / lcoe_CH4_noSCC
 
-    return calibration_elec_lcoe, calibration_gas, m_eoles
+    return calibration_elec_lcoe, calibration_elec_transport_distrib, calibration_gas, m_eoles
 
 
 def get_energy_prices_and_taxes(config):

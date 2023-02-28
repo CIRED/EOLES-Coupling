@@ -9,6 +9,7 @@ import datetime
 from pickle import dump, load
 
 from project.coupling import ini_res_irf, simu_res_irf
+from project.write_output import plot_scenario
 from project.building import AgentBuildings
 from project.model import get_inputs, social_planner
 
@@ -36,15 +37,18 @@ logger.addHandler(console_handler)
 HOURLY_PROFILE_METHOD = "valentin"
 DICT_CONFIG_RESIRF = {
     "classic": "eoles/inputs/config/config_resirf.json",
+    "threshold": "eoles/inputs/config/config_resirf_threshold.json",
+    "classic_simple": "eoles/inputs/config/config_resirf_simple.json",
+    "threshold_simple": "eoles/inputs/config/config_resirf_threshold_simple.json",
+    "classic_simple_premature3": "eoles/inputs/config/config_resirf_simple_premature3.json",
+    "classic_simple_premature5": "eoles/inputs/config/config_resirf_simple_premature5.json",
+    "threshold_simple_premature3": "eoles/inputs/config/config_resirf_threshold_simple_premature3.json",
     "nolandlord": "eoles/inputs/config/config_resirf_nolandlord.json",
     "nomultifamily": "eoles/inputs/config/config_resirf_nomultifamily.json",
     "nolandlord_nomultifamily": "eoles/inputs/config/config_resirf_nolandlord_nomultifamily.json",
-    "threshold": "eoles/inputs/config/config_resirf_threshold.json",
-    "classic_simple": "eoles/inputs/config/config_resirf_simple.json",
     "nolandlord_simple": "eoles/inputs/config/config_resirf_nolandlord_simple.json",
     "nomultifamily_simple": "eoles/inputs/config/config_resirf_nomultifamily_simple.json",
     "nolandlord_nomultifamily_simple": "eoles/inputs/config/config_resirf_nolandlord_nomultifamily_simple.json",
-    "threshold_simple": "eoles/inputs/config/config_resirf_threshold_simple.json",
     "test": "eoles/inputs/config/config_coupling_test.json"
 }
 
@@ -236,7 +240,7 @@ if __name__ == '__main__':
     }
 
     config_coupling = {
-        'config_resirf': "classic_simple",
+        'config_resirf': "classic_simple_premature3",
         "config_eoles": "eoles_classic",  # includes costs assumptions
         'calibration_threshold': False,
         'h2ccgt': False,
@@ -294,19 +298,23 @@ if __name__ == '__main__':
         price_feedback = config_coupling["price_feedback"]
 
     energy_prices_ht, energy_taxes = get_energy_prices_and_taxes(config_resirf_path)
-    calibration_elec_lcoe, calibration_gas, m_eoles = calibration_price(config_eoles, scc=100)
+    calibration_elec_lcoe, calibration_elec_transport_distrib, calibration_gas, m_eoles = calibration_price(config_eoles, scc=100)
     config_coupling["calibration_elec_lcoe"] = calibration_elec_lcoe
+    config_coupling["calibration_elec_transport_distrib"] = calibration_elec_transport_distrib
     config_coupling["calibration_gas_lcoe"] = calibration_gas
 
-    output, dict_optimizer = resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, cost_insulation,
+    output, buildings, dict_optimizer = resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, cost_insulation,
                                                            demolition_rate, flow_built, post_inputs, policies_heater, policies_insulation,
                                                            list_year, list_trajectory_scc, scenario_cost,
                                                            config_eoles=config_eoles, config_coupling=config_coupling,
                                                            add_CH4_demand=False, one_shot_setting=one_shot_setting,
                                                            technical_progress=technical_progress, financing_cost=financing_cost,
-                                                           optimization=False, list_sub_heater=[1.0, 0.165, 0.938, 1.0, 1.0],
-                                                           list_sub_insulation=[0.606, 0.610, 0.526, 0.578, 0.573], price_feedback=price_feedback,
+                                                           optimization=False, list_sub_heater=[1.0, 0.248, 1.0, 1.0, 1.0],
+                                                           list_sub_insulation=[0.584, 0.497, 0.514, 0.535, 0.520], price_feedback=price_feedback,
                                                            energy_prices_ht=energy_prices_ht, energy_taxes=energy_taxes)
+
+    buildings.path = os.path.join("eoles/outputs/0228_071936_global_renovation_simple_pricefeedback/plots/plots_resirf")
+    plot_scenario(output["Output global ResIRF ()"], output["Stock global ResIRF ()"], buildings)
 
     # output = resirf_eoles_coupling_dynamic_no_opti(list_sub_heater=[1.0, 0.68], list_sub_insulation=[0.23, 0.40],
     #                                                                buildings=buildings, energy_prices=energy_prices,
@@ -328,16 +336,14 @@ if __name__ == '__main__':
     # sub_heater = 0.5
     # sub_insulation = 0.8333
     #
-    # buildings._debug_mode = True
-    #
     # output, heating_consumption = simu_res_irf(buildings=buildings, sub_heater=sub_heater, sub_insulation=sub_insulation,
     #                                            start=start, end=end, energy_prices=energy_prices,
     #                                            taxes=taxes, cost_heater=cost_heater, cost_insulation=cost_insulation,
     #                                            lifetime_heater=lifetime_heater, demolition_rate=demolition_rate, flow_built=flow_built,
     #                                            post_inputs=post_inputs, policies_heater=policies_heater,
     #                                            policies_insulation=policies_insulation,
-    #                                            sub_design=sub_design, financing_cost=financing_cost, climate=2006, smooth=False, efficiency_hour=True,
-    #                                            output_consumption=True, full_output=True, rebound=rebound,
+    #                                            sub_design=None, financing_cost=financing_cost, climate=2006, smooth=False, efficiency_hour=True,
+    #                                            output_consumption=True, full_output=True, rebound=True,
     #                                            technical_progress=technical_progress)
 
     #

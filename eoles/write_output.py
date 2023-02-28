@@ -4,6 +4,7 @@ import os
 import seaborn as sns
 import numpy as np
 from pickle import load
+import datetime
 
 from eoles.inputs.resources import resources_data
 from project.utils import save_fig
@@ -380,6 +381,15 @@ def comparison_simulations(dict_output:dict, ref, health=False, save_path=None):
     return annualized_system_costs_df, total_system_costs_df, consumption_savings_tot_df, complete_system_costs_2050_df
 
 
+def save_subsidies_again(dict_output, save_path):
+    for path, name_config in zip(dict_output.values(), [n for n in dict_output.keys()]):
+        with open(os.path.join(path, 'coupling_results.pkl'), "rb") as file:
+            output = load(file)
+            subsidies = output["Subsidies (%)"]
+            subsidies = pd.concat([subsidies, subsidies.iloc[0].to_frame().T.rename(index={2025: 2020})], axis=0).sort_index()
+            subsidies.to_csv(os.path.join(save_path, f"subsidies_{name_config}.csv"))
+
+
 def process_total_costs(annualized_new_investment_df, annualized_new_energy_capacity_df, functionment_costs_df):
     """
     Calculates total system (new) costs over the considered time period. This adds investment annuity for each year when the investment was present.
@@ -392,17 +402,20 @@ def process_total_costs(annualized_new_investment_df, annualized_new_energy_capa
         Functionment cost of the system for one year.
     :return:
     """
+    annualized_new_investment_df_copy = annualized_new_investment_df.copy()
+    annualized_new_energy_capacity_df_copy = annualized_new_energy_capacity_df.copy()
+    functionment_costs_df_copy = functionment_costs_df.copy()
     dict_count = {2030: 5*5, 2035: 4*5, 2040: 3*5, 2045: 2*5, 2050: 5}
-    for col in annualized_new_investment_df.columns:  # attention à vérifier que les colonnes sont des int
-        annualized_new_investment_df[col] = annualized_new_investment_df[col] * dict_count[col]
-        annualized_new_energy_capacity_df[col] = annualized_new_energy_capacity_df[col] * dict_count[col]
-    functionment_costs_df = functionment_costs_df * 5  # we count each functionment costs 5 times
+    for col in annualized_new_investment_df_copy.columns:  # attention à vérifier que les colonnes sont des int
+        annualized_new_investment_df_copy[col] = annualized_new_investment_df_copy[col] * dict_count[col]
+        annualized_new_energy_capacity_df_copy[col] = annualized_new_energy_capacity_df_copy[col] * dict_count[col]
+    functionment_costs_df_copy = functionment_costs_df_copy * 5  # we count each functionment costs 5 times
 
-    elec_inv = annualized_new_investment_df.drop(index=["investment_heater", "investment_insulation"]).sum().sum() + annualized_new_energy_capacity_df.sum().sum()
-    heater_inv = annualized_new_investment_df.T[["investment_heater"]].sum().sum()
-    insulation_inv = annualized_new_investment_df.T[["investment_insulation"]].sum().sum()
-    functionment_cost = functionment_costs_df.drop(index=["health_costs"]).sum().sum()
-    health_costs = functionment_costs_df.T[["health_costs"]].sum().sum()
+    elec_inv = annualized_new_investment_df_copy.drop(index=["investment_heater", "investment_insulation"]).sum().sum() + annualized_new_energy_capacity_df_copy.sum().sum()
+    heater_inv = annualized_new_investment_df_copy.T[["investment_heater"]].sum().sum()
+    insulation_inv = annualized_new_investment_df_copy.T[["investment_insulation"]].sum().sum()
+    functionment_cost = functionment_costs_df_copy.drop(index=["health_costs"]).sum().sum()
+    health_costs = functionment_costs_df_copy.T[["health_costs"]].sum().sum()
     total_costs = elec_inv + heater_inv + insulation_inv + functionment_cost + health_costs
     total_system_costs = pd.Series(index=["Investment electricity costs", "Investment heater costs", "Investment insulation costs", "Functionment costs", "Health costs", "Total costs"],
                                    data=[elec_inv, heater_inv, insulation_inv, functionment_cost, health_costs, total_costs])
@@ -428,18 +441,21 @@ def process_evolution_annualized_energy_system_cost(annualized_new_investment_df
 
 
 def process_complete_system_cost_2050(annualized_new_investment_df, annualized_new_energy_capacity_df, functionment_costs_df):
-    investment_costs = annualized_new_investment_df  # we are only interested in the energy system cost
-    investment_costs = investment_costs.add(annualized_new_energy_capacity_df, fill_value=0)  # we add the value of investments
-    for i in range(1, annualized_new_investment_df.shape[1]):  # we estimate cumulated costs from new investments which are still active in following years
+    annualized_new_investment_df_copy = annualized_new_investment_df.copy()
+    annualized_new_energy_capacity_df_copy = annualized_new_energy_capacity_df.copy()
+    functionment_costs_df_copy = functionment_costs_df.copy()
+    investment_costs = annualized_new_investment_df_copy  # we are only interested in the energy system cost
+    investment_costs = investment_costs.add(annualized_new_energy_capacity_df_copy, fill_value=0)  # we add the value of investments
+    for i in range(1, annualized_new_investment_df_copy.shape[1]):  # we estimate cumulated costs from new investments which are still active in following years
         investment_costs[investment_costs.columns[i]] = investment_costs[investment_costs.columns[i-1]] + investment_costs[investment_costs.columns[i]]
 
     elec_inv = investment_costs.drop(index=["investment_heater", "investment_insulation"]).sum(axis=0)
     heater_inv = investment_costs.T[["investment_heater"]].squeeze()
     insulation_inv = investment_costs.T[["investment_insulation"]].squeeze()
-    functionment_cost = functionment_costs_df.drop(index=["health_costs"]).sum(axis=0)
-    health_costs = functionment_costs_df.T[["health_costs"]].squeeze()
+    functionment_cost = functionment_costs_df_copy.drop(index=["health_costs"]).sum(axis=0)
+    health_costs = functionment_costs_df_copy.T[["health_costs"]].squeeze()
 
-    total_cost = investment_costs.add(functionment_costs_df, fill_value=0)  # add functionment cost for each year, and not interested in health costs
+    total_cost = investment_costs.add(functionment_costs_df_copy, fill_value=0)  # add functionment cost for each year, and not interested in health costs
     total_cost = total_cost.sum(axis=0)
     return pd.Series(data=[elec_inv.loc[2050], heater_inv.loc[2050], insulation_inv.loc[2050], functionment_cost.loc[2050], health_costs.loc[2050], total_cost.loc[2050]],
                      index=["Investment electricity costs", "Investment heater costs", "Investment insulation costs", "Functionment costs", "Health costs", "Total costs"])
@@ -644,6 +660,50 @@ def plot_investment_trajectory(resirf_costs_df, save=None):
                    format_y=lambda y, _: '{:.0f}'.format(y), rotation=45)
     format_legend(ax, dict_legend=DICT_TRANSFORM_LEGEND)
     save_fig(fig, save=save_path)
+
+
+def plot_typical_week(hourly_generation, date_start, date_end, climate=2006, save=None,
+                          colors=None, format_y=lambda y, _: '{:.0f}'.format(y), rotation=90):
+    hourly_generation_subset = hourly_generation.copy()
+    hourly_generation_subset["date"] = hourly_generation_subset.apply(lambda row: datetime.datetime(climate, 1, 1, 0) + datetime.timedelta(hours=row["hour"]),
+                            axis=1)
+    hourly_generation_subset = hourly_generation_subset.set_index("date")
+
+    hourly_generation_subset = hourly_generation_subset.loc[date_start: date_end, :]  # select week of interest
+
+    hourly_generation_subset["pv"] = hourly_generation_subset["pv_g"] + hourly_generation_subset["pv_c"]
+    hourly_generation_subset["wind"] = hourly_generation_subset["onshore"] + hourly_generation_subset["offshore_f"] + hourly_generation_subset["offshore_g"]
+    hourly_generation_subset["hydro"] = hourly_generation_subset["river"] + hourly_generation_subset["lake"]
+    hourly_generation_subset["battery_in"] = - hourly_generation_subset["battery1_in"] - hourly_generation_subset["battery4_in"]
+    hourly_generation_subset["battery_discharge"] = hourly_generation_subset["battery1"] + hourly_generation_subset["battery4"]
+    hourly_generation_subset["phs_in"] = - hourly_generation_subset["phs_in"]
+    hourly_generation_subset["electrolysis"] = - hourly_generation_subset["electrolysis"]
+    hourly_generation_subset["peaking_plants"] = hourly_generation_subset["ocgt"] + hourly_generation_subset["ccgt"] + hourly_generation_subset["h2_ccgt"]
+    prod = hourly_generation_subset[["nuclear", "wind", "pv", "hydro", "battery_in", "battery_discharge", "phs", "phs_in", "peaking_plants", "electrolysis"]]
+    elec_demand = hourly_generation_subset[["elec_demand"]].squeeze()
+
+    if save is None:
+        fig, ax = plt.subplots(1, 1)
+    else:  # we change figure size when saving figure
+        fig, ax = plt.subplots(1, 1, figsize=(12.8, 9.6))
+
+    prod.plot.area(color=resources_data["colors_eoles"], ax=ax, linewidth=0)
+    elec_demand.plot(ax=ax, style='-', c='red')
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['bottom'].set_visible(True)
+    ax.spines['left'].set_visible(True)
+    ax.set_title("Hourly production and demand")
+    # ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda y, _: '{:.0f}'.format(y)))
+    # ax.xaxis.set_major_formatter(mdates.DateFormatter('%d-%m-%Y'))
+    # ax.xaxis.set_major_locator(mdates.DayLocator(interval=1))
+    # plt.gcf().autofmt_xdate()
+    # ax = format_ax(ax, title="Hourly demand and production (GWh)", format_y=lambda y, _: '{:.0f}'.format(y),
+    #                       rotation=45, x_ticks=prod.index[::12])
+    format_legend(ax)
+    plt.axhline(y=0)
+
+    save_fig(fig, save=save)
 
 
 def format_legend(ax, dict_legend=None):
