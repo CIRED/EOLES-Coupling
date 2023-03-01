@@ -131,7 +131,7 @@ colors_eoles = {
     "LCOE electricity value": "#DE8F05",
     "LCOE CH4 value": '#ECE133',
     "LCOE CH4 volume": '#56B4E9',
-    "LCOE CH4 volume no SCC": 'black',
+    "LCOE CH4 volume noSCC": 'black',
     "Gas for heating": "slategrey",
     "Electricity for heating": "darkorange",
     # "Investment heater (Billion euro)" : "firebrick",
@@ -162,6 +162,8 @@ colors_eoles = {
     "Wood fuel": 'saddlebrown',
     "Investment heater (Billion euro)": "#029E73",
     "Investment insulation (Billion euro)": "#FBAFE4",
+    "Investment heater WT (Billion euro)": "#029E73",
+    "Investment insulation WT (Billion euro)": "#FBAFE4",
     "Subsidies heater (Billion euro)": "#029E73",
     "Subsidies insulation (Billion euro)": "#FBAFE4"
 

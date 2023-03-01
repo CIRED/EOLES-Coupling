@@ -9,7 +9,7 @@ import datetime
 from pickle import dump, load
 
 from project.coupling import ini_res_irf, simu_res_irf
-from project.write_output import plot_scenario
+from project.write_output import plot_scenario, grouped_output
 from project.building import AgentBuildings
 from project.model import get_inputs, social_planner
 
@@ -153,94 +153,9 @@ def test_convergence(max_iter, initial_design_numdata, buildings, energy_prices,
 #     return output, optimizer
 
 if __name__ == '__main__':
-    # config_eoles = eoles.utils.get_config(spec="eoles_coupling")
-    # hourly_heat_elec = eoles.utils.create_hourly_residential_demand_profile(total_consumption=45,
-    #                                                      method=HOURLY_PROFILE_METHOD)
-    # hourly_heat_gas = eoles.utils.create_hourly_residential_demand_profile(total_consumption=95,
-    #                                                      method=HOURLY_PROFILE_METHOD)
-    # m_eoles = ModelEOLES(name="trajectory", config=config_eoles, path="eoles/outputs", logger=logger, nb_years=1,
-    #                      hourly_heat_elec=hourly_heat_elec, hourly_heat_gas=hourly_heat_gas,
-    #                      wood_consumption=0, oil_consumption=0,
-    #                      existing_capacity=None, existing_charging_capacity=None,
-    #                      existing_energy_capacity=None, maximum_capacity=None,
-    #                      method_hourly_profile="valentin",
-    #                      social_cost_of_carbon=100, year=2050, anticipated_year=2050,
-    #                      scenario_cost=None, carbon_constraint=False)
-    # m_eoles.build_model()
-    # solver_results, status, termination_condition = m_eoles.solve(solver_name="gurobi")
 
     config_coupling = {
-        'config_resirf': "classic",
-        'calibration_threshold': False,
-        'h2ccgt': False,
-        'max_iter': 1,
-        'sub_design': "global_renovation_low_income",
-        "health": True,
-        "discount_rate": 0.045,
-        "rebound": True,
-        "carbon_constraint": True,
-        'one_shot_setting': True,
-        'fix_sub_heater': False,
-        'list_year': [2025],
-        'list_trajectory_scc': [775],
-        'scenario_cost_eoles': {
-            'biomass_potential': {
-                'methanization': 0,
-                'pyrogazification': 0
-            },
-            'maximum_capacity': {
-                'offshore_g': 10,
-                'offshore_f': 20,
-                'nuclear': 25,
-                'onshore': 70,
-                'pv_g': 50,
-                'pv_c': 50
-            },
-            'existing_capacity': {
-                'offshore_g': 0,
-                'offshore_f': 0,
-                'nuclear': 0,
-                'onshore': 0,
-                'pv_g': 0,
-                'pv_c': 0
-            },
-            'vOM': {
-                'natural_gas': 0.035,
-            }
-        }
-    }
-
-    config_coupling = {
-        'config_resirf': "test",
-        "config_eoles": "eoles_classic",  # includes costs assumptions
-        'calibration_threshold': False,
-        'h2ccgt': False,
-        'max_iter': 1,
-        'sub_design': "global_renovation",
-        "health": True,  # on inclut les coûts de santé
-        "discount_rate": 0.032,
-        "rebound": True,
-        "carbon_constraint": False,
-        'one_shot_setting': False,
-        'fix_sub_heater': False,
-        'list_year': [2025, 2030],
-        'list_trajectory_scc': [250, 350],
-        'scenario_cost_eoles': {  # add assumptions on available technologies
-            "biomass_potential": {
-                "methanization": 0,
-                "pyrogazification": 0
-            },
-            "existing_capacity": {
-                "offshore_f": 0
-            },
-            "maximum_capacity": {
-                "offshore_f": 0
-            }
-        }
-    }
-
-    config_coupling = {
-        'config_resirf': "classic_simple_premature3",
+        'config_resirf': "classic_simple",
         "config_eoles": "eoles_classic",  # includes costs assumptions
         'calibration_threshold': False,
         'h2ccgt': False,
@@ -254,7 +169,7 @@ if __name__ == '__main__':
         'fix_sub_heater': False,
         'list_year': [2025, 2030, 2035, 2040, 2045],
         'list_trajectory_scc': [250, 350, 500, 650, 775],
-        'price_feedback': True,
+        'price_feedback': False,
         'scenario_cost_eoles': {}
     }
 
@@ -276,6 +191,28 @@ if __name__ == '__main__':
     buildings, energy_prices, taxes, cost_heater, cost_insulation, lifetime_heater, demolition_rate, flow_built, post_inputs, policies_heater, policies_insulation, technical_progress, financing_cost = ini_res_irf(
         path=os.path.join('eoles', 'outputs', 'ResIRF'),
         config=config_resirf_path)
+
+    # # TEST for a given time step
+    # timestep = 10
+    # year = 2020
+    # start = year
+    # end = year + timestep
+    #
+    # sub_heater = 0.9586
+    # sub_insulation = 0.585141
+    #
+    # output, stock, heating_consumption = simu_res_irf(buildings=buildings, sub_heater=sub_heater, sub_insulation=sub_insulation,
+    #                                            start=start, end=end, energy_prices=energy_prices,
+    #                                            taxes=taxes, cost_heater=cost_heater, cost_insulation=cost_insulation,
+    #                                            lifetime_heater=lifetime_heater, flow_built=flow_built, post_inputs=post_inputs,
+    #                                            policies_heater=policies_heater, policies_insulation=policies_insulation,
+    #                                            sub_design=config_coupling["sub_design"], financing_cost=financing_cost, climate=2006, smooth=False, efficiency_hour=False,
+    #                                            demolition_rate=demolition_rate, output_consumption=True, full_output=True, rebound=True,
+    #                                            technical_progress=technical_progress)
+    # buildings.path = os.path.join("eoles/outputs/test_plots/plots_resirf")
+    # plot_scenario(output, stock, buildings)
+    # grouped_output(result={"Reference": output}, folder=os.path.join("eoles/outputs/test_plots"))
+
 
     list_year = config_coupling["list_year"]
     list_trajectory_scc = config_coupling["list_trajectory_scc"]  # SCC trajectory
@@ -302,18 +239,18 @@ if __name__ == '__main__':
     config_coupling["calibration_elec_lcoe"] = calibration_elec_lcoe
     config_coupling["calibration_elec_transport_distrib"] = calibration_elec_transport_distrib
     config_coupling["calibration_gas_lcoe"] = calibration_gas
-
+    #
     output, buildings, dict_optimizer = resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, cost_insulation,
                                                            demolition_rate, flow_built, post_inputs, policies_heater, policies_insulation,
                                                            list_year, list_trajectory_scc, scenario_cost,
                                                            config_eoles=config_eoles, config_coupling=config_coupling,
                                                            add_CH4_demand=False, one_shot_setting=one_shot_setting,
                                                            technical_progress=technical_progress, financing_cost=financing_cost,
-                                                           optimization=True, list_sub_heater=[1.0, 0.248, 1.0, 1.0, 1.0],
-                                                           list_sub_insulation=[0.584, 0.497, 0.514, 0.535, 0.520], price_feedback=price_feedback,
+                                                           optimization=False, list_sub_heater=[0.95, 0.04, 1.0, 1.0, 1.0],
+                                                           list_sub_insulation=[0.585, 0.575, 0.550, 0.564, 0.565], price_feedback=price_feedback,
                                                            energy_prices_ht=energy_prices_ht, energy_taxes=energy_taxes)
 
-    buildings.path = os.path.join("eoles/outputs/0228_071936_global_renovation_simple_pricefeedback/plots/plots_resirf")
+    buildings.path = os.path.join("eoles/outputs/0301_065355_global_renovation_simple/plots/plots_resirf")
     plot_scenario(output["Output global ResIRF ()"], output["Stock global ResIRF ()"], buildings)
 
     # output = resirf_eoles_coupling_dynamic_no_opti(list_sub_heater=[1.0, 0.68], list_sub_insulation=[0.23, 0.40],
@@ -328,15 +265,15 @@ if __name__ == '__main__':
     #                                                                rebound=rebound, technical_progress=technical_progress, financing_cost=None)
 
     # # TEST for a given time step
-    # timestep = 2
-    # year = 2025
+    # timestep = 10
+    # year = 2020
     # start = year
     # end = year + timestep
     #
-    # sub_heater = 0.5
-    # sub_insulation = 0.8333
+    # sub_heater = 0.9586
+    # sub_insulation = 0.585141
     #
-    # output, heating_consumption = simu_res_irf(buildings=buildings, sub_heater=sub_heater, sub_insulation=sub_insulation,
+    # output, stock, heating_consumption = simu_res_irf(buildings=buildings, sub_heater=sub_heater, sub_insulation=sub_insulation,
     #                                            start=start, end=end, energy_prices=energy_prices,
     #                                            taxes=taxes, cost_heater=cost_heater, cost_insulation=cost_insulation,
     #                                            lifetime_heater=lifetime_heater, demolition_rate=demolition_rate, flow_built=flow_built,
@@ -345,6 +282,9 @@ if __name__ == '__main__':
     #                                            sub_design=None, financing_cost=financing_cost, climate=2006, smooth=False, efficiency_hour=True,
     #                                            output_consumption=True, full_output=True, rebound=True,
     #                                            technical_progress=technical_progress)
+    # buildings.path = os.path.join("eoles/outputs/test_plots/plots_resirf")
+    # plot_scenario(output, stock, buildings)
+    # grouped_output(result={"Reference": output}, folder=os.path.join("eoles/outputs/test_plots"))
 
     #
     # list_year = [2025, 2030, 2035, 2040, 2045]

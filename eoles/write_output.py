@@ -386,8 +386,20 @@ def save_subsidies_again(dict_output, save_path):
         with open(os.path.join(path, 'coupling_results.pkl'), "rb") as file:
             output = load(file)
             subsidies = output["Subsidies (%)"]
-            subsidies = pd.concat([subsidies, subsidies.iloc[0].to_frame().T.rename(index={2025: 2020})], axis=0).sort_index()
-            subsidies.to_csv(os.path.join(save_path, f"subsidies_{name_config}.csv"))
+            subsidies = output["Subsidies (%)"]
+            dataframe_subsidy_list = [subsidies]
+            for i in range(4):
+                tmp = subsidies.copy()
+                tmp.index += i + 1
+                dataframe_subsidy_list.append(tmp)
+            dataframe_subsidy = pd.concat(dataframe_subsidy_list, axis=0).sort_index(ascending=True)
+            new_subsidies_2020_2024 = pd.concat(
+                [subsidies.iloc[0].to_frame().T.rename(index={2025: 2020 + i}) for i in range(5)], axis=0)
+            dataframe_subsidy = pd.concat([new_subsidies_2020_2024, dataframe_subsidy], axis=0)
+            dataframe_subsidy = pd.concat([dataframe_subsidy, dataframe_subsidy.iloc[-1].to_frame().T.rename(index={2049:2050})], axis=0)
+            # subsidies = pd.concat([subsidies, subsidies.iloc[0].to_frame().T.rename(index={2025: 2020})], axis=0).sort_index()
+            dataframe_subsidy["Heater"].to_csv(os.path.join(save_path, f"subsidies_heater_{name_config}.csv"), header=None)
+            dataframe_subsidy["Insulation"].to_csv(os.path.join(save_path, f"subsidies_insulation_{name_config}.csv"), header=None)
 
 
 def process_total_costs(annualized_new_investment_df, annualized_new_energy_capacity_df, functionment_costs_df):
@@ -588,10 +600,13 @@ def plot_simulation(output, save_path):
                    colors=resources_data["colors_eoles"],
                    format_y=lambda y, _: '{:.0f}'.format(y), rotation=45, x_ticks=resirf_costs_df.index[::2])
 
-    if "ResIRF costs eff (euro/kWh)" in output.keys():
-        resirf_costs_eff_df = output["ResIRF costs eff (euro/kWh)"]
-        make_line_plot(resirf_costs_eff_df, y_label="Costs per saving (euro/kWh)", save=os.path.join(save_path, "resirf_costs_eff.png"),
-                       format_y=lambda y, _: '{:.2f}'.format(y), rotation=45, x_ticks=resirf_costs_eff_df.index[::2])
+    try:
+        if "ResIRF costs eff (euro/kWh)" in output.keys():
+            resirf_costs_eff_df = output["ResIRF costs eff (euro/kWh)"]
+            make_line_plot(resirf_costs_eff_df, y_label="Costs per saving (euro/kWh)", save=os.path.join(save_path, "resirf_costs_eff.png"),
+                           format_y=lambda y, _: '{:.2f}'.format(y), rotation=45, x_ticks=resirf_costs_eff_df.index[::2])
+    except:
+        pass
 
     # Plot stock and replacement ResIRF
     make_area_plot(resirf_replacement_heater, y_label="Replacement heater (Thousand households)",
