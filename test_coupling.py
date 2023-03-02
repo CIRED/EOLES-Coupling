@@ -41,7 +41,7 @@ DICT_CONFIG_RESIRF = {
     "classic_simple": "eoles/inputs/config/config_resirf_simple.json",
     "threshold_simple": "eoles/inputs/config/config_resirf_threshold_simple.json",
     "classic_simple_premature3": "eoles/inputs/config/config_resirf_simple_premature3.json",
-    "classic_simple_premature5": "eoles/inputs/config/config_resirf_simple_premature5.json",
+    "classic_simple_premature10": "eoles/inputs/config/config_resirf_simple_premature10.json",
     "threshold_simple_premature3": "eoles/inputs/config/config_resirf_threshold_simple_premature3.json",
     "nolandlord": "eoles/inputs/config/config_resirf_nolandlord.json",
     "nomultifamily": "eoles/inputs/config/config_resirf_nomultifamily.json",
@@ -155,7 +155,7 @@ def test_convergence(max_iter, initial_design_numdata, buildings, energy_prices,
 if __name__ == '__main__':
 
     config_coupling = {
-        'config_resirf': "classic_simple",
+        'config_resirf': "classic_simple_premature10",
         "config_eoles": "eoles_classic",  # includes costs assumptions
         'calibration_threshold': False,
         'h2ccgt': False,
@@ -167,8 +167,8 @@ if __name__ == '__main__':
         "carbon_constraint": False,
         'one_shot_setting': False,
         'fix_sub_heater': False,
-        'list_year': [2025, 2030, 2035, 2040, 2045],
-        'list_trajectory_scc': [250, 350, 500, 650, 775],
+        'list_year': [2025],
+        'list_trajectory_scc': [250],
         'price_feedback': False,
         'scenario_cost_eoles': {}
     }
@@ -198,8 +198,8 @@ if __name__ == '__main__':
     # start = year
     # end = year + timestep
     #
-    # sub_heater = 0.9586
-    # sub_insulation = 0.585141
+    # sub_heater = 0.5763
+    # sub_insulation = 0.6502
     #
     # output, stock, heating_consumption = simu_res_irf(buildings=buildings, sub_heater=sub_heater, sub_insulation=sub_insulation,
     #                                            start=start, end=end, energy_prices=energy_prices,
@@ -246,8 +246,8 @@ if __name__ == '__main__':
                                                            config_eoles=config_eoles, config_coupling=config_coupling,
                                                            add_CH4_demand=False, one_shot_setting=one_shot_setting,
                                                            technical_progress=technical_progress, financing_cost=financing_cost,
-                                                           optimization=False, list_sub_heater=[0.95, 0.04, 1.0, 1.0, 1.0],
-                                                           list_sub_insulation=[0.585, 0.575, 0.550, 0.564, 0.565], price_feedback=price_feedback,
+                                                           optimization=False, list_sub_heater=[0.5763],
+                                                           list_sub_insulation=[0.6502], price_feedback=price_feedback,
                                                            energy_prices_ht=energy_prices_ht, energy_taxes=energy_taxes)
 
     buildings.path = os.path.join("eoles/outputs/0301_065355_global_renovation_simple/plots/plots_resirf")

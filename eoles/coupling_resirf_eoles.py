@@ -330,6 +330,28 @@ def resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, 
     list_global_annualized_costs = []
     dict_optimizer = {}
 
+    # Run ResIRF for the first 5 years, with current policies and no additional subsidy
+    output_opt, stock_opt, heating_consumption = simu_res_irf(buildings=buildings, sub_heater=None,
+                                                              sub_insulation=None,
+                                                              start=2020,
+                                                              end=2025, energy_prices=energy_prices,
+                                                              taxes=taxes,
+                                                              cost_heater=cost_heater, cost_insulation=cost_insulation,
+                                                              lifetime_heater=lifetime_heater, flow_built=flow_built,
+                                                              post_inputs=post_inputs, policies_heater=policies_heater,
+                                                              policies_insulation=policies_insulation,
+                                                              climate=2006, smooth=False, efficiency_hour=True,
+                                                              demolition_rate=demolition_rate,
+                                                              output_consumption=True,
+                                                              full_output=True,
+                                                              sub_design=config_coupling["sub_design"],
+                                                              rebound=config_coupling["rebound"],
+                                                              technical_progress=technical_progress,
+                                                              financing_cost=financing_cost)
+    # we add initial values to observe what happens
+    output_global_ResIRF = pd.concat([output_global_ResIRF, output_opt], axis=1)
+    stock_global_ResIRF = pd.concat([stock_global_ResIRF, stock_opt], axis=1)
+
     list_anticipated_year = [y+5 for y in list_year]  # we create list of years used for supply = demand
     list_scc_year = list_scc_yearly()
     for t, (y, scc) in enumerate(zip(list_year, list_trajectory_scc)):

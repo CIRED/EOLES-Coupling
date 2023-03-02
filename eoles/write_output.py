@@ -1,10 +1,12 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 import os
+from os import listdir
 import seaborn as sns
 import numpy as np
 from pickle import load
 import datetime
+from PIL import Image
 
 from eoles.inputs.resources import resources_data
 from project.utils import save_fig
@@ -177,53 +179,53 @@ def comparison_simulations(dict_output:dict, ref, health=False, save_path=None):
             capacities_df["battery"] = capacities_df["battery1"] + capacities_df["battery4"]
             capacities_dict[name_config] = capacities_df[["offshore", "pv", "battery"]]
 
-    # Total annualized system costs
-    subset_annualized_costs = ["Annualized electricity system costs", "Annualized investment heater costs",
-                               "Annualized investment insulation costs", "Annualized health costs"]
-    if save_path is None:
-        save_path_plot = None
-    else:
-        save_path_plot = os.path.join(save_path, "total_annualized_system_costs.png")
-    make_stacked_bar_plot(annualized_system_costs_df.T, subset=subset_annualized_costs, y_label="Total annualized system costs (Md€ / year)",
-                          colors=resources_data["colors_eoles"], format_y=lambda y, _: '{:.0f}'.format(y), index_int=False,
-                          rotation=90, dict_legend=DICT_TRANSFORM_LEGEND, save=save_path_plot)
-
-    annualized_system_costs_df = annualized_system_costs_df.T
-    annualized_system_costs_df["Annualized total costs HC excluded"] = annualized_system_costs_df["Annualized total costs"] - \
-                                                             annualized_system_costs_df["Annualized health costs"]
-    annualized_system_costs_df = annualized_system_costs_df.T
-
-    for col in annualized_system_costs_df.columns:
-        if col != ref:
-            annualized_system_costs_df[col] = annualized_system_costs_df[col] - annualized_system_costs_df[ref]
-    if health:
-        subset_annualized_costs = ["Annualized electricity system costs", "Annualized investment heater costs",
-                                   "Annualized investment insulation costs", "Annualized health costs"]
-    else:
-        subset_annualized_costs = ["Annualized electricity system costs", "Annualized investment heater costs",
-                                   "Annualized investment insulation costs"]
-    if len(annualized_system_costs_df.columns) >= 3:  # ie, at least two scenarios to compare to the ref
-        if save_path is None:
-            save_path_plot = None
-        else:
-            save_path_plot = os.path.join(save_path, "difference_total_annualized_system_costs.png")
-        if health:
-            make_stacked_investment_plot(df=annualized_system_costs_df.drop(columns=[ref]).T,
-                                         y_label="Difference of total annualized system costs over 2025-2050 (Md€/yr)",
-                                         subset=subset_annualized_costs,
-                                         scatter=annualized_system_costs_df.drop(columns=[ref]).T[
-                                             ["Annualized total costs"]].squeeze(),
-                                         save=save_path_plot, colors=resources_data["colors_eoles"],
-                                         format_y=lambda y, _: '{:.0f}'.format(y), rotation=90,
-                                         dict_legend=DICT_TRANSFORM_LEGEND)
-        else:
-            make_stacked_investment_plot(df=annualized_system_costs_df.drop(columns=[ref]).T, y_label="Difference of total annualized system costs over 2025-2050 (Md€/yr)",
-                                         subset=subset_annualized_costs,
-                                         scatter=annualized_system_costs_df.drop(columns=[ref]).T[
-                                             ["Annualized total costs HC excluded"]].squeeze(),
-                                         save=save_path_plot, colors=resources_data["colors_eoles"],
-                                         format_y=lambda y, _: '{:.0f}'.format(y), rotation=90,
-                                         dict_legend=DICT_TRANSFORM_LEGEND)
+    # # Total annualized system costs
+    # subset_annualized_costs = ["Annualized electricity system costs", "Annualized investment heater costs",
+    #                            "Annualized investment insulation costs", "Annualized health costs"]
+    # if save_path is None:
+    #     save_path_plot = None
+    # else:
+    #     save_path_plot = os.path.join(save_path, "total_annualized_system_costs.png")
+    # make_stacked_bar_plot(annualized_system_costs_df.T, subset=subset_annualized_costs, y_label="Total annualized system costs (Md€ / year)",
+    #                       colors=resources_data["colors_eoles"], format_y=lambda y, _: '{:.0f}'.format(y), index_int=False,
+    #                       rotation=90, dict_legend=DICT_TRANSFORM_LEGEND, save=save_path_plot)
+    #
+    # annualized_system_costs_df = annualized_system_costs_df.T
+    # annualized_system_costs_df["Annualized total costs HC excluded"] = annualized_system_costs_df["Annualized total costs"] - \
+    #                                                          annualized_system_costs_df["Annualized health costs"]
+    # annualized_system_costs_df = annualized_system_costs_df.T
+    #
+    # for col in annualized_system_costs_df.columns:
+    #     if col != ref:
+    #         annualized_system_costs_df[col] = annualized_system_costs_df[col] - annualized_system_costs_df[ref]
+    # if health:
+    #     subset_annualized_costs = ["Annualized electricity system costs", "Annualized investment heater costs",
+    #                                "Annualized investment insulation costs", "Annualized health costs"]
+    # else:
+    #     subset_annualized_costs = ["Annualized electricity system costs", "Annualized investment heater costs",
+    #                                "Annualized investment insulation costs"]
+    # if len(annualized_system_costs_df.columns) >= 3:  # ie, at least two scenarios to compare to the ref
+    #     if save_path is None:
+    #         save_path_plot = None
+    #     else:
+    #         save_path_plot = os.path.join(save_path, "difference_total_annualized_system_costs.png")
+    #     if health:
+    #         make_stacked_investment_plot(df=annualized_system_costs_df.drop(columns=[ref]).T,
+    #                                      y_label="Difference of total annualized system costs over 2025-2050 (Md€/yr)",
+    #                                      subset=subset_annualized_costs,
+    #                                      scatter=annualized_system_costs_df.drop(columns=[ref]).T[
+    #                                          ["Annualized total costs"]].squeeze(),
+    #                                      save=save_path_plot, colors=resources_data["colors_eoles"],
+    #                                      format_y=lambda y, _: '{:.0f}'.format(y), rotation=90,
+    #                                      dict_legend=DICT_TRANSFORM_LEGEND)
+    #     else:
+    #         make_stacked_investment_plot(df=annualized_system_costs_df.drop(columns=[ref]).T, y_label="Difference of total annualized system costs over 2025-2050 (Md€/yr)",
+    #                                      subset=subset_annualized_costs,
+    #                                      scatter=annualized_system_costs_df.drop(columns=[ref]).T[
+    #                                          ["Annualized total costs HC excluded"]].squeeze(),
+    #                                      save=save_path_plot, colors=resources_data["colors_eoles"],
+    #                                      format_y=lambda y, _: '{:.0f}'.format(y), rotation=90,
+    #                                      dict_legend=DICT_TRANSFORM_LEGEND)
 
     # Total system costs
     subset_annualized_costs = ["Investment electricity costs", "Investment heater costs",
@@ -290,7 +292,7 @@ def comparison_simulations(dict_output:dict, ref, health=False, save_path=None):
     else:
         save_path_plot = os.path.join(save_path, "complete_system_costs_2050.png")
     make_stacked_bar_plot(complete_system_costs_2050_df.T, subset=subset_complete_costs, y_label="Complete system costs in 2050 (Md€/year)",
-                          colors=resources_data["colors_eoles"], format_y=lambda y, _: '{:.0f}'.format(y), index_int=False,
+                          colors=resources_data["colors_eoles"], format_y=lambda y, _: '{:.01f}'.format(y), index_int=False,
                           rotation=90, dict_legend=DICT_TRANSFORM_LEGEND, save=save_path_plot)
 
     for col in complete_system_costs_2050_df.columns:
@@ -308,7 +310,7 @@ def comparison_simulations(dict_output:dict, ref, health=False, save_path=None):
                                      scatter=complete_system_costs_2050_df.drop(columns=[ref]).T[
                                          ["Total costs"]].squeeze(),
                                      save=save_path_plot, colors=resources_data["colors_eoles"],
-                                     format_y=lambda y, _: '{:.0f}'.format(y), rotation=90,
+                                     format_y=lambda y, _: '{:.1f}'.format(y), rotation=90,
                                      dict_legend=DICT_TRANSFORM_LEGEND)
     else:
         make_stacked_investment_plot(df=complete_system_costs_2050_df.drop(columns=[ref]).T,
@@ -316,7 +318,7 @@ def comparison_simulations(dict_output:dict, ref, health=False, save_path=None):
                                      subset=subset_complete_costs,
                                      scatter=complete_system_costs_2050_df.drop(columns=[ref]).T["Total costs"],
                                      save=None, colors=resources_data["colors_eoles"],
-                                     format_y=lambda y, _: '{:.0f}'.format(y), rotation=90,
+                                     format_y=lambda y, _: '{:.1f}'.format(y), rotation=90,
                                      dict_legend=DICT_TRANSFORM_LEGEND)
 
     # Total consumption savings
@@ -342,7 +344,7 @@ def comparison_simulations(dict_output:dict, ref, health=False, save_path=None):
     else:
         save_path_plot = os.path.join(save_path, "CO2_emissions.png")
     make_line_plots(emissions_dict, y_label="Emissions (MtCO2)", format_y=lambda y, _: '{:.0f}'.format(y),
-                    index_int=True, save=save_path_plot)
+                    index_int=True, save=save_path_plot, y_min=0)
 
     # Evolution of insulation subsidies
     if save_path is None:
@@ -379,6 +381,37 @@ def comparison_simulations(dict_output:dict, ref, health=False, save_path=None):
                     index_int=True, colors=resources_data["colors_eoles"], multiple_legend=True, save=save_path_plot)
 
     return annualized_system_costs_df, total_system_costs_df, consumption_savings_tot_df, complete_system_costs_2050_df
+
+
+def save_summary_pdf(path):
+    """Saves a summary of files as pdf"""
+    images_to_save = [os.path.join(path, "plots", "plots_resirf", "consumption_energy.png"),
+                      os.path.join(path, "plots", "plots_resirf", "consumption_heater.png"),
+                      os.path.join(path, "plots", "plots_resirf", "investment.png"),
+                      os.path.join(path, "plots", "plots_resirf", "renovation_decision_maker.png"),
+                      os.path.join(path, "plots", "plots_resirf", "replacement_insulation.png"),
+                      os.path.join(path, "plots", "plots_resirf", "retrofit_measures.png"),
+                      os.path.join(path, "plots", "plots_resirf", "stock_heater.png"),
+                      os.path.join(path, "plots", "plots_resirf", "stock_performance.png"),
+                      os.path.join(path, "plots", "plots_resirf", "switch_heater.png"),
+                      os.path.join(path, "plots", "emissions.png"),
+                      os.path.join(path, "plots", "prices.png"),
+                      os.path.join(path, "plots", "primary_generation.png"),
+                      os.path.join(path, "plots", "resirf_subsidies.png"),
+                      ]
+    images = [Image.open(img) for img in images_to_save]
+    new_images = []
+    for png in images:
+        png.load()
+        background = Image.new("RGB", png.size, (255, 255, 255))
+        background.paste(png, mask=png.split()[3])  # 3 is the alpha channel
+        new_images.append(background)
+
+    pdf_path = os.path.join(path, "summary_pdf.pdf")
+
+    new_images[0].save(
+        pdf_path, "PDF", resolution=100.0, save_all=True, append_images=new_images[1:]
+    )
 
 
 def save_subsidies_again(dict_output, save_path):
@@ -643,7 +676,7 @@ def plot_simulation(output, save_path):
 
     # Emissions
     make_line_plot(emissions, y_label="Emissions (MtCO2)", save=os.path.join(save_path, "emissions.png"),
-                   format_y=lambda y, _: '{:.0f}'.format(y))
+                   format_y=lambda y, _: '{:.0f}'.format(y), y_min=0)
 
 
 def plot_investment_trajectory(resirf_costs_df, save=None):
@@ -756,7 +789,7 @@ def format_legend_multiple(ax, d, n_style, n_color):
 
 
 def format_ax(ax: plt.Axes, title=None, y_label=None, x_label=None, x_ticks=None, format_y=lambda y, _: y,
-              rotation=None):
+              rotation=None, y_min=None):
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
     ax.spines['bottom'].set_visible(True)
@@ -771,6 +804,9 @@ def format_ax(ax: plt.Axes, title=None, y_label=None, x_label=None, x_ticks=None
 
     if x_label is not None:
         ax.set_xlabel(x_label)
+
+    if y_min is not None:
+        ax.set_ylim(ymin=ymin)
 
     if title is not None:
         ax.set_title(title)
@@ -906,7 +942,7 @@ def stacked_bars(dict_df,  y_label, format_y=lambda y, _: y, colors=None, x_tick
 
 
 def make_line_plot(df, subset=None, y_label=None, colors=None, format_y=lambda y, _: y, save=None, rotation=None,
-                   x_ticks=None, index_int=True, str=False, dict_legend=None):
+                   x_ticks=None, index_int=True, str=False, dict_legend=None, y_min=None):
     if save is None:
         fig, ax = plt.subplots(1, 1)
     else:  # we change figure size when saving figure
@@ -926,9 +962,9 @@ def make_line_plot(df, subset=None, y_label=None, colors=None, format_y=lambda y
 
     if not str:  # index is an int, not a string
         if x_ticks is None:
-            ax = format_ax(ax, title=y_label, x_ticks=df.index, format_y=format_y, rotation=rotation)
+            ax = format_ax(ax, title=y_label, x_ticks=df.index, format_y=format_y, rotation=rotation, y_min=y_min)
         else:
-            ax = format_ax(ax, title=y_label, x_ticks=x_ticks, format_y=format_y, rotation=rotation)
+            ax = format_ax(ax, title=y_label, x_ticks=x_ticks, format_y=format_y, rotation=rotation, y_min=y_min)
     else:
         ax = format_ax_string(ax, title=y_label, x_ticks_labels=df.index, format_y=format_y, rotation=rotation)
     format_legend(ax, dict_legend=dict_legend)
@@ -937,7 +973,7 @@ def make_line_plot(df, subset=None, y_label=None, colors=None, format_y=lambda y
 
 
 def make_line_plots(dict_df, y_label, format_y=lambda y, _: y, colors=None, x_ticks=None, index_int=True, save=None, rotation=None,
-                    multiple_legend=False):
+                    multiple_legend=False, y_min=None):
     """Make line plot by combining different scenarios."""
     if save is None:
         fig, ax = plt.subplots(1, 1)
@@ -954,9 +990,9 @@ def make_line_plots(dict_df, y_label, format_y=lambda y, _: y, colors=None, x_ti
             df.plot.line(ax=ax, color=colors, style=STYLES[i])
 
     if x_ticks is None:
-        ax = format_ax(ax, title=y_label, x_ticks=df.index, format_y=format_y, rotation=rotation)
+        ax = format_ax(ax, title=y_label, x_ticks=df.index, format_y=format_y, rotation=rotation, y_min=y_min)
     else:
-        ax = format_ax(ax, title=y_label, x_ticks=x_ticks, format_y=format_y, rotation=rotation)
+        ax = format_ax(ax, title=y_label, x_ticks=x_ticks, format_y=format_y, rotation=rotation, y_min=y_min)
 
     if not multiple_legend:
         format_legend(ax)
