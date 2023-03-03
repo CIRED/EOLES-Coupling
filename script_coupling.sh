@@ -17,6 +17,7 @@
 module purge
 module load anaconda3/2020.11 #cuda/10.2
 module load gurobi
+export GRB_LICENSE_FILE="/mnt/beegfs/softs/opt/core/gurobi/9.5.2/linux64/gurobi.12.lic"
 conda activate envEOLES
 
 python main_coupling_resirf.py --cpu 40
