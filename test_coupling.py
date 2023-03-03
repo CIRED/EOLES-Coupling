@@ -9,7 +9,7 @@ import datetime
 from pickle import dump, load
 
 from project.coupling import ini_res_irf, simu_res_irf
-from project.write_output import plot_scenario, grouped_output
+from project.write_output import plot_scenario, plot_compare_scenarios
 from project.building import AgentBuildings
 from project.model import get_inputs, social_planner
 
@@ -167,8 +167,8 @@ if __name__ == '__main__':
         "carbon_constraint": False,
         'one_shot_setting': False,
         'fix_sub_heater': False,
-        'list_year': [2025],
-        'list_trajectory_scc': [250],
+        'list_year': [2025, 2030, 2035, 2040, 2045],
+        'list_trajectory_scc': [250, 350, 500, 650, 775],
         'price_feedback': False,
         'scenario_cost_eoles': {}
     }
@@ -188,7 +188,7 @@ if __name__ == '__main__':
     import_calibration = os.path.join('eoles', 'outputs', 'calibration', '{}.pkl'.format(name_calibration))
 
     # initialization
-    buildings, energy_prices, taxes, cost_heater, cost_insulation, lifetime_heater, demolition_rate, flow_built, post_inputs, policies_heater, policies_insulation, technical_progress, financing_cost = ini_res_irf(
+    buildings, energy_prices, taxes, cost_heater, cost_insulation, lifetime_heater, demolition_rate, flow_built, post_inputs, policies_heater, policies_insulation, technical_progress, financing_cost, premature_replacement = ini_res_irf(
         path=os.path.join('eoles', 'outputs', 'ResIRF'),
         config=config_resirf_path)
 
@@ -211,7 +211,7 @@ if __name__ == '__main__':
     #                                            technical_progress=technical_progress)
     # buildings.path = os.path.join("eoles/outputs/test_plots/plots_resirf")
     # plot_scenario(output, stock, buildings)
-    # grouped_output(result={"Reference": output}, folder=os.path.join("eoles/outputs/test_plots"))
+    # plot_compare_scenarios(result={"Reference": output}, folder=os.path.join("eoles/outputs/test_plots"))
 
 
     list_year = config_coupling["list_year"]
@@ -246,11 +246,13 @@ if __name__ == '__main__':
                                                            config_eoles=config_eoles, config_coupling=config_coupling,
                                                            add_CH4_demand=False, one_shot_setting=one_shot_setting,
                                                            technical_progress=technical_progress, financing_cost=financing_cost,
-                                                           optimization=False, list_sub_heater=[0.5763],
-                                                           list_sub_insulation=[0.6502], price_feedback=price_feedback,
+                                                           premature_replacement=premature_replacement,
+                                                           optimization=False, list_sub_heater=[0.95, 0.04, 1.0, 1.0, 1.0],
+                                                           list_sub_insulation=[0.58, 0.57, 0.55, 0.56, 0.56], price_feedback=price_feedback,
                                                            energy_prices_ht=energy_prices_ht, energy_taxes=energy_taxes)
 
-    buildings.path = os.path.join("eoles/outputs/0301_065355_global_renovation_simple/plots/plots_resirf")
+    plot_simulation(output, save_path=os.path.join("eoles/outputs/test_plots", "plots"))
+    buildings.path = os.path.join("eoles/outputs/test_plots/")
     plot_scenario(output["Output global ResIRF ()"], output["Stock global ResIRF ()"], buildings)
 
     # output = resirf_eoles_coupling_dynamic_no_opti(list_sub_heater=[1.0, 0.68], list_sub_insulation=[0.23, 0.40],

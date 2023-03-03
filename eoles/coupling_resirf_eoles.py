@@ -86,7 +86,7 @@ def resirf_eoles_coupling_static(subvention, buildings, energy_prices, taxes, co
                                  scenario_cost, existing_annualized_costs_elec, existing_annualized_costs_CH4,
                                  existing_annualized_costs_H2, lifetime_renov=50, lifetime_heater=20,
                                  discount_rate=0.045, sub_design=None, health=True, carbon_constraint=False,
-                                 rebound=True, technical_progress=None, financing_cost=None):
+                                 rebound=True, technical_progress=None, financing_cost=None, premature_replacement=None):
     """
 
     :param subvention: 2 dimensional numpy array
@@ -103,19 +103,20 @@ def resirf_eoles_coupling_static(subvention, buildings, energy_prices, taxes, co
     buildings_copy = deepcopy(buildings)
     energy_prices_copy, taxes_copy, cost_heater_copy, cost_insulation_copy, demolition_rate_copy = deepcopy(energy_prices), deepcopy(taxes), deepcopy(cost_heater), deepcopy(cost_insulation), deepcopy(demolition_rate)
     flow_built_copy, post_inputs_copy, policies_heater_copy, policies_insulation_copy = deepcopy(flow_built), deepcopy(post_inputs), deepcopy(policies_heater), deepcopy(policies_insulation)
-    technical_progress_copy, financing_cost_copy = deepcopy(technical_progress), deepcopy(financing_cost)
+    technical_progress_copy, financing_cost_copy, premature_replacement_copy = deepcopy(technical_progress), deepcopy(financing_cost), deepcopy(premature_replacement)
 
     # simulation between start and end - flow output represents annual values for year "end"
 
     output, stock, heating_consumption = simu_res_irf(buildings=buildings_copy, sub_heater=sub_heater, sub_insulation=sub_insulation,
-                                                       start=start_year_resirf, end=endyear_resirf, energy_prices=energy_prices_copy,
-                                                       taxes=taxes_copy, cost_heater=cost_heater_copy, cost_insulation=cost_insulation_copy,
-                                                       lifetime_heater=lifetime_heater, demolition_rate=demolition_rate_copy, flow_built=flow_built_copy,
-                                                       post_inputs=post_inputs_copy, policies_heater=policies_heater_copy,
-                                                       policies_insulation=policies_insulation_copy,
-                                                       sub_design=sub_design, financing_cost=financing_cost_copy, climate=2006, smooth=False, efficiency_hour=True,
-                                                       output_consumption=True, full_output=False, rebound=rebound,
-                                                       technical_progress=technical_progress_copy)
+                                                      start=start_year_resirf, end=endyear_resirf, energy_prices=energy_prices_copy,
+                                                      taxes=taxes_copy, cost_heater=cost_heater_copy, cost_insulation=cost_insulation_copy,
+                                                      lifetime_heater=lifetime_heater, demolition_rate=demolition_rate_copy, flow_built=flow_built_copy,
+                                                      post_inputs=post_inputs_copy, policies_heater=policies_heater_copy,
+                                                      policies_insulation=policies_insulation_copy,
+                                                      sub_design=sub_design, financing_cost=financing_cost_copy, climate=2006, smooth=False, efficiency_hour=True,
+                                                      output_consumption=True, full_output=False, rebound=rebound,
+                                                      technical_progress=technical_progress_copy,
+                                                      premature_replacement=premature_replacement_copy)
 
     # heating_consumption = output[endyear_resirf - 1]['Consumption (kWh/h)']
     heating_consumption = heating_consumption.sort_index(ascending=True)
@@ -183,7 +184,8 @@ def optimize_blackbox_resirf_eoles_coupling(buildings, energy_prices, taxes, cos
                                             max_iter=20, initial_design_numdata=3, plot=False,
                                             fix_sub_heater=False,
                                             sub_design=None, health=True, carbon_constraint=False,
-                                            rebound=True, technical_progress=None, financing_cost=None):
+                                            rebound=True, technical_progress=None, financing_cost=None,
+                                            premature_replacement=None):
     if fix_sub_heater:
         bounds2d = [{'name': 'sub_heater', 'type': 'continuous', 'domain': (0, 0)},
                     {'name': 'sub_insulation', 'type': 'continuous', 'domain': (0, 1)}]
@@ -214,7 +216,7 @@ def optimize_blackbox_resirf_eoles_coupling(buildings, energy_prices, taxes, cos
                                                  discount_rate=discount_rate, sub_design=sub_design,
                                                  health=health, carbon_constraint=carbon_constraint,
                                                  rebound=rebound, technical_progress=technical_progress,
-                                                 financing_cost=financing_cost),
+                                                 financing_cost=financing_cost, premature_replacement=premature_replacement),
         domain=bounds2d,
         model_type='GP',  # gaussian process
         # kernel=kernel,
@@ -241,9 +243,9 @@ def resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, 
                                   list_year, list_trajectory_scc, scenario_cost, config_eoles, config_coupling,
                                   add_CH4_demand=False, one_shot_setting=False,
                                   lifetime_renov=50, lifetime_heater=20,
-                                  technical_progress=None, financing_cost=None, anticipated_scc=False,
-                                  anticipated_demand_t10=False, optimization=True, list_sub_heater=None,
-                                  list_sub_insulation=None, price_feedback=False, energy_prices_ht=None,
+                                  technical_progress=None, financing_cost=None, premature_replacement=None,
+                                  anticipated_scc=False, anticipated_demand_t10=False, optimization=True,
+                                  list_sub_heater=None, list_sub_insulation=None, price_feedback=False, energy_prices_ht=None,
                                   energy_taxes=None):
     """Performs multistep optimization of capacities and subsidies.
     :param config_coupling: dict
@@ -273,7 +275,7 @@ def resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, 
     # importing evolution of historical capacity and expected evolution of demand
     existing_capacity_historical, existing_charging_capacity_historical, existing_energy_capacity_historical, \
     maximum_capacity_evolution, heating_gas_demand_RTE_timesteps, ECS_gas_demand_RTE_timesteps, capex_annuity_fOM_historical, \
-    capex_annuity_historical, storage_annuity_historical = eoles.utils.load_evolution_data()
+    capex_annuity_historical, storage_annuity_historical = eoles.utils.load_evolution_data(config=config_eoles)
 
     existing_capacity_historical = existing_capacity_historical.drop(
         ["heat_pump", "resistive", "gas_boiler", "fuel_boiler", "wood_boiler"], axis=0)
@@ -347,7 +349,7 @@ def resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, 
                                                               sub_design=config_coupling["sub_design"],
                                                               rebound=config_coupling["rebound"],
                                                               technical_progress=technical_progress,
-                                                              financing_cost=financing_cost)
+                                                              financing_cost=financing_cost, premature_replacement=premature_replacement)
     # we add initial values to observe what happens
     output_global_ResIRF = pd.concat([output_global_ResIRF, output_opt], axis=1)
     stock_global_ResIRF = pd.concat([stock_global_ResIRF, stock_opt], axis=1)
@@ -463,7 +465,7 @@ def resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, 
                                                         fix_sub_heater=config_coupling["fix_sub_heater"], sub_design=config_coupling["sub_design"],
                                                         health=config_coupling["health"], carbon_constraint=config_coupling["carbon_constraint"],
                                                         rebound=config_coupling["rebound"], technical_progress=technical_progress,
-                                                        financing_cost=financing_cost)
+                                                        financing_cost=financing_cost, premature_replacement=premature_replacement)
             dict_optimizer.update({y: optimizer})
             opt_sub_heater, opt_sub_insulation = opt_sub[0], opt_sub[1]
             list_sub_heater.append(opt_sub_heater)
@@ -485,7 +487,7 @@ def resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, 
                                                        output_consumption=True,
                                                        full_output=True, sub_design=config_coupling["sub_design"],
                                                        rebound=config_coupling["rebound"], technical_progress=technical_progress,
-                                                       financing_cost=financing_cost)
+                                                       financing_cost=financing_cost, premature_replacement=premature_replacement)
         # output_opt['Total'] = output_opt.sum(axis=1)
         output_global_ResIRF = pd.concat([output_global_ResIRF, output_opt], axis=1)
         stock_global_ResIRF = pd.concat([stock_global_ResIRF, stock_opt], axis=1)
@@ -907,7 +909,7 @@ def calibration_price(config_eoles, scc=100):
     """Returns calibration factor based on the SNBC LCOE."""
     # Initialization needed for calibration
     existing_capacity_historical, existing_charging_capacity_historical, existing_energy_capacity_historical, \
-    maximum_capacity_evolution, heating_gas_demand_RTE_timesteps, ECS_gas_demand_RTE_timesteps, capex_annuity_fOM_historical, capex_annuity_historical, storage_annuity_historical = eoles.utils.load_evolution_data()
+    maximum_capacity_evolution, heating_gas_demand_RTE_timesteps, ECS_gas_demand_RTE_timesteps, capex_annuity_fOM_historical, capex_annuity_historical, storage_annuity_historical = eoles.utils.load_evolution_data(config=config_eoles)
 
     existing_capacity_historical = existing_capacity_historical.drop(
         ["heat_pump", "resistive", "gas_boiler", "fuel_boiler", "wood_boiler"], axis=0)

@@ -1,8 +1,8 @@
 {
   "input_years": 2006,
-  "biomass_potential": "eoles/inputs/technology_potential/biomass_evolution_S3.csv",
+  "biomass_potential": "eoles/inputs/technology_potential/biomass_evolution_S1.csv",
   "construction_time": "eoles/inputs/technology_characteristics/construction_time.csv",
-  "capacity_factor_nuclear": 0.8,
+  "capacity_factor_nuclear": 0.7,
   "capex": "eoles/inputs/technology_characteristics/overnight_capex_evolution_high.csv",
   "carbon_budget": "eoles/inputs/carbon_budget.csv",
   "conversion_efficiency": "eoles/inputs/technology_characteristics/conversion_efficiency.csv",
@@ -22,6 +22,7 @@
   "lake_inflows": "eoles/inputs/hourly_profiles/lake_2006.csv",
   "load_factors": "eoles/inputs/hourly_profiles/vre_profiles_2006.csv",
   "maximum_capacity": "eoles/inputs/technology_potential/maximum_capacity.csv",
+  "maximum_capacity_evolution": "eoles/inputs/technology_potential/maximum_capacity_evolution_low.csv",
   "maximum_charging_capacity": "eoles/inputs/technology_potential/maximum_charging_capacity.csv",
   "maximum_energy_capacity": "eoles/inputs/technology_potential/maximum_energy_capacity.csv",
   "miscellaneous": "eoles/inputs/miscellaneous.csv",

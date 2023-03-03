@@ -43,6 +43,7 @@ DICT_CONFIG_RESIRF = {
     "classic_simple_premature3": "eoles/inputs/config/config_resirf_simple_premature3.json",
     "classic_simple_premature10": "eoles/inputs/config/config_resirf_simple_premature10.json",
     "threshold_simple_premature3": "eoles/inputs/config/config_resirf_threshold_simple_premature3.json",
+    "threshold_simple_premature10": "eoles/inputs/config/config_resirf_threshold_simple_premature3.json",
     "nolandlord": "eoles/inputs/config/config_resirf_nolandlord.json",
     "nomultifamily": "eoles/inputs/config/config_resirf_nomultifamily.json",
     "nolandlord_nomultifamily": "eoles/inputs/config/config_resirf_nolandlord_nomultifamily.json",
@@ -83,7 +84,7 @@ def run_optimization_scenario(config_coupling, name_config_coupling="default"):
     import_calibration = os.path.join('eoles', 'outputs', 'calibration', '{}.pkl'.format(name_calibration))
 
     # initialization
-    buildings, energy_prices, taxes, cost_heater, cost_insulation, lifetime_heater, demolition_rate, flow_built, post_inputs, policies_heater, policies_insulation, technical_progress, financing_cost = ini_res_irf(
+    buildings, energy_prices, taxes, cost_heater, cost_insulation, lifetime_heater, demolition_rate, flow_built, post_inputs, policies_heater, policies_insulation, technical_progress, financing_cost, premature_replacement = ini_res_irf(
         path=os.path.join('eoles', 'outputs', 'ResIRF'),
         config=config_resirf_path)
 
@@ -148,8 +149,8 @@ def run_optimization_scenario(config_coupling, name_config_coupling="default"):
     if not os.path.isdir(os.path.join(export_results, "plots")):
         os.mkdir(os.path.join(export_results, "plots"))
 
-    if not os.path.isdir(os.path.join(export_results, "plots", "plots_resirf")):
-        os.mkdir(os.path.join(export_results, "plots", "plots_resirf"))
+    # if not os.path.isdir(os.path.join(export_results, "plots", "plots_resirf")):
+    #     os.mkdir(os.path.join(export_results, "plots", "plots_resirf"))
 
     with open(os.path.join(export_results, "config", 'config_eoles.json'), "w") as outfile:
         outfile.write(json.dumps(config_eoles, indent=4))
@@ -175,7 +176,7 @@ def run_optimization_scenario(config_coupling, name_config_coupling="default"):
 
         plot_blackbox_optimization(dict_optimizer, save_path=os.path.join(export_results))
         plot_simulation(output, save_path=os.path.join(export_results, "plots"))
-        buildings.path = os.path.join(export_results, "plots", "plots_resirf")
+        buildings.path = os.path.join(export_results, "plots")
         plot_scenario(output["Output global ResIRF ()"], output["Stock global ResIRF ()"], buildings)  # make ResIRF plots
         save_summary_pdf(path=export_results)  # saving summary as pdf
 
@@ -787,6 +788,23 @@ if __name__ == '__main__':
             'list_trajectory_scc': [250, 350, 500, 650, 775],
             'scenario_cost_eoles': {}
         },
+        "global_renovation_simple_elecworst": {
+            'config_resirf': "classic_simple",
+            "config_eoles": "eoles_worst_case",  # includes costs assumptions
+            'calibration_threshold': False,
+            'h2ccgt': True,
+            'max_iter': 22,
+            'sub_design': "global_renovation",
+            "health": True,  # on inclut les coûts de santé
+            "discount_rate": 0.032,
+            "rebound": True,
+            "carbon_constraint": False,
+            'one_shot_setting': False,
+            'fix_sub_heater': False,
+            'list_year': [2025, 2030, 2035, 2040, 2045],
+            'list_trajectory_scc': [250, 350, 500, 650, 775],
+            'scenario_cost_eoles': {}
+        }
     }
 
     DIC_CONFIGS_BATCH3 = {

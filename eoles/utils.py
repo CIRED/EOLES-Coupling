@@ -103,7 +103,7 @@ def heating_hourly_profile(method, percentage=None):
     return hourly_profile_test
 
 
-def load_evolution_data():
+def load_evolution_data(config):
     """Load necessary data for the social planner trajectory"""
     # Load historical data
     existing_capacity_historical = get_pandas("eoles/inputs/historical_data/existing_capacity_historical.csv",
@@ -112,7 +112,9 @@ def load_evolution_data():
                                                        lambda x: pd.read_csv(x, index_col=0))  # GW
     existing_energy_capacity_historical = get_pandas("eoles/inputs/historical_data/existing_energy_capacity_historical.csv",
                                                      lambda x: pd.read_csv(x, index_col=0))  # GW
-    maximum_capacity_evolution = get_pandas("eoles/inputs/technology_potential/maximum_capacity_evolution.csv",
+    # maximum_capacity_evolution = get_pandas("eoles/inputs/technology_potential/maximum_capacity_evolution.csv",
+    #                                         lambda x: pd.read_csv(x, index_col=0))  # GW
+    maximum_capacity_evolution = get_pandas(config["maximum_capacity_evolution"],
                                             lambda x: pd.read_csv(x, index_col=0))  # GW
 
     capex_annuity_fOM_historical = get_pandas("eoles/inputs/historical_data/capex_annuity_fOM_historical.csv",
