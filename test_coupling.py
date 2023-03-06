@@ -173,6 +173,24 @@ if __name__ == '__main__':
         'scenario_cost_eoles': {}
     }
 
+    config_coupling = {
+            'config_resirf': "classic_simple",
+            "config_eoles": "eoles_worst_case",  # includes costs assumptions
+            'calibration_threshold': False,
+            'h2ccgt': True,
+            'max_iter': 22,
+            'sub_design': "global_renovation",
+            "health": True,  # on inclut les coûts de santé
+            "discount_rate": 0.032,
+            "rebound": True,
+            "carbon_constraint": False,
+            'one_shot_setting': False,
+            'fix_sub_heater': False,
+            'list_year': [2025, 2030, 2035, 2040, 2045],
+            'list_trajectory_scc': [250, 350, 500, 650, 775],
+            'scenario_cost_eoles': {}
+        }
+
     config_resirf, config_eoles_spec = config_coupling["config_resirf"], DICT_CONFIG_EOLES[config_coupling["config_eoles"]]
     config_resirf_path = DICT_CONFIG_RESIRF[config_resirf]
 
