@@ -727,8 +727,9 @@ def plot_typical_week(hourly_generation, date_start, date_end, climate=2006, sav
     hourly_generation_subset["battery_discharge"] = hourly_generation_subset["battery1"] + hourly_generation_subset["battery4"]
     hourly_generation_subset["phs_in"] = - hourly_generation_subset["phs_in"]
     hourly_generation_subset["electrolysis"] = - hourly_generation_subset["electrolysis"]
+    hourly_generation_subset["methanation"] = - hourly_generation_subset["methanation"]
     hourly_generation_subset["peaking_plants"] = hourly_generation_subset["ocgt"] + hourly_generation_subset["ccgt"] + hourly_generation_subset["h2_ccgt"]
-    prod = hourly_generation_subset[["nuclear", "wind", "pv", "hydro", "battery_in", "battery_discharge", "phs", "phs_in", "peaking_plants", "electrolysis"]]
+    prod = hourly_generation_subset[["nuclear", "wind", "pv", "hydro", "battery_in", "battery_discharge", "phs", "phs_in", "peaking_plants", "electrolysis", "methanation"]]
     elec_demand = hourly_generation_subset[["elec_demand"]].squeeze()
 
     if save is None:
