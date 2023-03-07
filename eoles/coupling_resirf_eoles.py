@@ -380,7 +380,7 @@ def resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, 
             else:  # 2045
                 actual_scc = scc
         elif anticipated_scc == "average":  # we modify the scc to consider the average scc over time period of new system
-            scc = average_scc(list_scc_year, lifetime=25, initial_time=t)
+            scc = average_scc_discounted(list_scc_year, lifetime=25, initial_time=t, discount_rate=0.032)
             actual_scc = list_trajectory_scc[t]
         else:
             actual_scc = scc  # no difference between anticipated and actual scc
@@ -821,7 +821,7 @@ def average_scc_discounted(list_scc, lifetime, initial_time, discount_rate):  # 
     """Calculates average scc during the global lifetime of the system, with a discount factor."""
     initial_time_yearly = initial_time * 5
     final_time_yearly = initial_time_yearly + lifetime
-    discount_rate_list = [1/(1+discount_rate)**(i+1) for i in range(lifetime)]
+    discount_rate_list = [1/(1+discount_rate)**(i) for i in range(lifetime)]
     discounted_scc = [scc*discount_factor for (scc, discount_factor) in zip(list_scc[initial_time_yearly:final_time_yearly], discount_rate_list)]
     return np.array(discounted_scc).mean()
 

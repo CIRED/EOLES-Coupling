@@ -172,12 +172,12 @@ def comparison_simulations(dict_output:dict, ref, health=False, save_path=None):
             subsidies_heater_dict[name_config] = dataframe_subsidy[["Heater"]].squeeze()
 
             capacities_df = output["Capacities (GW)"].T
-            selected_capacities = ["offshore_f", "offshore_g", "pv_g", "pv_c", "battery1", "battery4"]
+            selected_capacities = ["offshore_f", "offshore_g", "onshore", "pv_g", "pv_c", "battery1", "battery4"]
             capacities_df = capacities_df[selected_capacities]
             capacities_df["offshore"] = capacities_df["offshore_f"] + capacities_df["offshore_g"]
             capacities_df["pv"] = capacities_df["pv_g"] + capacities_df["pv_c"]
             capacities_df["battery"] = capacities_df["battery1"] + capacities_df["battery4"]
-            capacities_dict[name_config] = capacities_df[["offshore", "pv", "battery"]]
+            capacities_dict[name_config] = capacities_df[["offshore", "onshore", "pv", "battery"]]
 
     # # Total annualized system costs
     # subset_annualized_costs = ["Annualized electricity system costs", "Annualized investment heater costs",
@@ -352,7 +352,7 @@ def comparison_simulations(dict_output:dict, ref, health=False, save_path=None):
     else:
         save_path_plot = os.path.join(save_path, "subsidies_insulation.png")
     make_line_plots(subsidies_insulation_dict, y_label="Subsidies insulation (%)", format_y=lambda y, _: '{:.0f}'.format(y),
-                    index_int=True, save=save_path_plot, rotation=45, x_ticks=dataframe_subsidy.index[::2])
+                    index_int=True, save=save_path_plot, rotation=45, x_ticks=dataframe_subsidy.index[::2], y_min=0, y_max=100)
 
     # Evolution of heater subsidies
     if save_path is None:
@@ -360,7 +360,7 @@ def comparison_simulations(dict_output:dict, ref, health=False, save_path=None):
     else:
         save_path_plot = os.path.join(save_path, "subsidies_heater.png")
     make_line_plots(subsidies_heater_dict, y_label="Subsidies heater (%)", format_y=lambda y, _: '{:.2f}'.format(y),
-                    index_int=True, save=save_path_plot, rotation=45, x_ticks=dataframe_subsidy.index[::2])
+                    index_int=True, save=save_path_plot, rotation=45, x_ticks=dataframe_subsidy.index[::2], y_min=0, y_max=100)
 
     if len(dict_output.keys()) <= 3:
         # Evolution of consumption savings
@@ -791,7 +791,7 @@ def format_legend_multiple(ax, d, n_style, n_color):
 
 
 def format_ax(ax: plt.Axes, title=None, y_label=None, x_label=None, x_ticks=None, format_y=lambda y, _: y,
-              rotation=None, y_min=None):
+              rotation=None, y_min=None, y_max=None):
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
     ax.spines['bottom'].set_visible(True)
@@ -809,6 +809,8 @@ def format_ax(ax: plt.Axes, title=None, y_label=None, x_label=None, x_ticks=None
 
     if y_min is not None:
         ax.set_ylim(ymin=y_min)
+    if y_max is not None:
+        ax.set_ylim(ymax=y_max)
 
     if title is not None:
         ax.set_title(title)
@@ -910,12 +912,14 @@ def stacked_bars(dict_df,  y_label, format_y=lambda y, _: y, colors=None, x_tick
                  dict_legend=None, n=2):
     """Plots stacked bars for different simulations. Allowed number of simulations to be compared: 2 or 3"""
     if n == 2:
-        list_position = [1.1, 0]
+        # list_position = [1.1, 0]
+        list_position = [0, 1]
         list_width = [0.3, 0.3]
         list_hatch = [None, ".."]
     else:  # n=3
-        list_position = [1.6, 0.5, -0.6]
-        list_width = [0.2, 0.2, 0.2]
+        # list_position = [1.6, 0.5, -0.6]
+        list_position = [0, 0.5, 1]
+        list_width = [0.1, 0.1, 0.1]
         list_hatch = [None, "//", ".."]
 
     if save is None:
@@ -928,12 +932,12 @@ def stacked_bars(dict_df,  y_label, format_y=lambda y, _: y, colors=None, x_tick
             df.index = df.index.astype(int)
         if colors is None:
             if i == 0:
-                df.plot(kind='bar', stacked=True, ax=ax, position=list_position[i], width=list_width[i], hatch=list_hatch[i])
+                df.plot(kind='bar', stacked=True, ax=ax, position=list_position[i], width=list_width[i], hatch=list_hatch[i], align="center")
             else:
                 df.plot(kind='bar', stacked=True, ax=ax, position=list_position[i], width=list_width[i],
-                        hatch=list_hatch[i], legend=False)
+                        hatch=list_hatch[i], legend=False, align="center")
         else:
-            df.plot(kind='bar', stacked=True, ax=ax, color=colors, position=list_position[i], width=list_width[i], hatch=list_hatch[i])
+            df.plot(kind='bar', stacked=True, ax=ax, color=colors, position=list_position[i], width=list_width[i], hatch=list_hatch[i], align="center")
 
         # if i == 0:
     ax = format_ax(ax, title=y_label, format_y=format_y)
@@ -975,7 +979,7 @@ def make_line_plot(df, subset=None, y_label=None, colors=None, format_y=lambda y
 
 
 def make_line_plots(dict_df, y_label, format_y=lambda y, _: y, colors=None, x_ticks=None, index_int=True, save=None, rotation=None,
-                    multiple_legend=False, y_min=None):
+                    multiple_legend=False, y_min=None, y_max=None):
     """Make line plot by combining different scenarios."""
     if save is None:
         fig, ax = plt.subplots(1, 1)
@@ -992,9 +996,9 @@ def make_line_plots(dict_df, y_label, format_y=lambda y, _: y, colors=None, x_ti
             df.plot.line(ax=ax, color=colors, style=STYLES[i])
 
     if x_ticks is None:
-        ax = format_ax(ax, title=y_label, x_ticks=df.index, format_y=format_y, rotation=rotation, y_min=y_min)
+        ax = format_ax(ax, title=y_label, x_ticks=df.index, format_y=format_y, rotation=rotation, y_min=y_min, y_max=y_max)
     else:
-        ax = format_ax(ax, title=y_label, x_ticks=x_ticks, format_y=format_y, rotation=rotation, y_min=y_min)
+        ax = format_ax(ax, title=y_label, x_ticks=x_ticks, format_y=format_y, rotation=rotation, y_min=y_min, y_max=y_max)
 
     if not multiple_legend:
         format_legend(ax)
