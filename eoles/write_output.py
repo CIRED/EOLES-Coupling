@@ -1031,11 +1031,12 @@ def make_area_plot_multiple(df1, df2, y_label=None, colors=None, format_y=lambda
 def plot_blackbox_optimization(dict_optimizer, save_path):
     for key in dict_optimizer.keys():
         optimizer = dict_optimizer[key]
+        optimizer.save_evaluations(os.path.join(save_path, f'evaluations_optimizer_{key}.csv'))
+        optimizer.save_report(os.path.join(save_path, f'report_optimizer_{key}.txt'))
         optimizer.plot_convergence(filename=os.path.join(save_path, "plots", f"optimizer_{key}_convergence.png"))
         optimizer.plot_acquisition(filename=os.path.join(save_path, "plots", f"optimizer_{key}_acquisition.png"))
 
-        optimizer.save_evaluations(os.path.join(save_path, f'evaluations_optimizer_{key}.csv'))
-        optimizer.save_report(os.path.join(save_path, f'report_optimizer_{key}.txt'))
+
 
 
 

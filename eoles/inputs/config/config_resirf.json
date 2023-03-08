@@ -97,6 +97,7 @@
       "taxes_constant": false,
       "heating_system": false,
       "insulation": true
-    }
+    },
+    "calibration": "eoles/inputs/calibration_20230308.pkl"
   }
 }

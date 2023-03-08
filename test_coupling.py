@@ -156,9 +156,9 @@ def test_convergence(max_iter, initial_design_numdata, buildings, energy_prices,
 if __name__ == '__main__':
 
     config_coupling = {
-        'config_resirf': "classic_simple_premature5",
+        'config_resirf': "threshold_simple_premature3",
         "config_eoles": "eoles_classic",  # includes costs assumptions
-        'calibration_threshold': False,
+        'calibration_threshold': True,
         'h2ccgt': False,
         'max_iter': 14,
         'sub_design': "global_renovation",
@@ -244,16 +244,16 @@ if __name__ == '__main__':
     config_coupling["calibration_elec_transport_distrib"] = calibration_elec_transport_distrib
     config_coupling["calibration_gas_lcoe"] = calibration_gas
 
-    output, buildings, dict_optimizer = resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, cost_insulation,
-                                                           demolition_rate, flow_built, post_inputs, policies_heater, policies_insulation,
-                                                           list_year, list_trajectory_scc, scenario_cost,
-                                                           config_eoles=config_eoles, config_coupling=config_coupling,
-                                                           add_CH4_demand=False, one_shot_setting=one_shot_setting,
-                                                           technical_progress=technical_progress, financing_cost=financing_cost,
-                                                           premature_replacement=premature_replacement,
-                                                           optimization=False, list_sub_heater=[0.95, 0.04, 1.0, 1.0, 1.0],
-                                                           list_sub_insulation=[0.58, 0.57, 0.55, 0.56, 0.56], price_feedback=price_feedback,
-                                                           energy_prices_ht=energy_prices_ht, energy_taxes=energy_taxes)
+    # output, buildings, dict_optimizer = resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, cost_insulation,
+    #                                                        demolition_rate, flow_built, post_inputs, policies_heater, policies_insulation,
+    #                                                        list_year, list_trajectory_scc, scenario_cost,
+    #                                                        config_eoles=config_eoles, config_coupling=config_coupling,
+    #                                                        add_CH4_demand=False, one_shot_setting=one_shot_setting,
+    #                                                        technical_progress=technical_progress, financing_cost=financing_cost,
+    #                                                        premature_replacement=premature_replacement,
+    #                                                        optimization=False, list_sub_heater=[0.95, 0.04, 1.0, 1.0, 1.0],
+    #                                                        list_sub_insulation=[0.58, 0.57, 0.55, 0.56, 0.56], price_feedback=price_feedback,
+    #                                                        energy_prices_ht=energy_prices_ht, energy_taxes=energy_taxes)
     #
     # plot_simulation(output, save_path=os.path.join("eoles/outputs/test_plots", "plots"))
     # buildings.path = os.path.join("eoles/outputs/test_plots/")

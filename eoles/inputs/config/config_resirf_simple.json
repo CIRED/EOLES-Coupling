@@ -105,6 +105,7 @@
         "Oil fuel-Collective boiler": "Oil fuel-Performance boiler"
       },
       "insulation": true
-    }
+    },
+    "calibration": "eoles/inputs/calibration_20230308.pkl"
   }
 }
