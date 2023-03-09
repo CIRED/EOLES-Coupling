@@ -199,10 +199,10 @@ def run_optimization_scenario(config_coupling, name_config_coupling="default"):
                 key_save = '_'.join(key.split('(')[0].lower().split(' ')[:-1])
                 output[key].to_csv(os.path.join(export_results, 'dataframes', f'{key_save}.csv'))
 
-        plot_blackbox_optimization(dict_optimizer, save_path=os.path.join(export_results))
-        plot_simulation(output, save_path=os.path.join(export_results, "plots"))
         buildings.path = os.path.join(export_results, "plots")
         plot_scenario(output["Output global ResIRF ()"], output["Stock global ResIRF ()"], buildings)  # make ResIRF plots
+        plot_blackbox_optimization(dict_optimizer, save_path=os.path.join(export_results))
+        plot_simulation(output, save_path=os.path.join(export_results, "plots"))
         save_summary_pdf(path=export_results)  # saving summary as pdf
 
     return name_config_coupling
