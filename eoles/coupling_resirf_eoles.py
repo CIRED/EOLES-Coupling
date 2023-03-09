@@ -182,13 +182,17 @@ def optimize_blackbox_resirf_eoles_coupling(buildings, energy_prices, taxes, cos
                                             existing_annualized_costs_H2, lifetime_renov=50, lifetime_heater=20,
                                             discount_rate=0.045,
                                             max_iter=20, initial_design_numdata=3, plot=False,
-                                            fix_sub_heater=False,
+                                            fix_sub_heater=False, fix_sub_insulation=False,
                                             sub_design=None, health=True, carbon_constraint=False,
                                             rebound=True, technical_progress=None, financing_cost=None,
                                             premature_replacement=None):
+    assert (not fix_sub_insulation) or (not fix_sub_heater), "It is not possible to fix both sub heater and sub insulation."
     if fix_sub_heater:
         bounds2d = [{'name': 'sub_heater', 'type': 'continuous', 'domain': (0, 0)},
                     {'name': 'sub_insulation', 'type': 'continuous', 'domain': (0, 1)}]
+    if fix_sub_insulation:
+        bounds2d = [{'name': 'sub_heater', 'type': 'continuous', 'domain': (0, 1)},
+                    {'name': 'sub_insulation', 'type': 'continuous', 'domain': (0, 0)}]
     else:
         bounds2d = [{'name': 'sub_heater', 'type': 'continuous', 'domain': (0, 1)},
                     {'name': 'sub_insulation', 'type': 'continuous', 'domain': (0, 1)}]
@@ -241,7 +245,7 @@ def optimize_blackbox_resirf_eoles_coupling(buildings, energy_prices, taxes, cos
 def resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, cost_insulation, demolition_rate, flow_built,
                                   post_inputs, policies_heater, policies_insulation,
                                   list_year, list_trajectory_scc, scenario_cost, config_eoles, config_coupling,
-                                  add_CH4_demand=False, one_shot_setting=False,
+                                  add_CH4_demand=False, one_shot_setting=False, fix_sub_insulation=False,
                                   lifetime_renov=50, lifetime_heater=20,
                                   technical_progress=None, financing_cost=None, premature_replacement=None,
                                   anticipated_scc=False, anticipated_demand_t10=False, optimization=True,
@@ -462,7 +466,8 @@ def resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, 
                                                         lifetime_renov=lifetime_renov, lifetime_heater=lifetime_heater,
                                                         discount_rate=config_coupling["discount_rate"], plot=False,
                                                         max_iter=config_coupling["max_iter"], initial_design_numdata=3,
-                                                        fix_sub_heater=config_coupling["fix_sub_heater"], sub_design=config_coupling["sub_design"],
+                                                        fix_sub_heater=config_coupling["fix_sub_heater"], fix_sub_insulation=fix_sub_insulation,
+                                                        sub_design=config_coupling["sub_design"],
                                                         health=config_coupling["health"], carbon_constraint=config_coupling["carbon_constraint"],
                                                         rebound=config_coupling["rebound"], technical_progress=technical_progress,
                                                         financing_cost=financing_cost, premature_replacement=premature_replacement)

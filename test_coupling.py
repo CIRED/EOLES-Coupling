@@ -193,23 +193,23 @@ if __name__ == '__main__':
         path=os.path.join('eoles', 'outputs', 'ResIRF'),
         config=config_resirf_path)
 
-    # # TEST for a given time step
-    # timestep = 5
-    # year = 2020
-    # start = year
-    # end = year + timestep
-    #
-    # sub_heater = 0.5763
-    # sub_insulation = 0.6502
-    #
-    # output, stock, heating_consumption = simu_res_irf(buildings=buildings, sub_heater=None, sub_insulation=None,
-    #                                            start=start, end=end, energy_prices=energy_prices,
-    #                                            taxes=taxes, cost_heater=cost_heater, cost_insulation=cost_insulation,
-    #                                            lifetime_heater=lifetime_heater, flow_built=flow_built, post_inputs=post_inputs,
-    #                                            policies_heater=policies_heater, policies_insulation=policies_insulation,
-    #                                            sub_design=config_coupling["sub_design"], climate=2006, smooth=False, efficiency_hour=False,
-    #                                            demolition_rate=demolition_rate, output_consumption=True, full_output=True, rebound=True,
-    #                                            technical_progress=technical_progress, financing_cost=financing_cost,  premature_replacement=premature_replacement)
+    # TEST for a given time step
+    timestep = 5
+    year = 2020
+    start = year
+    end = year + timestep
+
+    sub_heater = 0.5763
+    sub_insulation = 0.6502
+
+    output, stock, heating_consumption = simu_res_irf(buildings=buildings, sub_heater=None, sub_insulation=None,
+                                               start=start, end=end, energy_prices=energy_prices,
+                                               taxes=taxes, cost_heater=cost_heater, cost_insulation=cost_insulation,
+                                               lifetime_heater=lifetime_heater, flow_built=flow_built, post_inputs=post_inputs,
+                                               policies_heater=policies_heater, policies_insulation=policies_insulation,
+                                               sub_design=config_coupling["sub_design"], climate=2006, smooth=False, efficiency_hour=False,
+                                               demolition_rate=demolition_rate, output_consumption=True, full_output=True, rebound=True,
+                                               technical_progress=technical_progress, financing_cost=financing_cost,  premature_replacement=premature_replacement)
     #
     # elec_consumption = heating_consumption.T["Electricity"]
 
@@ -244,16 +244,16 @@ if __name__ == '__main__':
     config_coupling["calibration_elec_transport_distrib"] = calibration_elec_transport_distrib
     config_coupling["calibration_gas_lcoe"] = calibration_gas
 
-    # output, buildings, dict_optimizer = resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, cost_insulation,
-    #                                                        demolition_rate, flow_built, post_inputs, policies_heater, policies_insulation,
-    #                                                        list_year, list_trajectory_scc, scenario_cost,
-    #                                                        config_eoles=config_eoles, config_coupling=config_coupling,
-    #                                                        add_CH4_demand=False, one_shot_setting=one_shot_setting,
-    #                                                        technical_progress=technical_progress, financing_cost=financing_cost,
-    #                                                        premature_replacement=premature_replacement,
-    #                                                        optimization=False, list_sub_heater=[0.95, 0.04, 1.0, 1.0, 1.0],
-    #                                                        list_sub_insulation=[0.58, 0.57, 0.55, 0.56, 0.56], price_feedback=price_feedback,
-    #                                                        energy_prices_ht=energy_prices_ht, energy_taxes=energy_taxes)
+    output, buildings, dict_optimizer = resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, cost_insulation,
+                                                           demolition_rate, flow_built, post_inputs, policies_heater, policies_insulation,
+                                                           list_year, list_trajectory_scc, scenario_cost,
+                                                           config_eoles=config_eoles, config_coupling=config_coupling,
+                                                           add_CH4_demand=False, one_shot_setting=one_shot_setting,
+                                                           technical_progress=technical_progress, financing_cost=financing_cost,
+                                                           premature_replacement=premature_replacement,
+                                                           optimization=False, list_sub_heater=[0.95, 0.04, 1.0, 1.0, 1.0],
+                                                           list_sub_insulation=[0.58, 0.57, 0.55, 0.56, 0.56], price_feedback=price_feedback,
+                                                           energy_prices_ht=energy_prices_ht, energy_taxes=energy_taxes)
     #
     # plot_simulation(output, save_path=os.path.join("eoles/outputs/test_plots", "plots"))
     # buildings.path = os.path.join("eoles/outputs/test_plots/")
