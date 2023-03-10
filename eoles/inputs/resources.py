@@ -115,6 +115,7 @@ colors_eoles = {
     "battery_discharge": "#ECE133",
     "ocgt": "#D55E00",
     "ccgt": "#ECE133",
+    "methane": "black",
     "peaking_plants": "brown",
     "h2_ccgt": "sienna",
     "natural_gas": "#949494",

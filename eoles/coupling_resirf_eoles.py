@@ -181,11 +181,34 @@ def optimize_blackbox_resirf_eoles_coupling(buildings, energy_prices, taxes, cos
                                             existing_annualized_costs_CH4,
                                             existing_annualized_costs_H2, lifetime_renov=50, lifetime_heater=20,
                                             discount_rate=0.045,
-                                            max_iter=20, initial_design_numdata=3, plot=False,
+                                            max_iter=20, initial_design_numdata=3, grid_initialize=False, acquisition_jitter=0.01,
+                                            normalize_Y=True, plot=False,
                                             fix_sub_heater=False, fix_sub_insulation=False,
                                             sub_design=None, health=True, carbon_constraint=False,
                                             rebound=True, technical_progress=None, financing_cost=None,
                                             premature_replacement=None):
+    """
+    Finds optimal subsidies by a blackbox optimization process, relying on bayesian optimization and gaussian processes.
+    :param lifetime_renov: int
+        Lifetime to obtain annuities
+    :param lifetime_heater: int
+        Lifetime to obtain annuities
+    :param max_iter: int
+        Number of iterations of the blackbox optimiztaion
+    :param initial_design_numdata: int
+        Number of initial points to estimate before starting the blackbox optimization process
+    :param grid_initialize: bool
+        Whether to specify manually the points to calculate the function before starting the blackbox optimization process
+    :param acquisition_jitter: float
+        This param controls how much exploitation versus exploration the blackbox algorithm will do
+    :param plot: bool
+        Whether to plot the result
+    :param fix_sub_heater: bool
+        Whether we want to fix heater subsidy to 0
+    :param fix_sub_insulation: bool
+        Whether we want to fix insulation subsidy to 0
+    :return:
+    """
     assert (not fix_sub_insulation) or (not fix_sub_heater), "It is not possible to fix both sub heater and sub insulation."
     if fix_sub_heater:
         bounds2d = [{'name': 'sub_heater', 'type': 'continuous', 'domain': (0, 0)},
@@ -197,6 +220,28 @@ def optimize_blackbox_resirf_eoles_coupling(buildings, energy_prices, taxes, cos
         bounds2d = [{'name': 'sub_heater', 'type': 'continuous', 'domain': (0, 1)},
                     {'name': 'sub_insulation', 'type': 'continuous', 'domain': (0, 1)}]
 
+    if grid_initialize:
+        if not fix_sub_heater and not fix_sub_heater:
+            X_init = np.array([[0.0, 0.0],
+                               [0.2, 0.0],
+                               [0.5, 0.0],
+                               [0.8, 0.0],
+                               [1.0, 0.0],
+                               [0.0, 0.5],
+                               [0.2, 0.5],
+                               [0.5, 0.5],
+                               [0.8, 0.5],
+                               [1.0, 0.5],
+                               [0.0, 0.9],
+                               [0.2, 0.9],
+                               [0.5, 0.9],
+                               [0.8, 0.9],
+                               [1.0, 0.9]
+                               ])
+        else:
+            X_init = None
+    else:
+        X_init = None
     optimizer = BayesianOptimization(
         f=lambda x: resirf_eoles_coupling_static(x, buildings=buildings, energy_prices=energy_prices,
                                                  taxes=taxes, cost_heater=cost_heater,
@@ -225,16 +270,17 @@ def optimize_blackbox_resirf_eoles_coupling(buildings, energy_prices, taxes, cos
         model_type='GP',  # gaussian process
         # kernel=kernel,
         acquisition_type='EI',  # expected improvement algorithm
-        acquisition_jitter=0.01,
+        acquisition_jitter=acquisition_jitter,
         noise_var=0,  # no noise in surrogate function evaluation
         exact_feval=True,  # no noise in evaluations
-        normalize_Y=False,
+        normalize_Y=normalize_Y,  # not sure what is the best option to use here
         maximize=False,
         verbosity=True,
         # evaluator_type='local_penalization',
         # num_cores=2,
-        initial_design_numdata=initial_design_numdata,
-        initial_design_type="latin")  # number of initial points before starting optimization
+        initial_design_numdata=initial_design_numdata,  # number of initial points before starting optimization
+        initial_design_type="latin",
+        X=X_init)
     optimizer.run_optimization(max_iter=max_iter)
 
     if plot:
@@ -250,7 +296,7 @@ def resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, 
                                   technical_progress=None, financing_cost=None, premature_replacement=None,
                                   anticipated_scc=False, anticipated_demand_t10=False, optimization=True,
                                   list_sub_heater=None, list_sub_insulation=None, price_feedback=False, energy_prices_ht=None,
-                                  energy_taxes=None):
+                                  energy_taxes=None, acquisition_jitter=0.01, grid_initialize=False, normalize_Y=True):
     """Performs multistep optimization of capacities and subsidies.
     :param config_coupling: dict
         Includes a number of parametrization for configuration of the coupling
@@ -466,6 +512,8 @@ def resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, 
                                                         lifetime_renov=lifetime_renov, lifetime_heater=lifetime_heater,
                                                         discount_rate=config_coupling["discount_rate"], plot=False,
                                                         max_iter=config_coupling["max_iter"], initial_design_numdata=3,
+                                                        grid_initialize=grid_initialize, acquisition_jitter=acquisition_jitter,
+                                                        normalize_Y=normalize_Y,
                                                         fix_sub_heater=config_coupling["fix_sub_heater"], fix_sub_insulation=fix_sub_insulation,
                                                         sub_design=config_coupling["sub_design"],
                                                         health=config_coupling["health"], carbon_constraint=config_coupling["carbon_constraint"],

@@ -156,12 +156,12 @@ def test_convergence(max_iter, initial_design_numdata, buildings, energy_prices,
 if __name__ == '__main__':
 
     config_coupling = {
-        'config_resirf': "threshold_simple_premature3",
+        'config_resirf': "classic_simple_premature3",
         "config_eoles": "eoles_classic",  # includes costs assumptions
-        'calibration_threshold': True,
-        'h2ccgt': False,
-        'max_iter': 14,
-        'sub_design': "global_renovation",
+        'calibration_threshold': False,
+        'h2ccgt': True,
+        'max_iter': 100,
+        'sub_design': None,
         "health": True,  # on inclut les coûts de santé
         "discount_rate": 0.032,
         "rebound": True,
@@ -170,7 +170,6 @@ if __name__ == '__main__':
         'fix_sub_heater': False,
         'list_year': [2025, 2030, 2035, 2040, 2045],
         'list_trajectory_scc': [250, 350, 500, 650, 775],
-        'price_feedback': False,
         'scenario_cost_eoles': {}
     }
 
@@ -193,23 +192,23 @@ if __name__ == '__main__':
         path=os.path.join('eoles', 'outputs', 'ResIRF'),
         config=config_resirf_path)
 
-    # TEST for a given time step
-    timestep = 5
-    year = 2020
-    start = year
-    end = year + timestep
-
-    sub_heater = 0.5763
-    sub_insulation = 0.6502
-
-    output, stock, heating_consumption = simu_res_irf(buildings=buildings, sub_heater=None, sub_insulation=None,
-                                               start=start, end=end, energy_prices=energy_prices,
-                                               taxes=taxes, cost_heater=cost_heater, cost_insulation=cost_insulation,
-                                               lifetime_heater=lifetime_heater, flow_built=flow_built, post_inputs=post_inputs,
-                                               policies_heater=policies_heater, policies_insulation=policies_insulation,
-                                               sub_design=config_coupling["sub_design"], climate=2006, smooth=False, efficiency_hour=False,
-                                               demolition_rate=demolition_rate, output_consumption=True, full_output=True, rebound=True,
-                                               technical_progress=technical_progress, financing_cost=financing_cost,  premature_replacement=premature_replacement)
+    # # TEST for a given time step
+    # timestep = 5
+    # year = 2020
+    # start = year
+    # end = year + timestep
+    #
+    # sub_heater = 0.5763
+    # sub_insulation = 0.6502
+    #
+    # output, stock, heating_consumption = simu_res_irf(buildings=buildings, sub_heater=None, sub_insulation=None,
+    #                                            start=start, end=end, energy_prices=energy_prices,
+    #                                            taxes=taxes, cost_heater=cost_heater, cost_insulation=cost_insulation,
+    #                                            lifetime_heater=lifetime_heater, flow_built=flow_built, post_inputs=post_inputs,
+    #                                            policies_heater=policies_heater, policies_insulation=policies_insulation,
+    #                                            sub_design=config_coupling["sub_design"], climate=2006, smooth=False, efficiency_hour=False,
+    #                                            demolition_rate=demolition_rate, output_consumption=True, full_output=True, rebound=True,
+    #                                            technical_progress=technical_progress, financing_cost=financing_cost,  premature_replacement=premature_replacement)
     #
     # elec_consumption = heating_consumption.T["Electricity"]
 
@@ -251,9 +250,27 @@ if __name__ == '__main__':
                                                            add_CH4_demand=False, one_shot_setting=one_shot_setting,
                                                            technical_progress=technical_progress, financing_cost=financing_cost,
                                                            premature_replacement=premature_replacement,
-                                                           optimization=False, list_sub_heater=[0.95, 0.04, 1.0, 1.0, 1.0],
-                                                           list_sub_insulation=[0.58, 0.57, 0.55, 0.56, 0.56], price_feedback=price_feedback,
+                                                           optimization=False, list_sub_heater=[0.721, 0.384, 0.697, 0.7834, 0.98],
+                                                           list_sub_insulation=[0.363, 0.01, 0.522, 0.4970, 0.2], price_feedback=price_feedback,
                                                            energy_prices_ht=energy_prices_ht, energy_taxes=energy_taxes)
+
+    # # Test plot optimization blackbox
+    # import matplotlib.tri as tri
+    # evaluations = pd.read_csv(os.path.join("eoles/outputs/0309_120024_temoin_simple_premature3/evaluations_optimizer_2045.csv"), sep='\t')
+    # evaluations = evaluations.loc[evaluations.Y < 40.7]
+    #
+    # x = evaluations["var_1"].to_numpy()
+    # y = evaluations["var_2"].to_numpy()
+    # z = evaluations["Y"].to_numpy()
+    #
+    # fig, ax = plt.subplots()
+    # ax.tricontour(x, y, z, levels=14, linewidths=0.5, colors='k')
+    # cntr2 = ax.tricontourf(x, y, z, levels=14, cmap="RdBu_r")
+    #
+    # fig.colorbar(cntr2, ax=ax)
+    # ax.plot(x, y, 'ko', ms=3)
+    # plt.show()
+
     #
     # plot_simulation(output, save_path=os.path.join("eoles/outputs/test_plots", "plots"))
     # buildings.path = os.path.join("eoles/outputs/test_plots/")

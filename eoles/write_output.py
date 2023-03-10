@@ -384,7 +384,7 @@ def comparison_simulations(dict_output: dict, ref, health=False, x_min=None, x_m
     savings_and_costs_df = pd.concat([consumption_savings_tot_df, complete_system_costs_2050_df], axis=0)
     savings_and_costs_df = savings_and_costs_df.T
     plot_comparison_savings(savings_and_costs_df, save=os.path.join(save_path, "savings_and_costs.png"),
-                            col_for_size="Total costs", smallest_size=100, biggest_size=300,
+                            col_for_size="Total costs", smallest_size=100, biggest_size=400,
                             fontsize=10, x_min=x_min, x_max=x_max, y_min=y_min, y_max=y_max)
 
     emissions_tot = pd.concat([emissions_dict[key].rename(key).to_frame() for key in emissions_dict.keys()], axis=1).loc[2050].rename("Emissions (MtCO2)").to_frame().T
@@ -392,7 +392,7 @@ def comparison_simulations(dict_output: dict, ref, health=False, x_min=None, x_m
     savings_and_emissions_df = savings_and_emissions_df.T
     plot_comparison_savings(savings_and_emissions_df, save=os.path.join(save_path, "savings_and_emissions.png"),
                             col_for_size="Emissions (MtCO2)", smallest_size=100,
-                            biggest_size=300, fontsize=10, x_min=x_min, x_max=x_max, y_min=y_min, y_max=y_max)
+                            biggest_size=400, fontsize=10, x_min=x_min, x_max=x_max, y_min=y_min, y_max=y_max)
 
     # Evolution of peak load
     if save_path is None:
@@ -878,8 +878,7 @@ def plot_investment_trajectory(resirf_costs_df, save=None):
     save_fig(fig, save=save_path)
 
 
-def plot_typical_week(hourly_generation, date_start, date_end, climate=2006, save=None,
-                      colors=None, format_y=lambda y, _: '{:.0f}'.format(y), rotation=90):
+def plot_typical_week(hourly_generation, date_start, date_end, climate=2006, methane=True, save=None):
     hourly_generation_subset = hourly_generation.copy()
     hourly_generation_subset["date"] = hourly_generation_subset.apply(
         lambda row: datetime.datetime(climate, 1, 1, 0) + datetime.timedelta(hours=row["hour"]),
@@ -901,9 +900,14 @@ def plot_typical_week(hourly_generation, date_start, date_end, climate=2006, sav
     hourly_generation_subset["methanation"] = - hourly_generation_subset["methanation"]
     hourly_generation_subset["peaking_plants"] = hourly_generation_subset["ocgt"] + hourly_generation_subset["ccgt"] + \
                                                  hourly_generation_subset["h2_ccgt"]
-    prod = hourly_generation_subset[
-        ["nuclear", "wind", "pv", "hydro", "battery_in", "battery_discharge", "phs", "phs_in", "peaking_plants",
-         "electrolysis", "methanation"]]
+    if methane:
+        prod = hourly_generation_subset[
+            ["nuclear", "wind", "pv", "hydro", "battery_in", "battery_discharge", "phs", "phs_in", "peaking_plants",
+             "electrolysis", "methanation", "methane"]]
+    else:
+        prod = hourly_generation_subset[
+            ["nuclear", "wind", "pv", "hydro", "battery_in", "battery_discharge", "phs", "phs_in", "peaking_plants",
+             "electrolysis", "methanation"]]
     elec_demand = hourly_generation_subset[["elec_demand"]].squeeze()
 
     if save is None:
