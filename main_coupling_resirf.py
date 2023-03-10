@@ -611,7 +611,7 @@ if __name__ == '__main__':
             "config_eoles": "eoles_classic",  # includes costs assumptions
             'calibration_threshold': False,
             'h2ccgt': True,
-            'max_iter': 40,
+            'max_iter': 100,
             'sub_design': None,
             "health": True,  # on inclut les coûts de santé
             "discount_rate": 0.032,
@@ -628,7 +628,7 @@ if __name__ == '__main__':
             "config_eoles": "eoles_classic",  # includes costs assumptions
             'calibration_threshold': True,
             'h2ccgt': True,
-            'max_iter': 40,
+            'max_iter': 100,
             'sub_design': None,
             "health": True,  # on inclut les coûts de santé
             "discount_rate": 0.032,
@@ -645,7 +645,7 @@ if __name__ == '__main__':
             "config_eoles": "eoles_classic",  # includes costs assumptions
             'calibration_threshold': False,
             'h2ccgt': True,
-            'max_iter': 40,
+            'max_iter': 100,
             'sub_design': "global_renovation",
             "health": True,  # on inclut les coûts de santé
             "discount_rate": 0.032,
@@ -662,7 +662,7 @@ if __name__ == '__main__':
             "config_eoles": "eoles_classic",  # includes costs assumptions
             'calibration_threshold': False,
             'h2ccgt': True,
-            'max_iter': 40,
+            'max_iter': 100,
             'sub_design': "efficiency_100",
             "health": True,  # on inclut les coûts de santé
             "discount_rate": 0.032,
@@ -674,9 +674,77 @@ if __name__ == '__main__':
             'list_trajectory_scc': [250, 350, 500, 650, 775],
             'scenario_cost_eoles': {}
         },
+        "temoin_simple_premature5": {
+            'config_resirf': "classic_simple_premature5",
+            "config_eoles": "eoles_classic",  # includes costs assumptions
+            'calibration_threshold': False,
+            'h2ccgt': True,
+            'max_iter': 100,
+            'sub_design': None,
+            "health": True,  # on inclut les coûts de santé
+            "discount_rate": 0.032,
+            "rebound": True,
+            "carbon_constraint": False,
+            'one_shot_setting': False,
+            'fix_sub_heater': False,
+            'list_year': [2025, 2030, 2035, 2040, 2045],
+            'list_trajectory_scc': [250, 350, 500, 650, 775],
+            'scenario_cost_eoles': {}
+        },
+        "threshold_simple_premature5": {
+            'config_resirf': "threshold_simple_premature3",
+            "config_eoles": "eoles_classic",  # includes costs assumptions
+            'calibration_threshold': True,
+            'h2ccgt': True,
+            'max_iter': 100,
+            'sub_design': None,
+            "health": True,  # on inclut les coûts de santé
+            "discount_rate": 0.032,
+            "rebound": True,
+            "carbon_constraint": False,
+            'one_shot_setting': False,
+            'fix_sub_heater': False,
+            'list_year': [2025, 2030, 2035, 2040, 2045],
+            'list_trajectory_scc': [250, 350, 500, 650, 775],
+            'scenario_cost_eoles': {}
+        }
     }
 
     DICT_CONFIGS_2 = {
+        "global_renovation_simple_premature5": {
+            'config_resirf': "classic_simple_premature5",
+            "config_eoles": "eoles_classic",  # includes costs assumptions
+            'calibration_threshold': False,
+            'h2ccgt': True,
+            'max_iter': 100,
+            'sub_design': "global_renovation",
+            "health": True,  # on inclut les coûts de santé
+            "discount_rate": 0.032,
+            "rebound": True,
+            "carbon_constraint": False,
+            'one_shot_setting': False,
+            'fix_sub_heater': False,
+            'list_year': [2025, 2030, 2035, 2040, 2045],
+            'list_trajectory_scc': [250, 350, 500, 650, 775],
+            'scenario_cost_eoles': {}
+        },
+        "efficiency100_simple_premature5": {
+            'config_resirf': "classic_simple_premature5",
+            "config_eoles": "eoles_classic",  # includes costs assumptions
+            'calibration_threshold': False,
+            'h2ccgt': True,
+            'max_iter': 100,
+            'sub_design': "efficiency_100",
+            "health": True,  # on inclut les coûts de santé
+            "discount_rate": 0.032,
+            "rebound": True,
+            "carbon_constraint": False,
+            'one_shot_setting': False,
+            'fix_sub_heater': False,
+            'list_year': [2025, 2030, 2035, 2040, 2045],
+            'list_trajectory_scc': [250, 350, 500, 650, 775],
+            'scenario_cost_eoles': {}
+        },
         "temoin_noheater_simple_premature3": {
             'config_resirf': "classic_simple_premature3",
             "config_eoles": "eoles_classic",  # includes costs assumptions
@@ -750,41 +818,75 @@ if __name__ == '__main__':
     }
 
     DICT_CONFIGS_3 = {
-        "temoin_simple_premature5": {
-            'config_resirf': "classic_simple_premature5",
+        "temoin_simple_premature3_carbonbudget": {
+            'config_resirf': "classic_simple_premature3",
             "config_eoles": "eoles_classic",  # includes costs assumptions
             'calibration_threshold': False,
             'h2ccgt': True,
-            'max_iter': 40,
+            'max_iter': 100,
             'sub_design': None,
             "health": True,  # on inclut les coûts de santé
             "discount_rate": 0.032,
             "rebound": True,
-            "carbon_constraint": False,
+            "carbon_constraint": True,
             'one_shot_setting': False,
             'fix_sub_heater': False,
             'list_year': [2025, 2030, 2035, 2040, 2045],
             'list_trajectory_scc': [250, 350, 500, 650, 775],
             'scenario_cost_eoles': {}
         },
-        "threshold_simple_premature5": {
-            'config_resirf': "threshold_simple_premature5",
+        "threshold_simple_premature3_carbonbudget": {
+            'config_resirf': "threshold_simple_premature3",
             "config_eoles": "eoles_classic",  # includes costs assumptions
             'calibration_threshold': True,
             'h2ccgt': True,
-            'max_iter': 40,
+            'max_iter': 100,
             'sub_design': None,
             "health": True,  # on inclut les coûts de santé
             "discount_rate": 0.032,
             "rebound": True,
-            "carbon_constraint": False,
+            "carbon_constraint": True,
             'one_shot_setting': False,
             'fix_sub_heater': False,
             'list_year': [2025, 2030, 2035, 2040, 2045],
             'list_trajectory_scc': [250, 350, 500, 650, 775],
             'scenario_cost_eoles': {}
         },
-        "global_renovation_simple_premature5": {
+        "global_renovation_simple_premature3_carbonbudget": {
+            'config_resirf': "classic_simple_premature3",
+            "config_eoles": "eoles_classic",  # includes costs assumptions
+            'calibration_threshold': False,
+            'h2ccgt': True,
+            'max_iter': 100,
+            'sub_design': "global_renovation",
+            "health": True,  # on inclut les coûts de santé
+            "discount_rate": 0.032,
+            "rebound": True,
+            "carbon_constraint": True,
+            'one_shot_setting': False,
+            'fix_sub_heater': False,
+            'list_year': [2025, 2030, 2035, 2040, 2045],
+            'list_trajectory_scc': [250, 350, 500, 650, 775],
+            'scenario_cost_eoles': {}
+        },
+        "efficiency100_simple_premature3_carbonbudget": {
+            'config_resirf': "classic_simple_premature3",
+            "config_eoles": "eoles_classic",  # includes costs assumptions
+            'calibration_threshold': False,
+            'h2ccgt': True,
+            'max_iter': 100,
+            'sub_design': "efficiency_100",
+            "health": True,  # on inclut les coûts de santé
+            "discount_rate": 0.032,
+            "rebound": True,
+            "carbon_constraint": True,
+            'one_shot_setting': False,
+            'fix_sub_heater': False,
+            'list_year': [2025, 2030, 2035, 2040, 2045],
+            'list_trajectory_scc': [250, 350, 500, 650, 775],
+            'scenario_cost_eoles': {}
+        },
+        "global_renovation_simple_premature5_stability1": {
             'config_resirf': "classic_simple_premature5",
             "config_eoles": "eoles_classic",  # includes costs assumptions
             'calibration_threshold': False,
@@ -801,13 +903,13 @@ if __name__ == '__main__':
             'list_trajectory_scc': [250, 350, 500, 650, 775],
             'scenario_cost_eoles': {}
         },
-        "efficiency100_simple_premature5": {
+        "global_renovation_simple_premature5_stability2": {
             'config_resirf': "classic_simple_premature5",
             "config_eoles": "eoles_classic",  # includes costs assumptions
             'calibration_threshold': False,
             'h2ccgt': True,
             'max_iter': 40,
-            'sub_design': "efficiency_100",
+            'sub_design': "global_renovation",
             "health": True,  # on inclut les coûts de santé
             "discount_rate": 0.032,
             "rebound": True,

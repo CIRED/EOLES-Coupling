@@ -190,7 +190,7 @@ def optimize_blackbox_resirf_eoles_coupling(buildings, energy_prices, taxes, cos
     if fix_sub_heater:
         bounds2d = [{'name': 'sub_heater', 'type': 'continuous', 'domain': (0, 0)},
                     {'name': 'sub_insulation', 'type': 'continuous', 'domain': (0, 1)}]
-    if fix_sub_insulation:
+    elif fix_sub_insulation:
         bounds2d = [{'name': 'sub_heater', 'type': 'continuous', 'domain': (0, 1)},
                     {'name': 'sub_insulation', 'type': 'continuous', 'domain': (0, 0)}]
     else:
