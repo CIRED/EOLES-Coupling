@@ -103,7 +103,7 @@ def heating_hourly_profile(method, percentage=None):
     return hourly_profile_test
 
 
-def load_evolution_data(config):
+def load_evolution_data(config, greenfield=False):
     """Load necessary data for the social planner trajectory"""
     # Load historical data
     existing_capacity_historical = get_pandas("eoles/inputs/historical_data/existing_capacity_historical.csv",
@@ -114,8 +114,12 @@ def load_evolution_data(config):
                                                      lambda x: pd.read_csv(x, index_col=0))  # GW
     # maximum_capacity_evolution = get_pandas("eoles/inputs/technology_potential/maximum_capacity_evolution.csv",
     #                                         lambda x: pd.read_csv(x, index_col=0))  # GW
-    maximum_capacity_evolution = get_pandas(config["maximum_capacity_evolution"],
-                                            lambda x: pd.read_csv(x, index_col=0))  # GW
+    if greenfield:
+        maximum_capacity_evolution = get_pandas(os.path.join("eoles/outputs/technology°potential/maximum_capacity_greenfield.csv"),
+                                                lambda x: pd.read_csv(x, index_col=0))  # GW
+    else:
+        maximum_capacity_evolution = get_pandas(config["maximum_capacity_evolution"],
+                                                lambda x: pd.read_csv(x, index_col=0))  # GW
 
     capex_annuity_fOM_historical = get_pandas("eoles/inputs/historical_data/capex_annuity_fOM_historical.csv",
                                               lambda x: pd.read_csv(x, index_col=0).squeeze())
@@ -566,7 +570,30 @@ def extract_functionment_cost(capacities, fOM, vOM, generation, oil_consumption,
     :param actual_scc: int
         Actual social cost of carbon, used to calculate functionment cost.
     """
-    # Updating actual values for the SCC
+    # New version
+    vOM_no_scc = vOM.copy()  # we remove the SCC in this vOM
+    vOM_no_scc.loc["natural_gas"] = update_ngas_cost(vOM_no_scc.loc["natural_gas"], scc=(-anticipated_scc), emission_rate=0.2295)  # €/kWh
+    vOM_no_scc["fuel_boiler"] = update_ngas_cost(vOM_no_scc["fuel_boiler"], scc=(- anticipated_scc), emission_rate=0.324)
+
+    vOM_SCC_only = (vOM - vOM_no_scc).copy()  # variable cost only due to actual scc
+    vOM_SCC_only.loc["natural_gas"] = update_ngas_cost(vOM_SCC_only.loc["natural_gas"], scc=(actual_scc - anticipated_scc), emission_rate=0.2295)  # €/kWh
+    vOM_SCC_only["fuel_boiler"] = update_ngas_cost(vOM_SCC_only["fuel_boiler"], scc=(actual_scc - anticipated_scc), emission_rate=0.324)
+
+    system_fOM_vOM = pd.concat([capacities, fOM, vOM_no_scc, vOM_SCC_only, generation], axis=1, ignore_index=True).rename(
+        columns={0: "capacity", 1: "fOM", 2: "vOM_no_scc", 3: "vOM_SCC_only", 4: "generation"})
+    system_fOM_vOM = system_fOM_vOM.dropna()
+    system_fOM_vOM["functionment_cost_noSCC"] = system_fOM_vOM["capacity"] * system_fOM_vOM["fOM"] + system_fOM_vOM["generation"] * system_fOM_vOM["vOM_no_scc"]
+    system_fOM_vOM["functionment_cost_SCC"] = system_fOM_vOM["generation"] * system_fOM_vOM["vOM_SCC_only"]
+    system_fOM_vOM_df = system_fOM_vOM[["functionment_cost_noSCC"]]
+
+    oil_functionment_cost_no_scc, wood_functionment_cost_no_scc = oil_consumption * vOM_no_scc["fuel_boiler"], wood_consumption * vOM_no_scc["wood_boiler"]
+    carbon_cost = system_fOM_vOM["functionment_cost_SCC"].sum() + oil_consumption * vOM_SCC_only["fuel_boiler"] + wood_consumption * vOM_SCC_only["wood_boiler"]
+
+    system_fOM_vOM_df = pd.concat([system_fOM_vOM_df, pd.DataFrame(index=["oil_boiler"], data={'functionment_cost_noSCC': [oil_functionment_cost_no_scc]})], axis=0)
+    system_fOM_vOM_df = pd.concat([system_fOM_vOM_df, pd.DataFrame(index=["wood_boiler"], data={'functionment_cost_noSCC': [wood_functionment_cost_no_scc]})], axis=0)
+    system_fOM_vOM_df = pd.concat([system_fOM_vOM_df, pd.DataFrame(index=["carbon_cost"], data={'functionment_cost_noSCC': [carbon_cost]})], axis=0)
+
+    # OLD VERSION
     new_vOM = vOM.copy()
     new_vOM.loc["natural_gas"] = update_ngas_cost(new_vOM.loc["natural_gas"], scc=(actual_scc - anticipated_scc), emission_rate=0.2295)  # €/kWh
     new_vOM["fuel_boiler"] = update_ngas_cost(new_vOM["fuel_boiler"], scc=(actual_scc - anticipated_scc), emission_rate=0.324)

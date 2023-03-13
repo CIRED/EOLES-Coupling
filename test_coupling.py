@@ -19,7 +19,7 @@ from eoles.utils import get_config, get_pandas, calculate_annuities_resirf
 from eoles.write_output import plot_simulation
 import eoles.utils
 from eoles.coupling_resirf_eoles import resirf_eoles_coupling_dynamic, optimize_blackbox_resirf_eoles_coupling, \
-    calibration_price, get_energy_prices_and_taxes
+    calibration_price, get_energy_prices_and_taxes, resirf_eoles_coupling_greenfield
 import logging
 import argparse
 import copy
@@ -243,16 +243,26 @@ if __name__ == '__main__':
     config_coupling["calibration_elec_transport_distrib"] = calibration_elec_transport_distrib
     config_coupling["calibration_gas_lcoe"] = calibration_gas
 
-    output, buildings, dict_optimizer = resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, cost_insulation,
+    # output, buildings, dict_optimizer = resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, cost_insulation,
+    #                                                        demolition_rate, flow_built, post_inputs, policies_heater, policies_insulation,
+    #                                                        list_year, list_trajectory_scc, scenario_cost,
+    #                                                        config_eoles=config_eoles, config_coupling=config_coupling,
+    #                                                        add_CH4_demand=False, one_shot_setting=one_shot_setting,
+    #                                                        technical_progress=technical_progress, financing_cost=financing_cost,
+    #                                                        premature_replacement=premature_replacement,
+    #                                                        optimization=False, list_sub_heater=[0.721, 0.384, 0.697, 0.7834, 0.98],
+    #                                                        list_sub_insulation=[0.363, 0.01, 0.522, 0.4970, 0.2], price_feedback=price_feedback,
+    #                                                        energy_prices_ht=energy_prices_ht, energy_taxes=energy_taxes)
+
+    output, buildings, dict_optimizer = resirf_eoles_coupling_greenfield(buildings, energy_prices, taxes, cost_heater, cost_insulation,
                                                            demolition_rate, flow_built, post_inputs, policies_heater, policies_insulation,
-                                                           list_year, list_trajectory_scc, scenario_cost,
+                                                           scc=775, scenario_cost=scenario_cost,
                                                            config_eoles=config_eoles, config_coupling=config_coupling,
-                                                           add_CH4_demand=False, one_shot_setting=one_shot_setting,
+                                                           add_CH4_demand=False,
                                                            technical_progress=technical_progress, financing_cost=financing_cost,
                                                            premature_replacement=premature_replacement,
-                                                           optimization=False, list_sub_heater=[0.721, 0.384, 0.697, 0.7834, 0.98],
-                                                           list_sub_insulation=[0.363, 0.01, 0.522, 0.4970, 0.2], price_feedback=price_feedback,
-                                                           energy_prices_ht=energy_prices_ht, energy_taxes=energy_taxes)
+                                                           optimization=False, list_sub_heater=[0.2],
+                                                           list_sub_insulation=[0.3])
 
     # # Test plot optimization blackbox
     # import matplotlib.tri as tri
