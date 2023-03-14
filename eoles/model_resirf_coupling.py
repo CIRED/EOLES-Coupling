@@ -165,7 +165,9 @@ class ModelEOLES():
             self.maximum_capacity = data_static["maximum_capacity"]
         self.maximum_charging_capacity = data_static["maximum_charging_capacity"]
         self.maximum_energy_capacity = data_static["maximum_energy_capacity"]
-        self.fix_capa = data_static["fix_capa"]
+        self.fix_capacities = data_static["fix_capacities"]
+        self.fix_charging_capacities = data_static["fix_charging_capacities"]
+        self.fix_energy_capacities = data_static["fix_energy_capacities"]
         self.lifetime = data_static["lifetime"]
         self.construction_time = data_static["construction_time"]
         self.capex = data_static["capex"]
@@ -336,8 +338,14 @@ class ModelEOLES():
 
     def fix_values(self):
         for tec in self.model.tec:
-            if tec in self.fix_capa.keys():
-                self.model.capacity[tec].fix(self.fix_capa[tec])
+            if tec in self.fix_capacities.keys():
+                self.model.capacity[tec].fix(self.fix_capacities[tec])
+        for tec in self.model.tec:
+            if tec in self.fix_charging_capacities.keys():
+                self.model.charging_capacity[tec].fix(self.fix_charging_capacities[tec])
+        for tec in self.model.tec:
+            if tec in self.fix_energy_capacities.keys():
+                self.model.energy_capacity[tec].fix(self.fix_energy_capacities[tec])
 
     def define_constraints(self):
         def generation_vre_constraint_rule(model, h, vre):
@@ -685,8 +693,12 @@ def read_technology_data(config, year):
                                            lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # GW
     maximum_energy_capacity = get_pandas(config["maximum_energy_capacity"],
                                          lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # GW
-    fix_capa = get_pandas(config["fix_capa"],
+    fix_capacities = get_pandas(config["fix_capacities"],
                           lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # GW
+    fix_charging_capacities = get_pandas(config["fix_charging_capacities"],
+                          lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # GW
+    fix_energy_capacities = get_pandas(config["fix_energy_capacities"],
+                          lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # GWh
     lifetime = get_pandas(config["lifetime"],
                           lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # years
     construction_time = get_pandas(config["construction_time"],
@@ -726,7 +738,9 @@ def read_technology_data(config, year):
     o["maximum_capacity"] = maximum_capacity
     o["maximum_charging_capacity"] = maximum_charging_capacity
     o["maximum_energy_capacity"] = maximum_energy_capacity
-    o["fix_capa"] = fix_capa
+    o["fix_capacities"] = fix_capacities
+    o["fix_charging_capacities"] = fix_charging_capacities
+    o["fix_energy_capacities"] = fix_energy_capacities
     o["lifetime"] = lifetime
     o["construction_time"] = construction_time
     o["capex"] = capex
@@ -786,7 +800,7 @@ def read_input_static(config, year):
                                            lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # GW
     maximum_energy_capacity = get_pandas(config["maximum_energy_capacity"],
                                          lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # GW
-    fix_capa = get_pandas(config["fix_capa"],
+    fix_capacities = get_pandas(config["fix_capacities"],
                           lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # GW
     lifetime = get_pandas(config["lifetime"],
                           lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # years
@@ -826,7 +840,7 @@ def read_input_static(config, year):
     o["maximum_capacity"] = maximum_capacity
     o["maximum_charging_capacity"] = maximum_charging_capacity
     o["maximum_energy_capacity"] = maximum_energy_capacity
-    o["fix_capa"] = fix_capa
+    o["fix_capacities"] = fix_capacities
     o["lifetime"] = lifetime
     o["construction_time"] = construction_time
     o["capex"] = capex

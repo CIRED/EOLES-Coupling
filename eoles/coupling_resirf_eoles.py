@@ -221,7 +221,7 @@ def optimize_blackbox_resirf_eoles_coupling(buildings, energy_prices, taxes, cos
                     {'name': 'sub_insulation', 'type': 'continuous', 'domain': (0, 1)}]
 
     if grid_initialize:
-        if not fix_sub_heater and not fix_sub_heater:
+        if not fix_sub_heater and not fix_sub_insulation:
             X_init = np.array([[0.0, 0.0],
                                [0.2, 0.0],
                                [0.5, 0.0],
@@ -291,7 +291,7 @@ def optimize_blackbox_resirf_eoles_coupling(buildings, energy_prices, taxes, cos
 def resirf_eoles_coupling_greenfield(buildings, energy_prices, taxes, cost_heater, cost_insulation, demolition_rate, flow_built,
                                   post_inputs, policies_heater, policies_insulation,
                                   scc, scenario_cost, config_eoles, config_coupling,
-                                  add_CH4_demand=False, fix_sub_insulation=False,
+                                  add_CH4_demand=False,
                                   lifetime_renov=50, lifetime_heater=20,
                                   technical_progress=None, financing_cost=None, premature_replacement=None,
                                   optimization=True, list_sub_heater=None, list_sub_insulation=None,
@@ -299,7 +299,7 @@ def resirf_eoles_coupling_greenfield(buildings, energy_prices, taxes, cost_heate
     # importing evolution of historical capacity and expected evolution of demand
     existing_capacity_historical, existing_charging_capacity_historical, existing_energy_capacity_historical, \
     maximum_capacity_evolution, heating_gas_demand_RTE_timesteps, ECS_gas_demand_RTE_timesteps, capex_annuity_fOM_historical, \
-    capex_annuity_historical, storage_annuity_historical = eoles.utils.load_evolution_data(config=config_eoles)
+    capex_annuity_historical, storage_annuity_historical = eoles.utils.load_evolution_data(config=config_eoles, greenfield=True)
 
     existing_capacity_historical = existing_capacity_historical.drop(
         ["heat_pump", "resistive", "gas_boiler", "fuel_boiler", "wood_boiler"], axis=0)
@@ -447,7 +447,7 @@ def resirf_eoles_coupling_greenfield(buildings, energy_prices, taxes, cost_heate
                                                     acquisition_jitter=acquisition_jitter,
                                                     normalize_Y=normalize_Y,
                                                     fix_sub_heater=config_coupling["fix_sub_heater"],
-                                                    fix_sub_insulation=fix_sub_insulation,
+                                                    fix_sub_insulation=config_coupling["fix_sub_insulation"],
                                                     sub_design=config_coupling["sub_design"],
                                                     health=config_coupling["health"],
                                                     carbon_constraint=config_coupling["carbon_constraint"],
@@ -763,7 +763,7 @@ def resirf_eoles_coupling_greenfield(buildings, energy_prices, taxes, cost_heate
 def resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, cost_insulation, demolition_rate, flow_built,
                                   post_inputs, policies_heater, policies_insulation,
                                   list_year, list_trajectory_scc, scenario_cost, config_eoles, config_coupling,
-                                  add_CH4_demand=False, one_shot_setting=False, fix_sub_insulation=False,
+                                  add_CH4_demand=False, one_shot_setting=False,
                                   lifetime_renov=50, lifetime_heater=20,
                                   technical_progress=None, financing_cost=None, premature_replacement=None,
                                   anticipated_scc=False, anticipated_demand_t10=False, optimization=True,
@@ -797,7 +797,7 @@ def resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, 
     # importing evolution of historical capacity and expected evolution of demand
     existing_capacity_historical, existing_charging_capacity_historical, existing_energy_capacity_historical, \
     maximum_capacity_evolution, heating_gas_demand_RTE_timesteps, ECS_gas_demand_RTE_timesteps, capex_annuity_fOM_historical, \
-    capex_annuity_historical, storage_annuity_historical = eoles.utils.load_evolution_data(config=config_eoles)
+    capex_annuity_historical, storage_annuity_historical = eoles.utils.load_evolution_data(config=config_eoles, greenfield=False)
 
     existing_capacity_historical = existing_capacity_historical.drop(
         ["heat_pump", "resistive", "gas_boiler", "fuel_boiler", "wood_boiler"], axis=0)
@@ -986,7 +986,7 @@ def resirf_eoles_coupling_dynamic(buildings, energy_prices, taxes, cost_heater, 
                                                         max_iter=config_coupling["max_iter"], initial_design_numdata=3,
                                                         grid_initialize=grid_initialize, acquisition_jitter=acquisition_jitter,
                                                         normalize_Y=normalize_Y,
-                                                        fix_sub_heater=config_coupling["fix_sub_heater"], fix_sub_insulation=fix_sub_insulation,
+                                                        fix_sub_heater=config_coupling["fix_sub_heater"], fix_sub_insulation=config_coupling["fix_sub_insulation"],
                                                         sub_design=config_coupling["sub_design"],
                                                         health=config_coupling["health"], carbon_constraint=config_coupling["carbon_constraint"],
                                                         rebound=config_coupling["rebound"], technical_progress=technical_progress,
