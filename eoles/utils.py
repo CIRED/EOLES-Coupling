@@ -115,7 +115,7 @@ def load_evolution_data(config, greenfield=False):
     # maximum_capacity_evolution = get_pandas("eoles/inputs/technology_potential/maximum_capacity_evolution.csv",
     #                                         lambda x: pd.read_csv(x, index_col=0))  # GW
     if greenfield:
-        maximum_capacity_evolution = get_pandas(os.path.join("eoles/outputs/technology°potential/maximum_capacity_greenfield.csv"),
+        maximum_capacity_evolution = get_pandas(os.path.join("eoles/outputs/technology_potential/maximum_capacity_greenfield.csv"),
                                                 lambda x: pd.read_csv(x, index_col=0))  # GW
     else:
         maximum_capacity_evolution = get_pandas(config["maximum_capacity_evolution"],
