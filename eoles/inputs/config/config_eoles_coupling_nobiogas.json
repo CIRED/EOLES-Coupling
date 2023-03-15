@@ -1,6 +1,6 @@
 {
   "input_years": 2006,
-  "biomass_potential": "eoles/inputs/technology_potential/biomass_evolution_S2.csv",
+  "biomass_potential": "eoles/inputs/technology_potential/biomass_evolution_nobiomass.csv",
   "construction_time": "eoles/inputs/technology_characteristics/construction_time.csv",
   "capacity_factor_nuclear": 0.8,
   "capex": "eoles/inputs/technology_characteristics/overnight_capex_evolution.csv",
