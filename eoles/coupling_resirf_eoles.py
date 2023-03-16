@@ -98,7 +98,7 @@ def resirf_eoles_coupling_static(subvention, buildings, inputs_dynamics, policie
     endyear_resirf = start_year_resirf + timestep_resirf
 
     sub_heater, sub_insulation = float(subvention[0, 0]), float(subvention[0, 1])
-    # print(f'Subvention: {sub_heater}, {sub_insulation}')
+    print(f'Subvention: {sub_heater}, {sub_insulation}')
 
     buildings_copy = deepcopy(buildings)
     energy_prices, taxes, cost_heater, cost_insulation, demolition_rate = deepcopy(inputs_dynamics['energy_prices']), deepcopy(inputs_dynamics['taxes']), deepcopy(inputs_dynamics['cost_heater']), deepcopy(inputs_dynamics['cost_insulation']), deepcopy(inputs_dynamics['demolition_rate'])
@@ -161,13 +161,15 @@ def resirf_eoles_coupling_static(subvention, buildings, inputs_dynamics, policie
 
     if termination_condition == "infeasibleOrUnbounded":
         logger.info("Infeasible problem")
+        objective = m_eoles.objective  # in this case, we want the value to be always the same, corresponding to the infeasible value
+    else:
+        objective = m_eoles.objective
+        # print(objective)
 
-    objective = m_eoles.objective
-    # print(objective)
-
-    # TODO: attention, à changer si on considère plusieurs années météo dans EOLES
-    objective += annuity_health_cost
-    objective += annuity_investment_cost
+        # TODO: attention, à changer si on considère plusieurs années météo dans EOLES
+        objective += annuity_health_cost
+        objective += annuity_investment_cost
+        print(m_eoles.objective, annuity_health_cost, annuity_investment_cost)
     return np.array([objective])  # return an array
 
 
@@ -387,12 +389,10 @@ def resirf_eoles_coupling_greenfield(buildings, inputs_dynamics, policies_heater
 
     #### Historical annualized costs based on historical costs
     annualized_costs_capacity_historical, annualized_costs_energy_capacity_historical = eoles.utils.annualized_costs_investment_historical(
-        existing_capacity, capex_annuity_fOM_historical,
-        existing_energy_capacity, storage_annuity_historical)
+        existing_capacity, capex_annuity_fOM_historical, existing_energy_capacity, storage_annuity_historical)
 
     annualized_costs_capacity_nofOM_historical = eoles.utils.annualized_costs_investment_historical_nofOM(
-        existing_capacity, capex_annuity_historical,
-        existing_energy_capacity, storage_annuity_historical)
+        existing_capacity, capex_annuity_historical, existing_energy_capacity, storage_annuity_historical)
 
     ### Compile total annualized investment costs from existing capacities (both historical capacities + newly built capacities before t)
     # Necessary for calculus of LCOE accounting for evolution of capacities
@@ -1089,6 +1089,7 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
 
         m_eoles.build_model()
         solver_results, status, termination_condition = m_eoles.solve(solver_name="gurobi")
+        print(m_eoles.objective, annuity_health_cost, annuity_investment_heater_cost + annuity_investment_insulation_cost)
 
         if termination_condition == "infeasibleOrUnbounded":
             logger.info("Carbon budget is violated.")
@@ -1430,6 +1431,8 @@ def new_projection_prices_with_gas(energy_prices, price_elec_ht, price_gas_ht, e
 def calibration_price(config_eoles, scc=100):
     """Returns calibration factor based on the SNBC LCOE."""
     # Initialization needed for calibration
+    config_eoles_copy = deepcopy(config_eoles)
+    # config_eoles_copy["capacity_factor_nuclear"] = 0.6  # we change the capacity factor from nuclear to reflect more realistic situation
     existing_capacity_historical, existing_charging_capacity_historical, existing_energy_capacity_historical, \
     maximum_capacity_evolution, heating_gas_demand_RTE_timesteps, ECS_gas_demand_RTE_timesteps, capex_annuity_fOM_historical, capex_annuity_historical, storage_annuity_historical = eoles.utils.load_evolution_data(config=config_eoles)
 
@@ -1494,7 +1497,7 @@ def calibration_price(config_eoles, scc=100):
     hourly_heat_gas = eoles.utils.create_hourly_residential_demand_profile(total_consumption=128 * 1e3,
                                                          method=HOURLY_PROFILE_METHOD)  # on ne se préoccupe pas du gaz chauffage ici, considéré comme indépendant (réaliste pour la situation actuelle)
     # We use year = 2025 to get technology parameters, and anticipated_year = 2020 to get demand data for 2020, since calibration is done in 2020.
-    m_eoles = ModelEOLES(name="trajectory", config=config_eoles, path="eoles/outputs", logger=logger, nb_years=1,
+    m_eoles = ModelEOLES(name="trajectory", config=config_eoles_copy, path="eoles/outputs", logger=logger, nb_years=1,
                          hourly_heat_elec=hourly_heat_elec, hourly_heat_gas=hourly_heat_gas,
                          wood_consumption=0, oil_consumption=0,
                          existing_capacity=existing_capacity, existing_charging_capacity=existing_charging_capacity,

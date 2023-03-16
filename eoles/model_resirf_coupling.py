@@ -106,7 +106,7 @@ class ModelEOLES():
         self.hourly_heat_elec = hourly_heat_elec
 
         self.elec_demand1y = self.elec_demand1y + self.hourly_heat_elec  # we add electricity demand from heating, may require changing if we include multiple weather years
-        self.hourly_heat_gas = hourly_heat_gas  # TODO: attention, bien vérifier que ce profil inclut toute la demande en gaz qu'on veut, notamment le tertiaire et ECS également !
+        self.hourly_heat_gas = hourly_heat_gas
         self.wood_consumption = wood_consumption
         self.oil_consumption = oil_consumption
 
@@ -240,6 +240,8 @@ class ModelEOLES():
         #                                        "nuclear", "ocgt", "ccgt", "h2_ccgt"])
         self.model.elec_gene = Set(initialize=["offshore_f", "offshore_g", "onshore", "pv_g", "pv_c", "river", "lake",
                                                "nuclear"])
+        self.model.CH4_gene = Set(initialize=["methanization", "pyrogazification", "methanation", "natural_gas"])
+        self.model.H2_gene = Set(initialize=["electrolysis"])
         # Primary energy production
         self.model.primary_gene = Set(initialize=["offshore_f", "offshore_g", "onshore", "pv_g", "pv_c", "river",
                                                   "lake", "nuclear", "methanization", "pyrogazification",
@@ -902,6 +904,10 @@ def extract_summary(model, elec_demand, H2_demand, CH4_demand, existing_capacity
     sumgene_elec = sum(gene_per_tec[tec] for tec in model.elec_gene) + gene_per_tec["ocgt"] + gene_per_tec["ccgt"] + \
                    gene_per_tec["h2_ccgt"]  # production in TWh
     summary["sumgene_elec"] = sumgene_elec
+    sumgene_CH4 = sum(gene_per_tec[tec] for tec in model.CH4_gene) # production in TWh
+    summary["sumgene_CH4"] = sumgene_CH4
+    sumgene_H2 = sum(gene_per_tec[tec] for tec in model.H2_gene) # production in TWh
+    summary["sumgene_H2"] = sumgene_H2
 
     # LCOE per technology
     lcoe_per_tec = {}
@@ -924,6 +930,12 @@ def extract_summary(model, elec_demand, H2_demand, CH4_demand, existing_capacity
                      for hour in model.h) / 1e3 + sum(H2_spot_price[hour] * (
             value(model.gene["h2_ccgt", hour]) / conversion_efficiency['h2_ccgt']) for hour in
                                                       model.h) / 1e3  # 1e6€ car l'objectif du modèle est en 1e9 €
+
+    P2G_CH4_bought = sum(elec_spot_price[hour] * sum(
+            value(model.gene[tec, hour])/conversion_efficiency[tec] for tec in model.from_elec_to_CH4) for hour in model.h) / 1e3
+    P2G_H2_bought = sum(elec_spot_price[hour] * sum(
+            value(model.gene[tec, hour])/conversion_efficiency[tec] for tec in model.from_elec_to_H2) for hour in model.h) / 1e3
+
     # LCOE: initial calculus from electricity costs
     # TODO: attention, j'ai supprimé les charging opex et capex pour les batteries
     # lcoe_elec = (sum(
@@ -933,32 +945,46 @@ def extract_summary(model, elec_demand, H2_demand, CH4_demand, existing_capacity
     #              sum(
     #                  (value(model.energy_capacity[storage_tecs])) * storage_annuities[
     #                      storage_tecs] * nb_years for storage_tecs in model.str_elec) + G2P_bought) / sumgene_elec  # €/MWh
-    lcoe_elec = (existing_annualized_costs_elec + sum(
-        (value(model.capacity[tec]) - existing_capacity[tec]) * (annuities[tec] + fOM[tec]) * nb_years + gene_per_tec[tec] * vOM[tec] * 1000
-        for tec in model.elec_balance) +
-                 sum(
-                     (value(model.energy_capacity[str]) - existing_energy_capacity[str]) * storage_annuities[
-                         str] * nb_years for str in model.str_elec) + G2P_bought) / sumgene_elec  # €/MWh
-
-    summary["lcoe_elec"] = lcoe_elec
+    # lcoe_elec = (existing_annualized_costs_elec + sum(
+    #     (value(model.capacity[tec]) - existing_capacity[tec]) * (annuities[tec] + fOM[tec]) * nb_years + gene_per_tec[tec] * vOM[tec] * 1000
+    #     for tec in model.elec_balance) +
+    #              sum((value(model.energy_capacity[str]) - existing_energy_capacity[str]) * storage_annuities[
+    #                      str] * nb_years for str in model.str_elec) + G2P_bought) / sumgene_elec  # €/MWh
+    #
+    # lcoe_CH4 = (existing_annualized_costs_CH4 + sum(
+    #     (value(model.capacity[tec]) - existing_capacity[tec]) * (annuities[tec] + fOM[tec]) * nb_years + gene_per_tec[tec] * vOM[tec] * 1000
+    #     for tec in model.CH4_balance) +
+    #              sum((value(model.energy_capacity[str]) - existing_energy_capacity[str]) * storage_annuities[
+    #                      str] * nb_years for str in model.str_CH4) + P2G_CH4_bought) / sumgene_CH4  # €/MWh
+    # lcoe_H2 = (existing_annualized_costs_H2 + sum(
+    #     (value(model.capacity[tec]) - existing_capacity[tec]) * (annuities[tec] + fOM[tec]) * nb_years + gene_per_tec[tec] * vOM[tec] * 1000
+    #     for tec in model.H2_balance) +
+    #              sum((value(model.energy_capacity[str]) - existing_energy_capacity[str]) * storage_annuities[
+    #                      str] * nb_years for str in model.str_H2) + P2G_H2_bought) / sumgene_H2  # €/MWh
 
     # We calculate the costs associated to functioning of each system (elec, CH4, gas)
     costs_elec, costs_CH4, costs_H2 = compute_costs(model, annuities, fOM, vOM, storage_annuities, gene_per_tec, existing_capacity, existing_energy_capacity,
                   existing_annualized_costs_elec, existing_annualized_costs_CH4, existing_annualized_costs_H2, nb_years)  # 1e6 €
 
     # print(costs_elec, costs_CH4, costs_H2)
+    # We first calculate LCOE by using total costs.
+    lcoe_elec, lcoe_CH4, lcoe_H2 = compute_lcoe(costs_elec, costs_CH4, costs_H2, G2P_bought, P2G_CH4_bought, P2G_H2_bought,
+                                                sumgene_elec, sumgene_CH4, sumgene_H2)
+    summary["lcoe_elec"] = lcoe_elec
+    summary["lcoe_CH4"] = lcoe_CH4
+    summary["lcoe_H2"] = lcoe_H2
 
     # We now calculate ratios to assign the costs depending on the part of those costs used to meet final demand,
     # or to meet other vectors demand.
     # Option 1: based on volumetric assumptions
     lcoe_elec_volume, lcoe_CH4_volume, lcoe_H2_volume = \
-        compute_lcoe_volumetric(model, gene_per_tec, costs_elec, costs_CH4, costs_H2, elec_demand_tot, CH4_demand_tot, H2_demand_tot)
+        compute_lcoe_volumetric(model, gene_per_tec, conversion_efficiency, costs_elec, costs_CH4, costs_H2, elec_demand_tot, CH4_demand_tot, H2_demand_tot)
     summary["lcoe_elec_volume"], summary["lcoe_CH4_volume"], summary["lcoe_H2_volume"] = \
         lcoe_elec_volume, lcoe_CH4_volume, lcoe_H2_volume
 
     # Option 2: based on value assumptions (we weight each volume by the hourly price
     lcoe_elec_value, lcoe_CH4_value, lcoe_H2_value = \
-        compute_lcoe_value(model, costs_elec, costs_CH4, costs_H2, elec_demand_tot, CH4_demand_tot, H2_demand_tot,
+        compute_lcoe_value(model, conversion_efficiency, costs_elec, costs_CH4, costs_H2, elec_demand_tot, CH4_demand_tot, H2_demand_tot,
                        elec_demand, CH4_demand, H2_demand, elec_spot_price, CH4_spot_price, H2_spot_price) # €/MWh
     summary["lcoe_elec_value"], summary["lcoe_CH4_value"], summary["lcoe_H2_value"] = \
         lcoe_elec_value, lcoe_CH4_value, lcoe_H2_value
@@ -968,8 +994,12 @@ def extract_summary(model, elec_demand, H2_demand, CH4_demand, existing_capacity
         compute_costs_noSCC(model, annuities, fOM, vOM, storage_annuities, anticipated_scc, gene_per_tec,
                             existing_capacity, existing_energy_capacity, existing_annualized_costs_elec,
                             existing_annualized_costs_CH4, existing_annualized_costs_H2, nb_years)  # 1e6 €
+
+    lcoe_elec_noSCC, lcoe_CH4_noSCC, lcoe_H2_noSCC = compute_lcoe(costs_elec_noSCC, costs_CH4_noSCC, costs_H2_noSCC, G2P_bought, P2G_CH4_bought, P2G_H2_bought,
+                                                sumgene_elec, sumgene_CH4, sumgene_H2)
+    summary["lcoe_CH4_noSCC"] = lcoe_CH4_noSCC
     lcoe_elec_volume_noSCC, lcoe_CH4_volume_noSCC, lcoe_H2_volume_noSCC = \
-        compute_lcoe_volumetric(model, gene_per_tec, costs_elec_noSCC, costs_CH4_noSCC, costs_H2_noSCC, elec_demand_tot, CH4_demand_tot, H2_demand_tot)
+        compute_lcoe_volumetric(model, gene_per_tec, conversion_efficiency, costs_elec_noSCC, costs_CH4_noSCC, costs_H2_noSCC, elec_demand_tot, CH4_demand_tot, H2_demand_tot)
     summary["lcoe_CH4_volume_noSCC"] = lcoe_CH4_volume_noSCC
 
     # Estimation of transportation and distribution costs
@@ -986,23 +1016,20 @@ def compute_costs(model, annuities, fOM, vOM, storage_annuities, gene_per_tec, e
     costs_elec = existing_annualized_costs_elec + sum(
         (value(model.capacity[tec]) - existing_capacity[tec]) * (annuities[tec] + fOM[tec]) * nb_years + gene_per_tec[tec] * vOM[tec] * 1000
         for tec in model.elec_balance) + \
-                 sum(
-                     (value(model.energy_capacity[str]) - existing_energy_capacity[str]) * storage_annuities[
+                 sum((value(model.energy_capacity[str]) - existing_energy_capacity[str]) * storage_annuities[
                          str] * nb_years for str in model.str_elec) # 1e6 €
 
     costs_CH4 = existing_annualized_costs_CH4 + sum(
         (value(model.capacity[tec]) - existing_capacity[tec]) * (annuities[tec] + fOM[tec]) * nb_years + gene_per_tec[tec] * vOM[tec] * 1000
         for tec in
         model.CH4_balance) + \
-                sum(
-                    (value(model.energy_capacity[str]) - existing_energy_capacity[str]) * storage_annuities[
+                sum((value(model.energy_capacity[str]) - existing_energy_capacity[str]) * storage_annuities[
                         str] * nb_years for str in model.str_CH4) # 1e6 €
 
     costs_H2 = existing_annualized_costs_H2 + sum(
         (value(model.capacity[tec]) - existing_capacity[tec]) * (annuities[tec] + fOM[tec]) * nb_years + gene_per_tec[tec] * vOM[tec] * 1000
         for tec in model.H2_balance) + \
-               sum(
-                   (value(model.energy_capacity[str]) - existing_energy_capacity[str]) * storage_annuities[
+               sum((value(model.energy_capacity[str]) - existing_energy_capacity[str]) * storage_annuities[
                        str] * nb_years for str in model.str_H2) # 1e6 €
 
     return costs_elec, costs_CH4, costs_H2
@@ -1036,11 +1063,23 @@ def compute_costs_noSCC(model, annuities, fOM, vOM, storage_annuities, anticipat
     return costs_elec, costs_CH4, costs_H2
 
 
-def compute_lcoe_volumetric(model, gene_per_tec, costs_elec, costs_CH4, costs_H2, elec_demand_tot, CH4_demand_tot, H2_demand_tot):
-    gene_from_CH4_to_elec = sum(gene_per_tec[tec] for tec in model.from_CH4_to_elec)  # TWh
-    gene_from_H2_to_elec = sum(gene_per_tec[tec] for tec in model.from_H2_to_elec)  # TWh
-    gene_from_elec_to_CH4 = sum(gene_per_tec[tec] for tec in model.from_elec_to_CH4)  # TWh
-    gene_from_elec_to_H2 = sum(gene_per_tec[tec] for tec in model.from_elec_to_H2)  # TWh
+def compute_lcoe(costs_elec, costs_CH4, costs_H2, G2P_bought, P2G_CH4_bought, P2G_H2_bought, sumgene_elec, sumgene_CH4, sumgene_H2):
+    """Compute LCOE by using the costs of buying electricity / CH4 / H2 to work. Parameters sumgene_elec, sumgene_CH4 and
+    sumgene_H2 refer to the total production from each system (which can be used either to satisfy final demand, or for
+     vector coupling."""
+    lcoe_elec = (costs_elec + G2P_bought) / sumgene_elec  # €/MWh
+    lcoe_CH4 = (costs_CH4 + P2G_CH4_bought) / sumgene_CH4  # €/MWh
+    lcoe_H2 = (costs_H2 + P2G_H2_bought) / sumgene_H2  # €/MWh
+    return lcoe_elec, lcoe_CH4, lcoe_H2
+
+
+def compute_lcoe_volumetric(model, gene_per_tec, conversion_efficiency, costs_elec, costs_CH4, costs_H2, elec_demand_tot, CH4_demand_tot, H2_demand_tot):
+    """Computes a volumetric LCOE, where costs of each system (respectively, electricity, methane and hydrogen) are distributed across the different
+    systems based on volumes (eg, volume of demand versus volume of gas used for the electricity system)."""
+    gene_from_CH4_to_elec = sum(gene_per_tec[tec]/conversion_efficiency[tec] for tec in model.from_CH4_to_elec)  # TWh
+    gene_from_H2_to_elec = sum(gene_per_tec[tec]/conversion_efficiency[tec] for tec in model.from_H2_to_elec)  # TWh
+    gene_from_elec_to_CH4 = sum(gene_per_tec[tec]/conversion_efficiency[tec] for tec in model.from_elec_to_CH4)  # TWh
+    gene_from_elec_to_H2 = sum(gene_per_tec[tec]/conversion_efficiency[tec] for tec in model.from_elec_to_H2)  # TWh
 
     costs_CH4_to_demand = costs_CH4 * CH4_demand_tot / (CH4_demand_tot + gene_from_CH4_to_elec)  # 1e6 €
     costs_CH4_to_elec = costs_CH4 * gene_from_CH4_to_elec / (CH4_demand_tot + gene_from_CH4_to_elec)
@@ -1059,22 +1098,22 @@ def compute_lcoe_volumetric(model, gene_per_tec, costs_elec, costs_CH4, costs_H2
     return lcoe_elec_volume, lcoe_CH4_volume, lcoe_H2_volume
 
 
-def compute_lcoe_value(model, costs_elec, costs_CH4, costs_H2, elec_demand_tot, CH4_demand_tot, H2_demand_tot,
+def compute_lcoe_value(model, conversion_efficiency, costs_elec, costs_CH4, costs_H2, elec_demand_tot, CH4_demand_tot, H2_demand_tot,
                        elec_demand, CH4_demand, H2_demand, elec_spot_price, CH4_spot_price, H2_spot_price):
     total_elec_spot_price = sum(elec_spot_price)
     total_CH4_spot_price = sum(CH4_spot_price)
     total_H2_spot_price = sum(H2_spot_price)
     gene_from_CH4_to_elec_value = sum(
-        sum(value(model.gene[tec, hour]) * CH4_spot_price[hour] for hour in model.h) / (1000 * total_CH4_spot_price)
+        sum(value(model.gene[tec, hour])/conversion_efficiency[tec] * CH4_spot_price[hour] for hour in model.h) / (1000 * total_CH4_spot_price)
         for tec in model.from_CH4_to_elec)  # TWh
     gene_from_H2_to_elec_value = sum(
-        sum(value(model.gene[tec, hour]) * H2_spot_price[hour] for hour in model.h) / (1000 * total_H2_spot_price)
+        sum(value(model.gene[tec, hour])/conversion_efficiency[tec] * H2_spot_price[hour] for hour in model.h) / (1000 * total_H2_spot_price)
         for tec in model.from_H2_to_elec)  # TWh
     gene_from_elec_to_CH4_value = sum(
-        sum(value(model.gene[tec, hour]) * elec_spot_price[hour] for hour in model.h) / (
+        sum(value(model.gene[tec, hour])/conversion_efficiency[tec] * elec_spot_price[hour] for hour in model.h) / (
                 1000 * total_elec_spot_price) for tec in model.from_elec_to_CH4)  # TWh
     gene_from_elec_to_H2_value = sum(
-        sum(value(model.gene[tec, hour]) * elec_spot_price[hour] for hour in model.h) / (
+        sum(value(model.gene[tec, hour])/conversion_efficiency[tec] * elec_spot_price[hour] for hour in model.h) / (
                 1000 * total_elec_spot_price) for tec in model.from_elec_to_H2)  # TWh
     elec_demand_tot_value = sum(elec_demand[hour] * elec_spot_price[hour] for hour in model.h) / (
             1000 * total_elec_spot_price)

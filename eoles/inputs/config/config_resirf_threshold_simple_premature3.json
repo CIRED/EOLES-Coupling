@@ -103,7 +103,7 @@
       "no_policy": false,
       "current_policies": false,
       "income": false,
-      "prices_constant": false,
+      "prices_constant": true,
       "taxes_constant": false,
       "heating_system": {
         "Oil fuel-Standard boiler":  "Oil fuel-Performance boiler",

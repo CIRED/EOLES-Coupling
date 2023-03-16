@@ -43,7 +43,7 @@
     "switch_heater": {
       "ms_heater": "project/input/revealed_data/market_share_heater_transition2050.csv",
       "ms_heater_built": "project/input/revealed_data/market_share_heater_built.csv",
-      "premature_replacement": null,
+      "premature_replacement": 3,
       "information_rate": 0.333
     },
     "technical": {
@@ -103,7 +103,7 @@
       "no_policy": false,
       "current_policies": false,
       "income": false,
-      "prices_constant": false,
+      "prices_constant": true,
       "taxes_constant": false,
       "heating_system": {
         "Oil fuel-Standard boiler":  "Oil fuel-Performance boiler",

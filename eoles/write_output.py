@@ -102,7 +102,7 @@ def plot_comparison(output1, output2, name1, name2):
                    save=None, format_y=lambda y, _: '{:.0f}'.format(y), index_int=False, str=True)
 
 
-def plot_comparison_savings(df, save, col_for_size, smallest_size=100, biggest_size=300, fontsize=10, y_min=None, y_max=None, x_min=None, x_max=None):
+def plot_comparison_savings(df, save, col_for_size, smallest_size=100, biggest_size=300, fontsize=10, y_min=0, y_max=None, x_min=0, x_max=None):
     if save is None:
         fig, ax = plt.subplots(1, 1)
     else:  # we change figure size when saving figure
@@ -132,7 +132,7 @@ def plot_comparison_savings(df, save, col_for_size, smallest_size=100, biggest_s
     save_fig(fig, save=save)
 
 
-def comparison_simulations(dict_output: dict, ref, greenfield=False, health=False, x_min=None, x_max=None, y_min=None, y_max=None, save_path=None):
+def comparison_simulations(dict_output: dict, ref, greenfield=False, health=False, x_min=0, x_max=None, y_min=0, y_max=None, save_path=None):
     annualized_system_costs_df = pd.DataFrame(dtype=float)
     total_system_costs_df = pd.DataFrame(dtype=float)
     complete_system_costs_2050_df = pd.DataFrame(dtype=float)
