@@ -1,10 +1,10 @@
 {
   "Reference": {
-    "end": 2051,
+    "end": 2050,
     "step": 1,
     "full_output": true,
     "start": 2018,
-    "building_stock": "project/input/stock/buildingstock_sdes2018_medium_3.csv",
+    "building_stock": "eoles/inputs/buildingstock_sdes2018_medium_3.csv",
     "financing_cost": {
       "activated": true,
       "interest_rate": 0.04,
@@ -12,8 +12,9 @@
       "duration": 10
     },
     "supply": {
-      "activated": false,
+      "activated_insulation": true,
       "markup_insulation": 1.2,
+      "activated_heater": false,
       "markup_heater": 1.2
     },
     "renovation": {
@@ -26,7 +27,7 @@
       },
       "scale": {
         "name": "standard_deviation",
-        "deviation": 0.048
+        "deviation": 0.0297
       },
       "exogenous": {
         "number": 700000,
@@ -38,12 +39,16 @@
         "ms_insulation_ini": "project/input/revealed_data/market_share_insulation_ini.csv",
         "minimum_performance": null
     },
-      "threshold": false
+      "rational_behavior": {
+        "activated": false,
+        "social": false,
+        "calibration": true
+      }
     },
     "switch_heater": {
       "ms_heater": "project/input/revealed_data/market_share_heater_transition2050.csv",
       "ms_heater_built": "project/input/revealed_data/market_share_heater_built.csv",
-      "premature_replacement": null,
+      "premature_replacement": 3,
       "information_rate": 0.333
     },
     "technical": {
@@ -54,13 +59,13 @@
       "carbon_emission": "project/input/technical/carbon_emission.csv",
       "technical_progress": {
         "insulation": {
-          "activated": true,
+          "activated": false,
           "start": 2020,
           "end": 2035,
           "value_end": -0.1
         },
         "heater": {
-          "activated": true,
+          "activated": false,
           "start": 2020,
           "end": 2035,
           "value_end": -0.2
@@ -103,8 +108,7 @@
       "no_policy": false,
       "current_policies": false,
       "income": false,
-      "prices_constant": false,
-      "taxes_constant": false,
+      "prices_constant": true,
       "heating_system": {
         "Oil fuel-Standard boiler":  "Oil fuel-Performance boiler",
         "Natural gas-Standard boiler":  "Natural gas-Performance boiler",
@@ -114,8 +118,8 @@
         "Natural gas-Collective boiler": "Natural gas-Performance boiler",
         "Oil fuel-Collective boiler": "Oil fuel-Performance boiler"
       },
-      "insulation": true
-    },
-    "calibration": "eoles/inputs/calibration_20230315.pkl"
-  }
+      "insulation": false
+    }
+ }
+
 }

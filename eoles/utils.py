@@ -733,6 +733,26 @@ def plot_generation(df):
     df.plot.pie(ax=ax)
 
 
+def modif_config_resirf(config_resirf, config_coupling):
+    """This function modifies the ResIRF configuration file based on specified options in config_coupling.
+    Namely, we modify: supply, premature replacement, rational behavior"""
+    config_resirf["supply"]["activated_insulation"] = config_coupling["supply_insulation"]
+    config_resirf["supply"]["activated_heater"] = config_coupling["supply_heater"]
+    config_resirf["renovation"]["rational_behavior"]["activated"] = config_coupling["rational_behavior"]
+    if config_coupling["rational_behavior"]:  # in this case, we have to modify parameter policies
+        config_resirf["policies"] = None
+    config_resirf["switch_heater"]["premature_replacement"] = config_coupling["premature_replacement"]
+
+    if 'calibration' in config_coupling.keys():
+        config_resirf['calibration'] = config_coupling["calibration"]
+
+    if 'social' in config_coupling.keys():
+        config_resirf['renovation']["rational_behavior"]["social"] = config_coupling["social"]
+
+
+    return config_resirf
+
+
 if __name__ == '__main__':
     path_cop_behrang = Path("eoles") / "inputs" / "hourly_profiles" / "hp_cop.csv"
     hp_cop_behrang = get_pandas(path_cop_behrang, lambda x: pd.read_csv(x, index_col=0, header=0))

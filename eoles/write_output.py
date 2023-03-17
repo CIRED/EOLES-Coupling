@@ -747,7 +747,9 @@ def plot_simulation(output, save_path):
                    format_y=lambda y, _: '{:.0f}'.format(y))
 
     # Plot LCOE and price
-    make_line_plot(prices_df, y_label="Prices (€/MWh)", colors=resources_data["colors_eoles"],
+    subset_lcoe = ["LCOE electricity", "LCOE electricity volume", "LCOE electricity value", "LCOE CH4", "LCOE CH4 volume",
+              "LCOE CH4 value", "LCOE CH4 volume noSCC", "LCOE CH4 noSCC"]
+    make_line_plot(prices_df, subset=subset_lcoe, y_label="Prices (€/MWh)", colors=resources_data["colors_eoles"],
                    save=os.path.join(save_path, "prices.png"),
                    format_y=lambda y, _: '{:.0f}'.format(y))
 

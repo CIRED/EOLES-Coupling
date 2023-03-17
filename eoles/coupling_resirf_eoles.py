@@ -810,7 +810,8 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
     hourly_generation_2050 = pd.DataFrame()
 
     weighted_average_elec_price, weighted_average_CH4_price, weighted_average_H2_price = [], [], []
-    list_lcoe_elec, list_lcoe_elec_volume, list_lcoe_elec_value, list_lcoe_CH4_value, list_lcoe_CH4_volume, list_lcoe_CH4_volume_noSCC = [], [], [], [], [], []
+    list_lcoe_elec, list_lcoe_elec_volume, list_lcoe_elec_value, list_lcoe_CH4, list_lcoe_CH4_volume, list_lcoe_CH4_value, list_lcoe_CH4_noSCC, list_lcoe_CH4_volume_noSCC = [], [], [], [], [], [], [], []
+    list_lcoe_H2, list_lcoe_H2_volume, list_lcoe_H2_value = [], [], []
     list_emissions = []
     list_electricity_price_ht, list_transport_distribution_lcoe = [], []
     list_elec_annualized, list_transport_distrib_annualized, list_insulation_annualized, list_heater_annualized, list_healthcost_annualized = [], [], [], [], []
@@ -1247,15 +1248,22 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
         list_lcoe_elec.append(m_eoles.summary["lcoe_elec"])
         list_lcoe_elec_volume.append(m_eoles.summary["lcoe_elec_volume"])
         list_lcoe_elec_value.append(m_eoles.summary["lcoe_elec_value"])
+        list_lcoe_CH4.append(m_eoles.summary["lcoe_CH4"])
         list_lcoe_CH4_value.append(m_eoles.summary["lcoe_CH4_value"])
         list_lcoe_CH4_volume.append(m_eoles.summary["lcoe_CH4_volume"])
+        list_lcoe_CH4_noSCC.append(m_eoles.summary["lcoe_CH4_noSCC"])
         list_lcoe_CH4_volume_noSCC.append(m_eoles.summary["lcoe_CH4_volume_noSCC"])
+        list_lcoe_H2.append(m_eoles.summary["lcoe_CH4"])
+        list_lcoe_H2_value.append(m_eoles.summary["lcoe_H2_value"])
+        list_lcoe_H2_volume.append(m_eoles.summary["lcoe_H2_volume"])
 
     price_df = pd.DataFrame(
         {'Average electricity price': weighted_average_elec_price, 'Average CH4 price': weighted_average_CH4_price,
          'Average H2 price': weighted_average_H2_price,
          'LCOE electricity': list_lcoe_elec, 'LCOE electricity value': list_lcoe_elec_value, 'LCOE electricity volume': list_lcoe_elec_volume,
-         'LCOE CH4 value': list_lcoe_CH4_value, 'LCOE CH4 volume': list_lcoe_CH4_volume, 'LCOE CH4 volume noSCC': list_lcoe_CH4_volume_noSCC},
+         'LCOE CH4': list_lcoe_CH4, 'LCOE CH4 value': list_lcoe_CH4_value, 'LCOE CH4 volume': list_lcoe_CH4_volume,
+         'LCOE H2': list_lcoe_H2, 'LCOE H2 value': list_lcoe_H2_value, 'LCOE H2 volume': list_lcoe_H2_volume,
+         'LCOE CH4 noSCC': list_lcoe_CH4_noSCC, 'LCOE CH4 volume noSCC': list_lcoe_CH4_volume_noSCC},
         index=list_anticipated_year)
 
     annualized_system_costs_df = pd.DataFrame(
