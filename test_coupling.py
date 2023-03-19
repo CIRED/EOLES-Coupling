@@ -297,7 +297,7 @@ if __name__ == '__main__':
     if "price_feedback" in config_coupling.keys():
         price_feedback = config_coupling["price_feedback"]
 
-    energy_prices_ht, energy_taxes = get_energy_prices_and_taxes(config_resirf_path)
+    energy_prices_ht, energy_taxes = get_energy_prices_and_taxes(config_resirf)
     calibration_elec_lcoe, calibration_elec_transport_distrib, calibration_gas, m_eoles = calibration_price(config_eoles, scc=100)
     config_coupling["calibration_elec_lcoe"] = calibration_elec_lcoe
     config_coupling["calibration_elec_transport_distrib"] = calibration_elec_transport_distrib

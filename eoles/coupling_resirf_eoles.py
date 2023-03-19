@@ -1540,8 +1540,8 @@ def get_energy_prices_and_taxes(config):
         This is a ResIRF config
     :return:
     """
-    with open(config) as file:
-        config = json.load(file).get('Reference')
+    # with open(config) as file:
+    #     config = json.load(file).get('Reference')
     energy_prices = get_pandas(config['macro']['energy_prices'], lambda x: pd.read_csv(x, index_col=[0]).rename_axis('Year').rename_axis('Heating energy', axis=1))
 
     energy_taxes = get_pandas(config['macro']['energy_taxes'], lambda x: pd.read_csv(x, index_col=[0]).rename_axis('Year').rename_axis('Heating energy', axis=1))
