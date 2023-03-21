@@ -132,7 +132,7 @@ def plot_comparison_savings(df, save, col_for_size, smallest_size=100, biggest_s
     save_fig(fig, save=save)
 
 
-def comparison_simulations(dict_output: dict, ref, greenfield=False, health=False, x_min=0, x_max=None, y_min=0, y_max=None, save_path=None):
+def comparison_simulations(dict_output: dict, ref, greenfield=False, health=False, x_min=-5, x_max=None, y_min=-5, y_max=None, save_path=None):
     annualized_system_costs_df = pd.DataFrame(dtype=float)
     total_system_costs_df = pd.DataFrame(dtype=float)
     complete_system_costs_2050_df = pd.DataFrame(dtype=float)
@@ -348,7 +348,18 @@ def comparison_simulations(dict_output: dict, ref, greenfield=False, health=Fals
                           index_int=False,
                           rotation=90, dict_legend=DICT_TRANSFORM_LEGEND, save=save_path_plot)
 
-    complete_system_costs_2050_diff_df = complete_system_costs_2050_df.copy()
+    complete_system_costs_2050_diff_df = complete_system_costs_2050_df.T.copy()
+    complete_system_costs_2050_diff_df["Total costs HC excluded"] = complete_system_costs_2050_diff_df["Total costs"] - \
+                                                       complete_system_costs_2050_diff_df["Health costs"]
+    complete_system_costs_2050_diff_df = complete_system_costs_2050_diff_df.T
+
+    if health:
+        subset_complete_costs = ["Investment electricity costs", "Investment heater costs",
+                        "Investment insulation costs", "Functionment costs", "Health costs"]
+    else:
+        subset_complete_costs = ["Investment electricity costs", "Investment heater costs",
+                        "Investment insulation costs", "Functionment costs"]
+
     for col in complete_system_costs_2050_diff_df.columns:
         if col != ref:
             complete_system_costs_2050_diff_df[col] = complete_system_costs_2050_diff_df[col] - complete_system_costs_2050_diff_df[ref]
@@ -358,15 +369,24 @@ def comparison_simulations(dict_output: dict, ref, greenfield=False, health=Fals
     else:
         save_path_plot = os.path.join(save_path, "difference_complete_system_costs_2050.png")
     if len(complete_system_costs_2050_diff_df.columns) >= 3:  # ie, at least two scenarios to compare to the ref
-
-        make_stacked_investment_plot(df=complete_system_costs_2050_diff_df.drop(columns=[ref]).T,
-                                     y_label="Difference of complete system costs in 2050 (Billion € / year)",
-                                     subset=subset_complete_costs,
-                                     scatter=complete_system_costs_2050_diff_df.drop(columns=[ref]).T[
-                                         ["Total costs"]].squeeze(),
-                                     save=save_path_plot, colors=resources_data["colors_eoles"],
-                                     format_y=lambda y, _: '{:.1f}'.format(y), rotation=90,
-                                     dict_legend=DICT_TRANSFORM_LEGEND)
+        if health:
+            make_stacked_investment_plot(df=complete_system_costs_2050_diff_df.drop(columns=[ref]).T,
+                                         y_label="Difference of complete system costs in 2050 (Billion € / year)",
+                                         subset=subset_complete_costs,
+                                         scatter=complete_system_costs_2050_diff_df.drop(columns=[ref]).T[
+                                             ["Total costs"]].squeeze(),
+                                         save=save_path_plot, colors=resources_data["colors_eoles"],
+                                         format_y=lambda y, _: '{:.1f}'.format(y), rotation=90,
+                                         dict_legend=DICT_TRANSFORM_LEGEND)
+        else:
+            make_stacked_investment_plot(df=complete_system_costs_2050_diff_df.drop(columns=[ref]).T,
+                                         y_label="Difference of complete system costs in 2050 (Billion € / year)",
+                                         subset=subset_complete_costs,
+                                         scatter=complete_system_costs_2050_diff_df.drop(columns=[ref]).T[
+                                             ["Total costs HC excluded"]].squeeze(),
+                                         save=save_path_plot, colors=resources_data["colors_eoles"],
+                                         format_y=lambda y, _: '{:.1f}'.format(y), rotation=90,
+                                         dict_legend=DICT_TRANSFORM_LEGEND)
     else:
         make_stacked_investment_plot(df=complete_system_costs_2050_diff_df.drop(columns=[ref]).T,
                                      y_label="Difference of complete system costs in 2050 (Billion € / year)",
@@ -472,20 +492,29 @@ def comparison_simulations(dict_output: dict, ref, greenfield=False, health=Fals
     if len(dict_output.keys()) <= 3:
         images_to_save.append(os.path.join(save_path, "evolution_consumption_savings.png"))
 
-    if not greenfield:
-        images = [Image.open(img) for img in images_to_save]
-        new_images = []
-        for png in images:
-            png.load()
-            background = Image.new("RGB", png.size, (255, 255, 255))
-            background.paste(png, mask=png.split()[3])  # 3 is the alpha channel
-            new_images.append(background)
+    if greenfield:
+        images_to_save = [os.path.join(save_path, "total_system_costs.png"),
+                          os.path.join(save_path, "difference_total_system_costs.png"),
+                          os.path.join(save_path, "complete_system_costs_2050.png"),
+                          os.path.join(save_path, "difference_complete_system_costs_2050.png"),
+                          os.path.join(save_path, "consumption_savings.png"),
+                          os.path.join(save_path, "savings_and_costs.png"),
+                          os.path.join(save_path, "savings_and_emissions.png")
+                          ]
 
-        pdf_path = os.path.join(save_path, "summary_comparison.pdf")
+    images = [Image.open(img) for img in images_to_save]
+    new_images = []
+    for png in images:
+        png.load()
+        background = Image.new("RGB", png.size, (255, 255, 255))
+        background.paste(png, mask=png.split()[3])  # 3 is the alpha channel
+        new_images.append(background)
 
-        new_images[0].save(
-            pdf_path, "PDF", resolution=100.0, save_all=True, append_images=new_images[1:]
-        )
+    pdf_path = os.path.join(save_path, "summary_comparison.pdf")
+
+    new_images[0].save(
+        pdf_path, "PDF", resolution=100.0, save_all=True, append_images=new_images[1:]
+    )
 
     return annualized_system_costs_df, total_system_costs_df, consumption_savings_tot_df, complete_system_costs_2050_df
 

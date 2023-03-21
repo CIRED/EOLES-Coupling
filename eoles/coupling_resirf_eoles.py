@@ -1090,7 +1090,12 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
 
         m_eoles.build_model()
         solver_results, status, termination_condition = m_eoles.solve(solver_name="gurobi")
-        print(m_eoles.objective, annuity_health_cost, annuity_investment_heater_cost + annuity_investment_insulation_cost)
+        if config_coupling["health"]:
+            print(m_eoles.objective, annuity_health_cost, annuity_investment_heater_cost, annuity_investment_insulation_cost,
+                  m_eoles.objective+ annuity_health_cost + annuity_investment_heater_cost + annuity_investment_insulation_cost)
+        else:
+            print(m_eoles.objective, annuity_investment_heater_cost, annuity_investment_insulation_cost,
+                  m_eoles.objective + annuity_investment_heater_cost + annuity_investment_insulation_cost)
 
         if termination_condition == "infeasibleOrUnbounded":
             logger.info("Carbon budget is violated.")

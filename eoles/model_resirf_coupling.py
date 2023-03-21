@@ -652,7 +652,7 @@ class ModelEOLES():
                                                          self.storage_annuities)  # pd.Series
         self.functionment_cost = extract_functionment_cost(self.capacities, self.fOM, self.vOM,
                                                            pd.Series(self.generation_per_technology) * 1000, self.oil_consumption, self.wood_consumption,
-                                                           self.anticipated_scc, self.actual_scc)  # pd.Series
+                                                           self.anticipated_scc, self.actual_scc, carbon_constraint=self.carbon_constraint)  # pd.Series
         self.results = {'objective': self.objective, 'summary': self.summary,
                         'hourly_generation': self.hourly_generation,
                         'capacities': self.capacities, 'energy_capacity': self.energy_capacity,

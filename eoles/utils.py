@@ -561,7 +561,7 @@ def extract_annualized_costs_investment_new_capa_nofOM(capacities, energy_capaci
     return costs_new_capacity[["annualized_costs"]], costs_new_energy_capacity[["annualized_costs"]]
 
 
-def extract_functionment_cost(capacities, fOM, vOM, generation, oil_consumption, wood_consumption, anticipated_scc, actual_scc):
+def extract_functionment_cost(capacities, fOM, vOM, generation, oil_consumption, wood_consumption, anticipated_scc, actual_scc, carbon_constraint=True):
     """Returns functionment cost, including fOM and vOM. vOM for gas and oil include the SCC. Unit: 1e6€/yr
     This function has to update vOM for natural gas and fossil fuel based on the actual scc, and no longer based on the
     anticipated_scc which was used to find optimal investment and dispatch.
@@ -570,28 +570,39 @@ def extract_functionment_cost(capacities, fOM, vOM, generation, oil_consumption,
     :param actual_scc: int
         Actual social cost of carbon, used to calculate functionment cost.
     """
-    # New version
-    vOM_no_scc = vOM.copy()  # we remove the SCC in this vOM
-    vOM_no_scc.loc["natural_gas"] = update_ngas_cost(vOM_no_scc.loc["natural_gas"], scc=(-anticipated_scc), emission_rate=0.2295)  # €/kWh
-    vOM_no_scc["fuel_boiler"] = update_ngas_cost(vOM_no_scc["fuel_boiler"], scc=(- anticipated_scc), emission_rate=0.324)
-
-    vOM_SCC_only = (vOM - vOM_no_scc).copy()  # variable cost only due to actual scc
-    vOM_SCC_only.loc["natural_gas"] = update_ngas_cost(vOM_SCC_only.loc["natural_gas"], scc=(actual_scc - anticipated_scc), emission_rate=0.2295)  # €/kWh
-    vOM_SCC_only["fuel_boiler"] = update_ngas_cost(vOM_SCC_only["fuel_boiler"], scc=(actual_scc - anticipated_scc), emission_rate=0.324)
-
-    system_fOM_vOM = pd.concat([capacities, fOM, vOM_no_scc, vOM_SCC_only, generation], axis=1, ignore_index=True).rename(
-        columns={0: "capacity", 1: "fOM", 2: "vOM_no_scc", 3: "vOM_SCC_only", 4: "generation"})
-    system_fOM_vOM = system_fOM_vOM.dropna()
-    system_fOM_vOM["functionment_cost_noSCC"] = system_fOM_vOM["capacity"] * system_fOM_vOM["fOM"] + system_fOM_vOM["generation"] * system_fOM_vOM["vOM_no_scc"]
-    system_fOM_vOM["functionment_cost_SCC"] = system_fOM_vOM["generation"] * system_fOM_vOM["vOM_SCC_only"]
-    system_fOM_vOM_df = system_fOM_vOM[["functionment_cost_noSCC"]]
-
-    oil_functionment_cost_no_scc, wood_functionment_cost_no_scc = oil_consumption * vOM_no_scc["fuel_boiler"], wood_consumption * vOM_no_scc["wood_boiler"]
-    carbon_cost = system_fOM_vOM["functionment_cost_SCC"].sum() + oil_consumption * vOM_SCC_only["fuel_boiler"] + wood_consumption * vOM_SCC_only["wood_boiler"]
-
-    system_fOM_vOM_df = pd.concat([system_fOM_vOM_df, pd.DataFrame(index=["oil_boiler"], data={'functionment_cost_noSCC': [oil_functionment_cost_no_scc]})], axis=0)
-    system_fOM_vOM_df = pd.concat([system_fOM_vOM_df, pd.DataFrame(index=["wood_boiler"], data={'functionment_cost_noSCC': [wood_functionment_cost_no_scc]})], axis=0)
-    system_fOM_vOM_df = pd.concat([system_fOM_vOM_df, pd.DataFrame(index=["carbon_cost"], data={'functionment_cost_noSCC': [carbon_cost]})], axis=0)
+    # # New version
+    # if not carbon_constraint:
+    #     vOM_no_scc = vOM.copy()  # we remove the SCC in this vOM
+    #     vOM_no_scc.loc["natural_gas"] = update_ngas_cost(vOM_no_scc.loc["natural_gas"], scc=(-anticipated_scc), emission_rate=0.2295)  # €/kWh
+    #     vOM_no_scc["fuel_boiler"] = update_ngas_cost(vOM_no_scc["fuel_boiler"], scc=(- anticipated_scc), emission_rate=0.324)
+    #
+    #     vOM_SCC_only = (vOM - vOM_no_scc).copy()  # variable cost only due to actual scc, not anticipated scc
+    #     vOM_SCC_only.loc["natural_gas"] = update_ngas_cost(vOM_SCC_only.loc["natural_gas"], scc=(actual_scc - anticipated_scc), emission_rate=0.2295)  # €/kWh
+    #     vOM_SCC_only["fuel_boiler"] = update_ngas_cost(vOM_SCC_only["fuel_boiler"], scc=(actual_scc - anticipated_scc), emission_rate=0.324)
+    #
+    #     system_fOM_vOM = pd.concat([capacities, fOM, vOM_no_scc, vOM_SCC_only, generation], axis=1, ignore_index=True).rename(
+    #         columns={0: "capacity", 1: "fOM", 2: "vOM_no_scc", 3: "vOM_SCC_only", 4: "generation"})
+    #     system_fOM_vOM = system_fOM_vOM.dropna()
+    #     system_fOM_vOM["functionment_cost_noSCC"] = system_fOM_vOM["capacity"] * system_fOM_vOM["fOM"] + system_fOM_vOM["generation"] * system_fOM_vOM["vOM_no_scc"]
+    #     system_fOM_vOM["functionment_cost_SCC"] = system_fOM_vOM["generation"] * system_fOM_vOM["vOM_SCC_only"]
+    #     system_fOM_vOM_df = system_fOM_vOM[["functionment_cost_noSCC"]]
+    #
+    #     oil_functionment_cost_no_scc, wood_functionment_cost_no_scc = oil_consumption * vOM_no_scc["fuel_boiler"], wood_consumption * vOM_no_scc["wood_boiler"]
+    #     carbon_cost = system_fOM_vOM["functionment_cost_SCC"].sum() + oil_consumption * vOM_SCC_only["fuel_boiler"] + wood_consumption * vOM_SCC_only["wood_boiler"]
+    #
+    #     system_fOM_vOM_df = pd.concat([system_fOM_vOM_df, pd.DataFrame(index=["oil_boiler"], data={'functionment_cost_noSCC': [oil_functionment_cost_no_scc]})], axis=0)
+    #     system_fOM_vOM_df = pd.concat([system_fOM_vOM_df, pd.DataFrame(index=["wood_boiler"], data={'functionment_cost_noSCC': [wood_functionment_cost_no_scc]})], axis=0)
+    #     system_fOM_vOM_df = pd.concat([system_fOM_vOM_df, pd.DataFrame(index=["carbon_cost"], data={'functionment_cost_noSCC': [carbon_cost]})], axis=0)
+    #     system_fOM_vOM_df = system_fOM_vOM_df.rename(columns={'functionment_cost_noSCC': 'functionment_cost'})
+    # else:
+    #     new_vOM = vOM.copy()
+    #     system_fOM_vOM = pd.concat([capacities, fOM, new_vOM, generation], axis=1, ignore_index=True).rename(columns={0: "capacity", 1: "fOM", 2: "vOM", 3: "generation"})
+    #     system_fOM_vOM = system_fOM_vOM.dropna()
+    #     system_fOM_vOM["functionment_cost"] = system_fOM_vOM["capacity"] * system_fOM_vOM["fOM"] + system_fOM_vOM["generation"] * system_fOM_vOM["vOM"]
+    #     system_fOM_vOM_df = system_fOM_vOM[["functionment_cost"]]
+    #     oil_functionment_cost, wood_functionment_cost = oil_consumption * new_vOM["fuel_boiler"], wood_consumption * new_vOM["wood_boiler"]
+    #     system_fOM_vOM_df = pd.concat([system_fOM_vOM_df, pd.DataFrame(index=["oil_boiler"], data={'functionment_cost': [oil_functionment_cost]})], axis=0)
+    #     system_fOM_vOM_df = pd.concat([system_fOM_vOM_df, pd.DataFrame(index=["wood_boiler"], data={'functionment_cost': [wood_functionment_cost]})], axis=0)
 
     # OLD VERSION
     new_vOM = vOM.copy()
@@ -733,22 +744,53 @@ def plot_generation(df):
     df.plot.pie(ax=ax)
 
 
-def modif_config_resirf(config_resirf, config_coupling):
+def modif_config_resirf(config_resirf, config_coupling, calibration=None):
     """This function modifies the ResIRF configuration file based on specified options in config_coupling.
     Namely, we modify: supply, premature replacement, rational behavior"""
+    # Modification supply value
     config_resirf["supply"]["activated_insulation"] = config_coupling["supply_insulation"]
     config_resirf["supply"]["activated_heater"] = config_coupling["supply_heater"]
+
+    # Modification rational behavior
     config_resirf["renovation"]["rational_behavior"]["activated"] = config_coupling["rational_behavior"]
     if config_coupling["rational_behavior"]:  # in this case, we have to modify parameter policies
         config_resirf["policies"] = None
+
+    # Modification premature replacement
     config_resirf["switch_heater"]["premature_replacement"] = config_coupling["premature_replacement"]
 
-    if 'calibration' in config_coupling.keys():
-        config_resirf['calibration'] = config_coupling["calibration"]
+    # if 'calibration' in config_coupling.keys():
+    #     config_resirf['calibration'] = config_coupling["calibration"]
 
     if 'social' in config_coupling.keys():
         config_resirf['renovation']["rational_behavior"]["social"] = config_coupling["social"]
 
+    if "information_rate" in config_coupling.keys():
+        config_resirf['switch_heater']["information_rate"] = config_coupling["information_rate"]
+
+    if not config_coupling["rational_behavior"]:  # we use calibration file only for configs without rational behavior
+        if calibration is not None:  #  only if calibration file is specified
+            assert os.path.isfile(calibration), "Calibration should profile the name of a file"
+            config_resirf["calibration"] = calibration
+
+    if 'no_MF' in config_coupling.keys():
+        if config_coupling['no_MF']:  # we want to remove market failures
+            policy_noMF = {"landlord": {
+                                  "start": 2020,
+                                  "end": 2051,
+                                  "policy": "regulation",
+                                  "gest": "insulation"
+                                },
+                          "multi-family": {
+                                  "start": 2020,
+                                  "end": 2051,
+                                  "policy": "regulation",
+                                        "gest": "insulation"
+                        }}
+            config_resirf["policies"].update(policy_noMF)
+
+    if "prices_constant" in config_coupling.keys():  # we remove hypothesis of prices constant
+        config_resirf["simple"]["prices_constant"] = config_coupling["prices_constant"]
 
     return config_resirf
 
