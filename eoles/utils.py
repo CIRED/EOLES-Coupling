@@ -650,14 +650,18 @@ def process_annualized_costs_per_vector(annualized_costs_capacity, annualized_co
 
     CH4_balance = ["methanization", "pyrogazification", "natural_gas", "methanation", "methane"]
     CH4_str = ["methane"]
+    CH4_balance_historic = ["natural_gas", "methane"]
+    CH4_balance_biogas = ["methanization", "pyrogazification", "methanation"]
 
     H2_balance = ["electrolysis", "hydrogen"]
     H2_str = ["hydrogen"]
 
     annualized_costs_elec = annualized_costs_capacity[elec_balance].sum() + annualized_costs_energy_capacity[elec_str].sum()  # includes annuity, fOM and storage annuity
     annualized_costs_CH4 = annualized_costs_capacity[CH4_balance].sum() + annualized_costs_energy_capacity[CH4_str].sum()
+    annualized_costs_CH4_naturalgas = annualized_costs_capacity[CH4_balance_historic].sum() + annualized_costs_energy_capacity[CH4_str].sum()
+    annualized_costs_CH4_biogas = annualized_costs_capacity[CH4_balance_biogas].sum()
     annualized_costs_H2 = annualized_costs_capacity[H2_balance].sum() + annualized_costs_energy_capacity[H2_str].sum()
-    return annualized_costs_elec, annualized_costs_CH4, annualized_costs_H2
+    return annualized_costs_elec, annualized_costs_CH4, annualized_costs_CH4_naturalgas, annualized_costs_CH4_biogas, annualized_costs_H2
 
 
 def calculate_LCOE_gene_tec(list_tec, model, annuities, fOM, vOM, nb_years, gene_per_tec):

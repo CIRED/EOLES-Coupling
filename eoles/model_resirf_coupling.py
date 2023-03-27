@@ -39,7 +39,8 @@ class ModelEOLES():
                  existing_capacity=None, existing_charging_capacity=None, existing_energy_capacity=None, maximum_capacity=None,
                  method_hourly_profile="valentin", anticipated_social_cost_of_carbon=0, actual_social_cost_of_carbon=0, year=2050, anticipated_year=2050,
                  scenario_cost=None, existing_annualized_costs_elec=0,
-                 existing_annualized_costs_CH4=0, existing_annualized_costs_H2=0, carbon_constraint=False, discount_rate=0.045):
+                 existing_annualized_costs_CH4=0, existing_annualized_costs_H2=0, existing_annualized_costs_CH4_naturalgas=0,
+                 existing_annualized_costs_CH4_biogas=0, carbon_constraint=False, discount_rate=0.045):
         """
 
         :param name: str
@@ -69,6 +70,10 @@ class ModelEOLES():
         :param scenario_cost: dict
         :param existing_annualized_costs_elec: float
         :param existing_annualized_costs_CH4: float
+        :param existing_annualized_costs_CH4_naturalgas: float
+            Existing costs related to natural gas + methane
+        :param existing_annualized_costs_CH4: float
+            Existing costs related to biogas (methanization, pyro, methanation)
         :param existing_annualized_costs_H2: float
         :param carbon_constraint: bool
             If true, include a carbon constraint instead of the social cost of carbon
@@ -92,6 +97,8 @@ class ModelEOLES():
         self.anticipated_year = anticipated_year
         self.existing_annualized_costs_elec = existing_annualized_costs_elec
         self.existing_annualized_costs_CH4 = existing_annualized_costs_CH4
+        self.existing_annualized_costs_CH4_naturalgas = existing_annualized_costs_CH4_naturalgas
+        self.existing_annualized_costs_CH4_biogas = existing_annualized_costs_CH4_biogas
         self.existing_annualized_costs_H2 = existing_annualized_costs_H2
 
         assert hourly_heat_elec is not None, "Hourly electricity heat profile should be provided to the model"
@@ -254,6 +261,8 @@ class ModelEOLES():
         # Gas technologies used for balance (both CH4 and H2)
         self.model.CH4_balance = Set(
             initialize=["methanization", "pyrogazification", "natural_gas", "methanation", "methane"])
+        self.model.CH4_balance_historic = Set(initialize=["natural_gas", "methane"])
+        self.model.CH4_balance_biogas = Set(initialize=["methanization", "pyrogazification", "methanation"])
         self.model.H2_balance = Set(initialize=["electrolysis", "hydrogen"])
 
         # Conversion technologies
@@ -644,8 +653,9 @@ class ModelEOLES():
                                             self.existing_capacity, self.existing_energy_capacity, self.annuities,
                                             self.storage_annuities, self.fOM, self.vOM, self.conversion_efficiency,
                                             self.existing_annualized_costs_elec, self.existing_annualized_costs_CH4,
+                                            self.existing_annualized_costs_CH4_naturalgas, self.existing_annualized_costs_CH4_biogas,
                                             self.existing_annualized_costs_H2, self.transport_distribution_cost,
-                                            self.anticipated_scc, self.nb_years)
+                                            self.anticipated_scc, self.nb_years, self.carbon_constraint)
         self.new_capacity_annualized_costs_nofOM, self.new_energy_capacity_annualized_costs_nofOM = \
             extract_annualized_costs_investment_new_capa_nofOM(self.capacities, self.energy_capacity,
                                                          self.existing_capacity, self.existing_energy_capacity, self.annuities,
@@ -860,8 +870,9 @@ def read_input_static(config, year):
 
 def extract_summary(model, elec_demand, H2_demand, CH4_demand, existing_capacity, existing_energy_capacity, annuities,
                     storage_annuities, fOM, vOM, conversion_efficiency, existing_annualized_costs_elec,
-                    existing_annualized_costs_CH4, existing_annualized_costs_H2, transportation_distribution_cost,
-                    anticipated_scc, nb_years):
+                    existing_annualized_costs_CH4, existing_annualized_costs_CH4_naturalgas, existing_annualized_costs_CH4_biogas,
+                    existing_annualized_costs_H2, transportation_distribution_cost,
+                    anticipated_scc, nb_years, carbon_constraint):
     """This function compiles different general statistics of the electricity mix, including in particular LCOE."""
     # TODO: A CHANGER !!!
     summary = {}  # final dictionary for output
@@ -963,15 +974,21 @@ def extract_summary(model, elec_demand, H2_demand, CH4_demand, existing_capacity
     #                      str] * nb_years for str in model.str_H2) + P2G_H2_bought) / sumgene_H2  # €/MWh
 
     # We calculate the costs associated to functioning of each system (elec, CH4, gas)
-    costs_elec, costs_CH4, costs_H2 = compute_costs(model, annuities, fOM, vOM, storage_annuities, gene_per_tec, existing_capacity, existing_energy_capacity,
-                  existing_annualized_costs_elec, existing_annualized_costs_CH4, existing_annualized_costs_H2, nb_years)  # 1e6 €
+    costs_elec, costs_CH4, cost_CH4_naturalgas, cost_CH4_biogas, costs_H2 = compute_costs(model, annuities, fOM, vOM, storage_annuities, gene_per_tec,
+                                                                            existing_capacity, existing_energy_capacity,
+                  existing_annualized_costs_elec, existing_annualized_costs_CH4, existing_annualized_costs_CH4_naturalgas,
+                                      existing_annualized_costs_CH4_biogas, existing_annualized_costs_H2, nb_years)  # 1e6 €
 
     # print(costs_elec, costs_CH4, costs_H2)
     # We first calculate LCOE by using total costs.
-    lcoe_elec, lcoe_CH4, lcoe_H2 = compute_lcoe(costs_elec, costs_CH4, costs_H2, G2P_bought, P2G_CH4_bought, P2G_H2_bought,
-                                                sumgene_elec, sumgene_CH4, sumgene_H2)
+    lcoe_elec, lcoe_CH4, lcoe_CH4_naturalgas, lcoe_CH4_biogas, lcoe_H2 = \
+        compute_lcoe(costs_elec, costs_CH4, cost_CH4_naturalgas, cost_CH4_biogas, costs_H2, G2P_bought, P2G_CH4_bought,
+                     P2G_H2_bought, sumgene_elec, sumgene_CH4, sumgene_H2)
     summary["lcoe_elec"] = lcoe_elec
     summary["lcoe_CH4"] = lcoe_CH4
+    summary["lcoe_CH4_naturalgas"] = lcoe_CH4_naturalgas
+    summary["lcoe_CH4_biogas"] = lcoe_CH4_biogas
+    assert math.isclose(lcoe_CH4, lcoe_CH4_naturalgas + lcoe_CH4_biogas), "Problem when estimating CH4 LCOE."
     summary["lcoe_H2"] = lcoe_H2
 
     # We now calculate ratios to assign the costs depending on the part of those costs used to meet final demand,
@@ -989,18 +1006,28 @@ def extract_summary(model, elec_demand, H2_demand, CH4_demand, existing_capacity
     summary["lcoe_elec_value"], summary["lcoe_CH4_value"], summary["lcoe_H2_value"] = \
         lcoe_elec_value, lcoe_CH4_value, lcoe_H2_value
 
-    # We compile CH4 LCOE without SCC. This is needed for the calibration and estimation of gas prices.
-    costs_elec_noSCC, costs_CH4_noSCC, costs_H2_noSCC = \
-        compute_costs_noSCC(model, annuities, fOM, vOM, storage_annuities, anticipated_scc, gene_per_tec,
-                            existing_capacity, existing_energy_capacity, existing_annualized_costs_elec,
-                            existing_annualized_costs_CH4, existing_annualized_costs_H2, nb_years)  # 1e6 €
+    if not carbon_constraint:
+        # We compile CH4 LCOE without SCC. This is needed for the calibration and estimation of gas prices.
+        costs_elec_noSCC, costs_CH4_noSCC, cost_CH4_naturalgas_noSCC, cost_CH4_biogas_noSCC,  costs_H2_noSCC = \
+            compute_costs_noSCC(model, annuities, fOM, vOM, storage_annuities, anticipated_scc, gene_per_tec,
+                                existing_capacity, existing_energy_capacity, existing_annualized_costs_elec,
+                                existing_annualized_costs_CH4, existing_annualized_costs_CH4_naturalgas, existing_annualized_costs_CH4_biogas,
+                                existing_annualized_costs_H2, nb_years)  # 1e6 €
 
-    lcoe_elec_noSCC, lcoe_CH4_noSCC, lcoe_H2_noSCC = compute_lcoe(costs_elec_noSCC, costs_CH4_noSCC, costs_H2_noSCC, G2P_bought, P2G_CH4_bought, P2G_H2_bought,
-                                                sumgene_elec, sumgene_CH4, sumgene_H2)
-    summary["lcoe_CH4_noSCC"] = lcoe_CH4_noSCC
-    lcoe_elec_volume_noSCC, lcoe_CH4_volume_noSCC, lcoe_H2_volume_noSCC = \
-        compute_lcoe_volumetric(model, gene_per_tec, conversion_efficiency, costs_elec_noSCC, costs_CH4_noSCC, costs_H2_noSCC, elec_demand_tot, CH4_demand_tot, H2_demand_tot)
-    summary["lcoe_CH4_volume_noSCC"] = lcoe_CH4_volume_noSCC
+        lcoe_elec_noSCC, lcoe_CH4_noSCC, lcoe_CH4_naturalgas_noSCC, lcoe_CH4_biogas_noSCC, lcoe_H2_noSCC = \
+            compute_lcoe(costs_elec_noSCC, costs_CH4_noSCC, cost_CH4_naturalgas_noSCC, cost_CH4_biogas_noSCC, costs_H2_noSCC,
+                         G2P_bought, P2G_CH4_bought, P2G_H2_bought, sumgene_elec, sumgene_CH4, sumgene_H2)
+
+        lcoe_elec_volume_noSCC, lcoe_CH4_volume_noSCC, lcoe_H2_volume_noSCC = \
+            compute_lcoe_volumetric(model, gene_per_tec, conversion_efficiency, costs_elec_noSCC, costs_CH4_noSCC, costs_H2_noSCC, elec_demand_tot, CH4_demand_tot, H2_demand_tot)
+
+    else:  # no difference because SCC = 0 in that case
+        lcoe_elec_noSCC, lcoe_CH4_noSCC, lcoe_CH4_naturalgas_noSCC, lcoe_CH4_biogas_noSCC, lcoe_H2_noSCC = lcoe_elec, lcoe_CH4, lcoe_CH4_naturalgas, lcoe_CH4_biogas, lcoe_H2
+        lcoe_elec_volume_noSCC, lcoe_CH4_volume_noSCC, lcoe_H2_volume_noSCC = lcoe_elec_volume, lcoe_CH4_volume, lcoe_H2_volume
+
+    summary["lcoe_CH4_noSCC"], summary["lcoe_CH4_volume_noSCC"] = lcoe_CH4_noSCC, lcoe_CH4_volume_noSCC
+    summary["lcoe_CH4_naturalgas_noSCC"], summary["lcoe_CH4_biogas_noSCC"] = lcoe_CH4_naturalgas_noSCC, lcoe_CH4_biogas_noSCC
+    assert math.isclose(lcoe_CH4_noSCC, lcoe_CH4_naturalgas_noSCC + lcoe_CH4_biogas_noSCC), "Problem when estimating CH4 noSCC LCOE."
 
     # Estimation of transportation and distribution costs
     transport_and_distrib_lcoe = transportation_distribution_cost * 1000 / elec_demand_tot  # € / yr / MWh
@@ -1012,7 +1039,8 @@ def extract_summary(model, elec_demand, H2_demand, CH4_demand, existing_capacity
 
 
 def compute_costs(model, annuities, fOM, vOM, storage_annuities, gene_per_tec, existing_capacity, existing_energy_capacity,
-                  existing_annualized_costs_elec, existing_annualized_costs_CH4, existing_annualized_costs_H2, nb_years):
+                  existing_annualized_costs_elec, existing_annualized_costs_CH4, existing_annualized_costs_CH4_naturalgas,
+                  existing_annualized_costs_CH4_biogas, existing_annualized_costs_H2, nb_years):
     costs_elec = existing_annualized_costs_elec + sum(
         (value(model.capacity[tec]) - existing_capacity[tec]) * (annuities[tec] + fOM[tec]) * nb_years + gene_per_tec[tec] * vOM[tec] * 1000
         for tec in model.elec_balance) + \
@@ -1021,10 +1049,19 @@ def compute_costs(model, annuities, fOM, vOM, storage_annuities, gene_per_tec, e
 
     costs_CH4 = existing_annualized_costs_CH4 + sum(
         (value(model.capacity[tec]) - existing_capacity[tec]) * (annuities[tec] + fOM[tec]) * nb_years + gene_per_tec[tec] * vOM[tec] * 1000
-        for tec in
-        model.CH4_balance) + \
+        for tec in model.CH4_balance) + \
                 sum((value(model.energy_capacity[str]) - existing_energy_capacity[str]) * storage_annuities[
                         str] * nb_years for str in model.str_CH4) # 1e6 €
+
+    cost_CH4_naturalgas = existing_annualized_costs_CH4_naturalgas + sum(
+        (value(model.capacity[tec]) - existing_capacity[tec]) * (annuities[tec] + fOM[tec]) * nb_years + gene_per_tec[tec] * vOM[tec] * 1000
+        for tec in model.CH4_balance_historic) + \
+                sum((value(model.energy_capacity[str]) - existing_energy_capacity[str]) * storage_annuities[
+                        str] * nb_years for str in model.str_CH4) # 1e6 €
+
+    cost_CH4_biogas = existing_annualized_costs_CH4_biogas + sum(
+        (value(model.capacity[tec]) - existing_capacity[tec]) * (annuities[tec] + fOM[tec]) * nb_years + gene_per_tec[tec] * vOM[tec] * 1000
+        for tec in model.CH4_balance_biogas)  # 1e6 €
 
     costs_H2 = existing_annualized_costs_H2 + sum(
         (value(model.capacity[tec]) - existing_capacity[tec]) * (annuities[tec] + fOM[tec]) * nb_years + gene_per_tec[tec] * vOM[tec] * 1000
@@ -1032,11 +1069,12 @@ def compute_costs(model, annuities, fOM, vOM, storage_annuities, gene_per_tec, e
                sum((value(model.energy_capacity[str]) - existing_energy_capacity[str]) * storage_annuities[
                        str] * nb_years for str in model.str_H2) # 1e6 €
 
-    return costs_elec, costs_CH4, costs_H2
+    return costs_elec, costs_CH4, cost_CH4_naturalgas, cost_CH4_biogas, costs_H2
 
 
 def compute_costs_noSCC(model, annuities, fOM, vOM, storage_annuities, anticipated_scc, gene_per_tec, existing_capacity,
-                            existing_energy_capacity, existing_annualized_costs_elec, existing_annualized_costs_CH4,
+                        existing_energy_capacity, existing_annualized_costs_elec, existing_annualized_costs_CH4,
+                        existing_annualized_costs_CH4_naturalgas, existing_annualized_costs_CH4_biogas,
                             existing_annualized_costs_H2, nb_years):
     """Same as compute_costs, but only includes technical costs, and no SCC."""
     new_vOM = vOM.copy()
@@ -1054,23 +1092,35 @@ def compute_costs_noSCC(model, annuities, fOM, vOM, storage_annuities, anticipat
                 sum((value(model.energy_capacity[str]) - existing_energy_capacity[str]) * storage_annuities[
                         str] * nb_years for str in model.str_CH4)  # 1e6 €
 
+    cost_CH4_naturalgas = existing_annualized_costs_CH4_naturalgas + sum(
+        (value(model.capacity[tec]) - existing_capacity[tec]) * (annuities[tec] + fOM[tec]) * nb_years + gene_per_tec[tec] * new_vOM[tec] * 1000
+        for tec in model.CH4_balance_historic) + \
+                sum((value(model.energy_capacity[str]) - existing_energy_capacity[str]) * storage_annuities[
+                        str] * nb_years for str in model.str_CH4) # 1e6 €
+
+    cost_CH4_biogas = existing_annualized_costs_CH4_biogas + sum(
+        (value(model.capacity[tec]) - existing_capacity[tec]) * (annuities[tec] + fOM[tec]) * nb_years + gene_per_tec[tec] * new_vOM[tec] * 1000
+        for tec in model.CH4_balance_biogas)  # 1e6 €
+
     costs_H2 = existing_annualized_costs_H2 + sum(
         (value(model.capacity[tec]) - existing_capacity[tec]) * (annuities[tec] + fOM[tec]) * nb_years + gene_per_tec[
             tec] * new_vOM[tec] * 1000 for tec in model.H2_balance) + \
                sum((value(model.energy_capacity[str]) - existing_energy_capacity[str]) * storage_annuities[
                        str] * nb_years for str in model.str_H2)  # 1e6 €
 
-    return costs_elec, costs_CH4, costs_H2
+    return costs_elec, costs_CH4, cost_CH4_naturalgas, cost_CH4_biogas, costs_H2
 
 
-def compute_lcoe(costs_elec, costs_CH4, costs_H2, G2P_bought, P2G_CH4_bought, P2G_H2_bought, sumgene_elec, sumgene_CH4, sumgene_H2):
+def compute_lcoe(costs_elec, costs_CH4, cost_CH4_naturalgas, cost_CH4_biogas, costs_H2, G2P_bought, P2G_CH4_bought, P2G_H2_bought, sumgene_elec, sumgene_CH4, sumgene_H2):
     """Compute LCOE by using the costs of buying electricity / CH4 / H2 to work. Parameters sumgene_elec, sumgene_CH4 and
     sumgene_H2 refer to the total production from each system (which can be used either to satisfy final demand, or for
      vector coupling."""
     lcoe_elec = (costs_elec + G2P_bought) / sumgene_elec  # €/MWh
     lcoe_CH4 = (costs_CH4 + P2G_CH4_bought) / sumgene_CH4  # €/MWh
+    lcoe_CH4_naturalgas = cost_CH4_naturalgas / sumgene_CH4  # €/MWh
+    lcoe_CH4_biogas = (cost_CH4_biogas + P2G_CH4_bought) / sumgene_CH4  # €/MWh
     lcoe_H2 = (costs_H2 + P2G_H2_bought) / sumgene_H2  # €/MWh
-    return lcoe_elec, lcoe_CH4, lcoe_H2
+    return lcoe_elec, lcoe_CH4, lcoe_CH4_naturalgas, lcoe_CH4_biogas, lcoe_H2
 
 
 def compute_lcoe_volumetric(model, gene_per_tec, conversion_efficiency, costs_elec, costs_CH4, costs_H2, elec_demand_tot, CH4_demand_tot, H2_demand_tot):

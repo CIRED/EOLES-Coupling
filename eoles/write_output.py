@@ -18,19 +18,19 @@ COLORS_SCENARIOS = {}  # a ajouter des couleurs par simulation
 STYLES = ['-', '--', ':', "-.", '*-', 's-', 'o-', '^-', 's-', 'o-', '^-', '*-']
 
 DICT_TRANSFORM_LEGEND = {
-    "Annualized electricity system costs": "electricity",
-    "Annualized investment heater costs": "heater",
-    "Annualized investment insulation costs": "insulation",
-    "Annualized health costs": "health",
+    "Annualized electricity system costs": "investment power mix",
+    "Annualized investment heater costs": "investment heater switch",
+    "Annualized investment insulation costs": "investment insulation",
+    "Annualized health costs": "health costs",
     "Annualized total costs HC excluded": "total costs",
     "Annualized total costs": "total costs",
-    "Investment electricity costs": "electricity",
-    "Functionment costs": "energy operational",
-    "Investment heater costs": "heater",
-    "Investment insulation costs": "insulation",
-    "Health costs": "health",
-    "Total costs HC excluded": "total costs",
-    "Total costs": "total costs",
+    "Investment electricity costs": "Investment power mix",
+    "Functionment costs": "Energy operational costs",
+    "Investment heater costs": "Investment heater switch",
+    "Investment insulation costs": "Investment insulation",
+    "Health costs": "Health costs",
+    "Total costs HC excluded": "Total system costs",
+    "Total costs": "Total system costs",
     "Consumption saving insulation (TWh/year)": "insulation",
     "Consumption saving heater (TWh/year)": "heater",
     "Consumption saving insulation (TWh)": "insulation",
@@ -50,6 +50,19 @@ DICT_TRANSFORM_LEGEND = {
     "methanization": "methanization",
     "pyrogazification": "pyrogazification",
     "natural_gas": "natural gas"
+}
+
+DICT_XLABELS = {
+    "Uniform": "Uniform \n Uniform insulation \n ad valorem subsidies \n Heat pump subsidy",
+    "No subsidy insulation": "No subsidy insulation \n No subsidy insulation \n Heat pump subsidy",
+    # "Global renovation": "Global renovation \n Global renovation \n insulation subsidiy \n Heat pump subsidy",
+    "Global renovation no MF": "Global renovation no MF \n Heat pump subsidy",
+    "Global renovation FGE": "Global renovation FGE \n Heat pump subsidy",
+    "Centralized": "Centralized \n Technical cost-optimal \n insulation measures \n Heat pump subsidy",
+    "Centralized GR": "Centralized GR \n Heat pump subsidy",
+    "Centralized social ": "Centralized social \n Heat pump subsidy",
+    "Efficiency100": "Efficiency100 \n Heat pump subsidy",
+    'Global renovation': r'\fontsize{20pt}{3em}\selectfont{}{Global renovation \n}{\fontsize{18pt}{3em}\selectfont{}(GR)}'
 }
 
 
@@ -115,11 +128,16 @@ def plot_comparison_savings(df, save, col_for_size, smallest_size=100, biggest_s
 
     scatter = ax.scatter(x=df[x], y=df[y], s=size)
     for scenario, v in df.iterrows():
-        ax.annotate(scenario, xy=(v[x], v[y]), xytext=(10, -5), textcoords="offset points", fontsize=fontsize)
+        ax.annotate(scenario, xy=(v[x], v[y]), xytext=(20, -5), textcoords="offset points", fontsize=fontsize)
 
-    ax = format_ax(ax, title="Comparison savings (TWh)", y_label="Savings heater", x_label="Savings insulation",
+    ax = format_ax(ax,
+                   # title="Comparison savings (TWh)",
+                   title="Energy savings through switch to heat pumps (TWh) \n",
+                   # y_label="Savings heater (TWh)",
+                   x_label="Energy savings through home renovation (TWh)",
                    format_y=lambda y, _: '{:.0f}'.format(y), format_x=lambda x, _: '{:.0f}'.format(x),
-                   y_min=y_min, y_max=y_max, x_min=x_min, x_max=x_max)
+                   y_min=y_min, y_max=y_max, x_min=x_min, x_max=x_max,
+                   loc_title="left", c_title="black", loc_xlabel="right")
 
     box = ax.get_position()
     ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
@@ -127,12 +145,20 @@ def plot_comparison_savings(df, save, col_for_size, smallest_size=100, biggest_s
     kw = dict(prop="sizes", num=4, func=lambda s: s_min + (s - smallest_size) * (s_max - s_min) / (biggest_size - smallest_size))
     # handles, labels = scatter.legend_elements(prop="sizes")
     # legend2 = ax.legend(handles, labels, loc="upper right", title="Sizes")
-    legend2 = ax.legend(*scatter.legend_elements(**kw), title=col_for_size, loc='upper left', bbox_to_anchor=(1, 0.5), frameon=False)
+    if col_for_size == "Total costs":
+        title = "Total system costs (Billion EUR)"
+    else:
+        title = col_for_size
+    legend2 = ax.legend(*scatter.legend_elements(**kw), title=title, loc='upper left', bbox_to_anchor=(1, 0.5), frameon=False)
 
     save_fig(fig, save=save)
 
 
-def comparison_simulations(dict_output: dict, ref, greenfield=False, health=False, x_min=-5, x_max=None, y_min=-5, y_max=None, save_path=None):
+def comparison_simulations(dict_output: dict, ref, greenfield=False, health=False, x_min=-5, x_max=None, y_min=-5, y_max=None, rotation=90, save_path=None, pdf=False):
+    if pdf:
+        extension = "pdf"
+    else:
+        extension = "png"
     annualized_system_costs_df = pd.DataFrame(dtype=float)
     total_system_costs_df = pd.DataFrame(dtype=float)
     complete_system_costs_2050_df = pd.DataFrame(dtype=float)
@@ -280,7 +306,7 @@ def comparison_simulations(dict_output: dict, ref, greenfield=False, health=Fals
     if save_path is None:
         save_path_plot = None
     else:
-        save_path_plot = os.path.join(save_path, "total_system_costs.png")
+        save_path_plot = os.path.join(save_path, f"total_system_costs.{extension}")
     make_stacked_bar_plot(total_system_costs_df.T, subset=subset_annualized_costs, y_label="Total system costs (Md€)",
                           colors=resources_data["colors_eoles"], format_y=lambda y, _: '{:.0f}'.format(y),
                           index_int=False,
@@ -305,17 +331,18 @@ def comparison_simulations(dict_output: dict, ref, greenfield=False, health=Fals
     if save_path is None:
         save_path_plot = None
     else:
-        save_path_plot = os.path.join(save_path, "difference_total_system_costs.png")
+        save_path_plot = os.path.join(save_path, f"difference_total_system_costs.{extension}")
     if len(total_system_costs_diff_df.columns) >= 3:  # ie, at least two scenarios to compare to the ref
         if health:
             make_stacked_investment_plot(df=total_system_costs_diff_df.drop(columns=[ref]).T,
-                                         y_label="Difference of total system costs over 2025-2050 (Billion €)",
+                                         # y_label="Difference of total system costs over 2025-2050 (Billion €)",
+                                         y_label="",
                                          subset=subset_costs,
                                          scatter=total_system_costs_diff_df.drop(columns=[ref]).T[
                                              ["Total costs"]].squeeze(),
                                          save=save_path_plot, colors=resources_data["colors_eoles"],
-                                         format_y=lambda y, _: '{:.0f}'.format(y), rotation=90,
-                                         dict_legend=DICT_TRANSFORM_LEGEND)
+                                         format_y=lambda y, _: '{:.0f}'.format(y), rotation=rotation,
+                                         dict_legend=DICT_TRANSFORM_LEGEND, dict_xlabels=None)
         else:
             make_stacked_investment_plot(df=total_system_costs_diff_df.drop(columns=[ref]).T,
                                          y_label="Difference of total system costs over 2025-2050 (Billion €)",
@@ -323,8 +350,8 @@ def comparison_simulations(dict_output: dict, ref, greenfield=False, health=Fals
                                          scatter=total_system_costs_diff_df.drop(columns=[ref]).T[
                                              ["Total costs HC excluded"]].squeeze(),
                                          save=save_path_plot, colors=resources_data["colors_eoles"],
-                                         format_y=lambda y, _: '{:.0f}'.format(y), rotation=90,
-                                         dict_legend=DICT_TRANSFORM_LEGEND)
+                                         format_y=lambda y, _: '{:.0f}'.format(y), rotation=rotation,
+                                         dict_legend=DICT_TRANSFORM_LEGEND, dict_xlabels=None)
 
     else:
         make_stacked_investment_plot(df=total_system_costs_diff_df.drop(columns=[ref]).T,
@@ -332,8 +359,8 @@ def comparison_simulations(dict_output: dict, ref, greenfield=False, health=Fals
                                      subset=subset_costs,
                                      scatter=total_system_costs_diff_df.drop(columns=[ref]).T["Total costs"],
                                      save=save_path_plot, colors=resources_data["colors_eoles"],
-                                     format_y=lambda y, _: '{:.0f}'.format(y), rotation=90,
-                                     dict_legend=DICT_TRANSFORM_LEGEND)
+                                     format_y=lambda y, _: '{:.0f}'.format(y), rotation=rotation,
+                                     dict_legend=DICT_TRANSFORM_LEGEND, dict_xlabels=None)
 
     # Complete system costs in 2050
     subset_complete_costs = ["Investment electricity costs", "Investment heater costs",
@@ -341,7 +368,7 @@ def comparison_simulations(dict_output: dict, ref, greenfield=False, health=Fals
     if save_path is None:
         save_path_plot = None
     else:
-        save_path_plot = os.path.join(save_path, "complete_system_costs_2050.png")
+        save_path_plot = os.path.join(save_path, f"complete_system_costs_2050.{extension}")
     make_stacked_bar_plot(complete_system_costs_2050_df.T, subset=subset_complete_costs,
                           y_label="Complete system costs in 2050 (Md€/year)",
                           colors=resources_data["colors_eoles"], format_y=lambda y, _: '{:.01f}'.format(y),
@@ -367,7 +394,7 @@ def comparison_simulations(dict_output: dict, ref, greenfield=False, health=Fals
     if save_path is None:
         save_path_plot = None
     else:
-        save_path_plot = os.path.join(save_path, "difference_complete_system_costs_2050.png")
+        save_path_plot = os.path.join(save_path, f"difference_complete_system_costs_2050.{extension}")
     if len(complete_system_costs_2050_diff_df.columns) >= 3:  # ie, at least two scenarios to compare to the ref
         if health:
             make_stacked_investment_plot(df=complete_system_costs_2050_diff_df.drop(columns=[ref]).T,
@@ -376,8 +403,8 @@ def comparison_simulations(dict_output: dict, ref, greenfield=False, health=Fals
                                          scatter=complete_system_costs_2050_diff_df.drop(columns=[ref]).T[
                                              ["Total costs"]].squeeze(),
                                          save=save_path_plot, colors=resources_data["colors_eoles"],
-                                         format_y=lambda y, _: '{:.1f}'.format(y), rotation=90,
-                                         dict_legend=DICT_TRANSFORM_LEGEND)
+                                         format_y=lambda y, _: '{:.1f}'.format(y), rotation=rotation,
+                                         dict_legend=DICT_TRANSFORM_LEGEND, dict_xlabels=None)
         else:
             make_stacked_investment_plot(df=complete_system_costs_2050_diff_df.drop(columns=[ref]).T,
                                          y_label="Difference of complete system costs in 2050 (Billion € / year)",
@@ -385,46 +412,46 @@ def comparison_simulations(dict_output: dict, ref, greenfield=False, health=Fals
                                          scatter=complete_system_costs_2050_diff_df.drop(columns=[ref]).T[
                                              ["Total costs HC excluded"]].squeeze(),
                                          save=save_path_plot, colors=resources_data["colors_eoles"],
-                                         format_y=lambda y, _: '{:.1f}'.format(y), rotation=90,
-                                         dict_legend=DICT_TRANSFORM_LEGEND)
+                                         format_y=lambda y, _: '{:.1f}'.format(y), rotation=rotation,
+                                         dict_legend=DICT_TRANSFORM_LEGEND, dict_xlabels=None)
     else:
         make_stacked_investment_plot(df=complete_system_costs_2050_diff_df.drop(columns=[ref]).T,
                                      y_label="Difference of complete system costs in 2050 (Billion € / year)",
                                      subset=subset_complete_costs,
                                      scatter=complete_system_costs_2050_diff_df.drop(columns=[ref]).T["Total costs"],
                                      save=save_path_plot, colors=resources_data["colors_eoles"],
-                                     format_y=lambda y, _: '{:.1f}'.format(y), rotation=90,
-                                     dict_legend=DICT_TRANSFORM_LEGEND)
+                                     format_y=lambda y, _: '{:.1f}'.format(y), rotation=rotation,
+                                     dict_legend=DICT_TRANSFORM_LEGEND, dict_xlabels=None)
 
     # Total consumption savings
     if save_path is None:
         save_path_plot = None
     else:
-        save_path_plot = os.path.join(save_path, "consumption_savings.png")
+        save_path_plot = os.path.join(save_path, f"consumption_savings.{extension}")
     make_stacked_bar_plot(consumption_savings_tot_df.T, y_label="Total consumption savings (TWh)",
                           colors=resources_data["colors_resirf"], format_y=lambda y, _: '{:.0f}'.format(y),
                           index_int=False,
                           rotation=90, dict_legend=DICT_TRANSFORM_LEGEND, save=save_path_plot)
 
-    savings_and_costs_df = pd.concat([consumption_savings_tot_df, complete_system_costs_2050_df], axis=0)
+    savings_and_costs_df = pd.concat([consumption_savings_tot_df, total_system_costs_df], axis=0)
     savings_and_costs_df = savings_and_costs_df.T
-    plot_comparison_savings(savings_and_costs_df, save=os.path.join(save_path, "savings_and_costs.png"),
+    plot_comparison_savings(savings_and_costs_df, save=os.path.join(save_path, f"savings_and_costs.{extension}"),
                             col_for_size="Total costs", smallest_size=100, biggest_size=400,
-                            fontsize=10, x_min=x_min, x_max=x_max, y_min=y_min, y_max=y_max)
+                            fontsize=18, x_min=x_min, x_max=x_max, y_min=y_min, y_max=y_max)
 
     emissions_tot = pd.concat([emissions_dict[key].rename(key).to_frame() for key in emissions_dict.keys()], axis=1).loc[2050].rename("Emissions (MtCO2)").to_frame().T
     savings_and_emissions_df = pd.concat([consumption_savings_tot_df, emissions_tot], axis=0)
     savings_and_emissions_df = savings_and_emissions_df.T
-    plot_comparison_savings(savings_and_emissions_df, save=os.path.join(save_path, "savings_and_emissions.png"),
+    plot_comparison_savings(savings_and_emissions_df, save=os.path.join(save_path, f"savings_and_emissions.{extension}"),
                             col_for_size="Emissions (MtCO2)", smallest_size=100,
-                            biggest_size=400, fontsize=10, x_min=x_min, x_max=x_max, y_min=y_min, y_max=y_max)
+                            biggest_size=400, fontsize=18, x_min=x_min, x_max=x_max, y_min=y_min, y_max=y_max)
 
     if not greenfield:
         # Evolution of peak load
         if save_path is None:
             save_path_plot = None
         else:
-            save_path_plot = os.path.join(save_path, "electricity_peak_load.png")
+            save_path_plot = os.path.join(save_path, f"electricity_peak_load.{extension}")
         make_line_plots(peak_electricity_load_dict, y_label="Electricity peak load (GW)",
                         format_y=lambda y, _: '{:.0f}'.format(y),
                         index_int=True, save=save_path_plot)
@@ -433,7 +460,7 @@ def comparison_simulations(dict_output: dict, ref, greenfield=False, health=Fals
     if save_path is None:
         save_path_plot = None
     else:
-        save_path_plot = os.path.join(save_path, "CO2_emissions.png")
+        save_path_plot = os.path.join(save_path, f"CO2_emissions.{extension}")
     make_line_plots(emissions_dict, y_label="Emissions (MtCO2)", format_y=lambda y, _: '{:.0f}'.format(y),
                     index_int=True, save=save_path_plot, y_min=0)
 
@@ -441,7 +468,7 @@ def comparison_simulations(dict_output: dict, ref, greenfield=False, health=Fals
     if save_path is None:
         save_path_plot = None
     else:
-        save_path_plot = os.path.join(save_path, "subsidies_insulation.png")
+        save_path_plot = os.path.join(save_path, f"subsidies_insulation.{extension}")
     make_line_plots(subsidies_insulation_dict, y_label="Subsidies insulation (%)",
                     format_y=lambda y, _: '{:.0f}'.format(y),
                     index_int=True, save=save_path_plot, rotation=45, x_ticks=dataframe_subsidy.index[::2], y_min=0,
@@ -451,7 +478,7 @@ def comparison_simulations(dict_output: dict, ref, greenfield=False, health=Fals
     if save_path is None:
         save_path_plot = None
     else:
-        save_path_plot = os.path.join(save_path, "subsidies_heater.png")
+        save_path_plot = os.path.join(save_path, f"subsidies_heater.{extension}")
     make_line_plots(subsidies_heater_dict, y_label="Subsidies heater (%)", format_y=lambda y, _: '{:.2f}'.format(y),
                     index_int=True, save=save_path_plot, rotation=45, x_ticks=dataframe_subsidy.index[::2], y_min=0,
                     y_max=100)
@@ -461,7 +488,7 @@ def comparison_simulations(dict_output: dict, ref, greenfield=False, health=Fals
         if save_path is None:
             save_path_plot = None
         else:
-            save_path_plot = os.path.join(save_path, "evolution_consumption_savings.png")
+            save_path_plot = os.path.join(save_path, f"evolution_consumption_savings.{extension}")
         stacked_bars(consumption_saving_evolution_dict, y_label="Consumption savings (TWh)",
                      format_y=lambda y, _: '{:.0f}'.format(y),
                      colors=None, x_ticks=None, index_int=True, save=save_path_plot, rotation=0,
@@ -472,49 +499,50 @@ def comparison_simulations(dict_output: dict, ref, greenfield=False, health=Fals
     if save_path is None:
         save_path_plot = None
     else:
-        save_path_plot = os.path.join(save_path, "electricity_capacities.png")
+        save_path_plot = os.path.join(save_path, f"electricity_capacities.{extension}")
     make_line_plots(capacities_dict, y_label="Capacities (GW)", format_y=lambda y, _: '{:.0f}'.format(y),
                     index_int=True, colors=resources_data["colors_eoles"], multiple_legend=True, save=save_path_plot)
 
-    images_to_save = [os.path.join(save_path, "total_system_costs.png"),
-                      os.path.join(save_path, "difference_total_system_costs.png"),
-                      os.path.join(save_path, "complete_system_costs_2050.png"),
-                      os.path.join(save_path, "difference_complete_system_costs_2050.png"),
-                      os.path.join(save_path, "consumption_savings.png"),
-                      os.path.join(save_path, "savings_and_costs.png"),
-                      os.path.join(save_path, "savings_and_emissions.png"),
-                      os.path.join(save_path, "electricity_peak_load.png"),
-                      os.path.join(save_path, "CO2_emissions.png"),
-                      os.path.join(save_path, "subsidies_insulation.png"),
-                      os.path.join(save_path, "subsidies_heater.png"),
-                      os.path.join(save_path, "electricity_capacities.png"),
-                      ]
-    if len(dict_output.keys()) <= 3:
-        images_to_save.append(os.path.join(save_path, "evolution_consumption_savings.png"))
-
-    if greenfield:
-        images_to_save = [os.path.join(save_path, "total_system_costs.png"),
-                          os.path.join(save_path, "difference_total_system_costs.png"),
-                          os.path.join(save_path, "complete_system_costs_2050.png"),
-                          os.path.join(save_path, "difference_complete_system_costs_2050.png"),
-                          os.path.join(save_path, "consumption_savings.png"),
-                          os.path.join(save_path, "savings_and_costs.png"),
-                          os.path.join(save_path, "savings_and_emissions.png")
+    if not pdf:  # only save summary without pdf option
+        images_to_save = [os.path.join(save_path, f"total_system_costs.{extension}"),
+                          os.path.join(save_path, f"difference_total_system_costs.{extension}"),
+                          os.path.join(save_path, f"complete_system_costs_2050.{extension}"),
+                          os.path.join(save_path, f"difference_complete_system_costs_2050.{extension}"),
+                          os.path.join(save_path, f"consumption_savings.{extension}"),
+                          os.path.join(save_path, f"savings_and_costs.{extension}"),
+                          os.path.join(save_path, f"savings_and_emissions.{extension}"),
+                          os.path.join(save_path, f"electricity_peak_load.{extension}"),
+                          os.path.join(save_path, f"CO2_emissions.{extension}"),
+                          os.path.join(save_path, f"subsidies_insulation.{extension}"),
+                          os.path.join(save_path, f"subsidies_heater.{extension}"),
+                          os.path.join(save_path, f"electricity_capacities.{extension}"),
                           ]
+        if len(dict_output.keys()) <= 3:
+            images_to_save.append(os.path.join(save_path, f"evolution_consumption_savings.{extension}"))
 
-    images = [Image.open(img) for img in images_to_save]
-    new_images = []
-    for png in images:
-        png.load()
-        background = Image.new("RGB", png.size, (255, 255, 255))
-        background.paste(png, mask=png.split()[3])  # 3 is the alpha channel
-        new_images.append(background)
+        if greenfield:
+            images_to_save = [os.path.join(save_path, f"total_system_costs.{extension}"),
+                              os.path.join(save_path, f"difference_total_system_costs.{extension}"),
+                              os.path.join(save_path, f"complete_system_costs_2050.{extension}"),
+                              os.path.join(save_path, f"difference_complete_system_costs_2050.{extension}"),
+                              os.path.join(save_path, f"consumption_savings.{extension}"),
+                              os.path.join(save_path, f"savings_and_costs.{extension}"),
+                              os.path.join(save_path, f"savings_and_emissions.{extension}")
+                              ]
 
-    pdf_path = os.path.join(save_path, "summary_comparison.pdf")
+        images = [Image.open(img) for img in images_to_save]
+        new_images = []
+        for png in images:
+            png.load()
+            background = Image.new("RGB", png.size, (255, 255, 255))
+            background.paste(png, mask=png.split()[3])  # 3 is the alpha channel
+            new_images.append(background)
 
-    new_images[0].save(
-        pdf_path, "PDF", resolution=100.0, save_all=True, append_images=new_images[1:]
-    )
+        pdf_path = os.path.join(save_path, "summary_comparison.pdf")
+
+        new_images[0].save(
+            pdf_path, "PDF", resolution=100.0, save_all=True, append_images=new_images[1:]
+        )
 
     return annualized_system_costs_df, total_system_costs_df, consumption_savings_tot_df, complete_system_costs_2050_df
 
@@ -984,7 +1012,7 @@ def format_legend(ax, dict_legend=None):
 
     if dict_legend is not None:
         current_labels = ax.get_legend_handles_labels()[1]
-        new_labels = [dict_legend[e] for e in current_labels]
+        new_labels = [dict_legend[e] if e in dict_legend.keys() else e for e in current_labels]
         ax.legend(loc='center left', bbox_to_anchor=(1, 0.5), labels=new_labels, frameon=False)
     else:
         ax.legend(loc='center left', bbox_to_anchor=(1, 0.5), frameon=False)
@@ -1013,7 +1041,7 @@ def format_legend_multiple(ax, d, n_style, n_color):
 
 
 def format_ax(ax: plt.Axes, title=None, y_label=None, x_label=None, x_ticks=None, format_y=lambda y, _: y, format_x=lambda x, _: x,
-              rotation=None, y_min=None, y_max=None, x_min=None, x_max=None):
+              rotation=None, y_min=None, y_max=None, x_min=None, x_max=None, loc_title=None, loc_xlabel=None, c_title=None):
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
     ax.spines['bottom'].set_visible(True)
@@ -1028,7 +1056,10 @@ def format_ax(ax: plt.Axes, title=None, y_label=None, x_label=None, x_ticks=None
         ax.set_ylabel(y_label)
 
     if x_label is not None:
-        ax.set_xlabel(x_label)
+        if loc_xlabel is not None:
+            ax.set_xlabel(x_label, loc=loc_xlabel)
+        else:
+            ax.set_xlabel(x_label)
 
     if y_min is not None:
         ax.set_ylim(ymin=y_min)
@@ -1040,18 +1071,24 @@ def format_ax(ax: plt.Axes, title=None, y_label=None, x_label=None, x_ticks=None
         ax.set_xlim(xmax=x_max)
 
     if title is not None:
-        ax.set_title(title)
+        if loc_title is not None:
+            ax.set_title(title, loc=loc_title, color=c_title)
+        else:
+            ax.set_title(title)
 
     return ax
 
 
 def format_ax_string(ax: plt.Axes, title=None, y_label=None, x_label=None, x_ticks_labels=None, format_y=lambda y, _: y,
-                     rotation=None):
+                     rotation=None, dict_labels=None):
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
     ax.spines['bottom'].set_visible(True)
     ax.spines['left'].set_visible(True)
     ax.yaxis.set_major_formatter(plt.FuncFormatter(format_y))
+    if dict_labels is not None:
+        x_ticks_labels = [dict_labels[e] if e in dict_labels.keys() else e for e in x_ticks_labels]
+
     ax.set_xticks(ticks=range(len(x_ticks_labels)), labels=x_ticks_labels, rotation=rotation)
     if y_label is not None:
         ax.set_ylabel(y_label)
@@ -1093,14 +1130,14 @@ def make_area_plot(df, subset=None, y_label=None, colors=None, format_y=lambda y
     save_fig(fig, save=save)
 
 
-def make_stacked_investment_plot(df, y_label, subset, scatter, save, colors, format_y, rotation, dict_legend):
+def make_stacked_investment_plot(df, y_label, subset, scatter, save, colors, format_y, rotation, dict_legend, dict_xlabels):
     if save is None:
         fig, ax = plt.subplots(1, 1)
     else:  # we change figure size when saving figure
         fig, ax = plt.subplots(1, 1, figsize=(12.8, 9.6))
     df[subset].plot(kind='bar', stacked=True, color=colors, ax=ax)
-    scatter.plot(ax=ax, style='.', c='red')
-    ax = format_ax_string(ax, title=y_label, x_ticks_labels=df.index, format_y=format_y, rotation=rotation)
+    scatter.plot(ax=ax, style='.', c='black', ms=20)
+    ax = format_ax_string(ax, title=y_label, x_ticks_labels=df.index, format_y=format_y, rotation=rotation, dict_labels=dict_xlabels)
     format_legend(ax, dict_legend=dict_legend)
     plt.axhline(y=0)
     save_fig(fig, save=save)

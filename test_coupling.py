@@ -18,7 +18,7 @@ from eoles.model_resirf_coupling import ModelEOLES
 from eoles.utils import get_config, get_pandas, calculate_annuities_resirf, modif_config_resirf
 from eoles.write_output import plot_simulation
 from eoles.coupling_resirf_eoles import resirf_eoles_coupling_dynamic, optimize_blackbox_resirf_eoles_coupling, \
-    calibration_price, get_energy_prices_and_taxes, resirf_eoles_coupling_greenfield
+    calibration_price, get_energy_prices_and_taxes, resirf_eoles_coupling_greenfield, gradient_descent
 import logging
 from project.main import run
 import argparse
@@ -199,7 +199,7 @@ if __name__ == '__main__':
 
     config_coupling = {
         'config_resirf': "classic_simple",
-        'calibration': os.path.join("eoles/inputs/calibration_20230321.pkl"),
+        'calibration': None,
         "config_eoles": "eoles_classic",  # includes costs assumptions
         'supply_insulation': False,
         'supply_heater': False,
@@ -209,16 +209,16 @@ if __name__ == '__main__':
         'h2ccgt': True,
         'max_iter': 30,
         'sub_design': "global_renovation",
-        "no_MF": True,
+        "no_MF": False,
         "health": True,  # on inclut les coûts de santé
         "discount_rate": 0.032,
         "rebound": True,
-        "carbon_constraint": False,
+        "carbon_constraint": True,
         'one_shot_setting': False,
         'fix_sub_heater': False,
         'fix_sub_insulation': False,
-        'list_year': [2025, 2030],
-        'list_trajectory_scc': [250, 350],
+        'list_year': [2025, 2030, 2035, 2040, 2045],
+        'list_trajectory_scc': [250, 350, 500, 650, 775],
         'acquisition_jitter': 0.03,
         'scenario_cost_eoles': {}
     }
@@ -303,7 +303,9 @@ if __name__ == '__main__':
     calibration_elec_lcoe, calibration_elec_transport_distrib, calibration_gas, m_eoles = calibration_price(config_eoles, scc=100)
     config_coupling["calibration_elec_lcoe"] = calibration_elec_lcoe
     config_coupling["calibration_elec_transport_distrib"] = calibration_elec_transport_distrib
-    config_coupling["calibration_gas_lcoe"] = calibration_gas
+    config_coupling["calibration_naturalgas_lcoe"] = calibration_gas
+    config_coupling["calibration_biogas_lcoe"] = 1.2
+    # config_coupling["calibration_gas_lcoe"] = calibration_gas
 
     # output, buildings, dict_optimizer = resirf_eoles_coupling_dynamic(buildings, inputs_dynamics,
     #                                                                   policies_heater, policies_insulation,
@@ -357,18 +359,30 @@ if __name__ == '__main__':
     #     results_resirf[key] = results[key]["Output global ResIRF ()"]
     # plot_compare_scenarios(result=results_resirf, folder=os.path.join("eoles/outputs/subsidy_sensitivity"))
 
+    # list_sub_heater = [0.0, 0.0, 0.6864, 0.6725, 0.967]
+    # list_sub_insulation = [0.764599, 0.78320, 0.8085, 0.8908, 0.09]
+
     output, buildings, dict_optimizer = resirf_eoles_coupling_dynamic(buildings, inputs_dynamics,
                                                                       policies_heater, policies_insulation,
                                                                       list_year, list_trajectory_scc, scenario_cost,
                                                                       config_eoles=config_eoles,
                                                                       config_coupling=config_coupling,
                                                                       add_CH4_demand=False,
-                                                                      optimization=False, list_sub_heater=[0.264, 0.3],
-                                                                      list_sub_insulation=[0.717, 0.8],
+                                                                      optimization=False, list_sub_heater=[0.775598, 0.0, 0.84839800, 0.88300, 0.92762],
+                                                                      list_sub_insulation=[0.6363841, 0.831483, 0.765298, 0.50764, 0.239],
                                                                       price_feedback=price_feedback,
                                                                       energy_prices_ht=energy_prices_ht,
                                                                       energy_taxes=energy_taxes,
-                                                                      acquisition_jitter=0.03)
+                                                                      acquisition_jitter=0.03, grad_descent=False)
+
+    # gradient_descent(x0=[0.963, 0.09], buildings=buildings, inputs_dynamics=inputs_dynamics, policies_heater=policies_heater,
+    #                  policies_insulation=policies_insulation, start_year_resirf=2045, timestep_resirf=5,
+    #                  config_eoles=config_eoles, year_eoles=2045, anticipated_year_eoles=2050, scc=750, hourly_gas_exogeneous,
+    #                  existing_capacity, existing_charging_capacity, existing_energy_capacity, maximum_capacity,
+    #                  method_hourly_profile, scenario_cost, existing_annualized_costs_elec=0, existing_annualized_costs_CH4=0,
+    #                  existing_annualized_costs_H2=0, lifetime_renov=50, lifetime_heater=20, discount_rate=0.045,
+    #                  max_iter=20, sub_design=None, health=True, carbon_constraint=False, rebound=True)
+
 
     # output, buildings, dict_optimizer = resirf_eoles_coupling_greenfield(buildings, energy_prices, taxes, cost_heater, cost_insulation,
     #                                                        demolition_rate, flow_built, post_inputs, policies_heater, policies_insulation,
