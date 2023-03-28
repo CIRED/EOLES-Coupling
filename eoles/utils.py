@@ -523,7 +523,7 @@ def extract_use_elec(model, nb_years, miscellaneous):
 
 
 def extract_annualized_costs_investment_new_capa(capacities, energy_capacities, existing_capacities, existing_energy_capacities,
-                                                 annuities, storage_annuities, fOM):
+                                                 annuities, storage_annuities, fOM, nb_years):
     """
     Returns the annualized costs coming from newly invested capacities and energy capacities. This includes annualized CAPEX + fOM.
     Unit: 1e6€/yr
@@ -533,16 +533,16 @@ def extract_annualized_costs_investment_new_capa(capacities, energy_capacities, 
     """
     new_capacity = capacities - existing_capacities  # pd.Series
     costs_new_capacity = pd.concat([new_capacity, annuities, fOM], axis=1, ignore_index=True).rename(columns={0: "new_capacity", 1: "annuities", 2: "fOM"})
-    costs_new_capacity["annualized_costs"] = costs_new_capacity["new_capacity"] * (costs_new_capacity["annuities"] + costs_new_capacity["fOM"])  # includes both annuity and fOM ! not to be counted twice in the LCOE
+    costs_new_capacity["annualized_costs"] = costs_new_capacity["new_capacity"] * (costs_new_capacity["annuities"] + costs_new_capacity["fOM"])*nb_years  # includes both annuity and fOM ! not to be counted twice in the LCOE
 
     new_storage_capacity = energy_capacities - existing_energy_capacities
     costs_new_energy_capacity = pd.concat([new_storage_capacity, storage_annuities], axis=1, ignore_index=True).rename(columns={0: "new_capacity", 1: "storage_annuities"})
-    costs_new_energy_capacity["annualized_costs"] = costs_new_energy_capacity["new_capacity"] * costs_new_energy_capacity["storage_annuities"]
+    costs_new_energy_capacity["annualized_costs"] = costs_new_energy_capacity["new_capacity"] * costs_new_energy_capacity["storage_annuities"] * nb_years
     return costs_new_capacity[["annualized_costs"]], costs_new_energy_capacity[["annualized_costs"]]
 
 
 def extract_annualized_costs_investment_new_capa_nofOM(capacities, energy_capacities, existing_capacities, existing_energy_capacities,
-                                                 annuities, storage_annuities):
+                                                 annuities, storage_annuities, nb_years):
     """
     Returns the annualized investment coming from newly invested capacities and energy capacities, without fOM. Unit: 1e6€/yr
     :param model: pyomo model
@@ -552,12 +552,12 @@ def extract_annualized_costs_investment_new_capa_nofOM(capacities, energy_capaci
     new_capacity = capacities - existing_capacities  # pd.Series
     costs_new_capacity = pd.concat([new_capacity, annuities], axis=1, ignore_index=True).rename(columns={0: "new_capacity", 1: "annuities"})
     costs_new_capacity = costs_new_capacity.dropna()
-    costs_new_capacity["annualized_costs"] = costs_new_capacity["new_capacity"] * costs_new_capacity["annuities"]  # includes both annuity and fOM ! not to be counted twice in the LCOE
+    costs_new_capacity["annualized_costs"] = costs_new_capacity["new_capacity"] * costs_new_capacity["annuities"] * nb_years  # includes both annuity and fOM ! not to be counted twice in the LCOE
 
     new_storage_capacity = energy_capacities - existing_energy_capacities
     costs_new_energy_capacity = pd.concat([new_storage_capacity, storage_annuities], axis=1, ignore_index=True).rename(columns={0: "new_capacity", 1: "storage_annuities"})
     costs_new_energy_capacity = costs_new_energy_capacity.dropna()
-    costs_new_energy_capacity["annualized_costs"] = costs_new_energy_capacity["new_capacity"] * costs_new_energy_capacity["storage_annuities"]
+    costs_new_energy_capacity["annualized_costs"] = costs_new_energy_capacity["new_capacity"] * costs_new_energy_capacity["storage_annuities"] * nb_years
     return costs_new_capacity[["annualized_costs"]], costs_new_energy_capacity[["annualized_costs"]]
 
 

@@ -198,6 +198,7 @@ if __name__ == '__main__':
     }
 
     config_coupling = {
+        'price_feedback': True,
         'config_resirf': "classic_simple",
         'calibration': None,
         "config_eoles": "eoles_classic",  # includes costs assumptions
@@ -299,7 +300,7 @@ if __name__ == '__main__':
     if "price_feedback" in config_coupling.keys():
         price_feedback = config_coupling["price_feedback"]
 
-    energy_prices_ht, energy_taxes = get_energy_prices_and_taxes(config_resirf)
+    energy_taxes, energy_vta = get_energy_prices_and_taxes(config_resirf)
     calibration_elec_lcoe, calibration_elec_transport_distrib, calibration_gas, m_eoles = calibration_price(config_eoles, scc=100)
     config_coupling["calibration_elec_lcoe"] = calibration_elec_lcoe
     config_coupling["calibration_elec_transport_distrib"] = calibration_elec_transport_distrib
@@ -371,8 +372,8 @@ if __name__ == '__main__':
                                                                       optimization=False, list_sub_heater=[0.775598, 0.0, 0.84839800, 0.88300, 0.92762],
                                                                       list_sub_insulation=[0.6363841, 0.831483, 0.765298, 0.50764, 0.239],
                                                                       price_feedback=price_feedback,
-                                                                      energy_prices_ht=energy_prices_ht,
                                                                       energy_taxes=energy_taxes,
+                                                                      energy_vta=energy_vta,
                                                                       acquisition_jitter=0.03, grad_descent=False)
 
     # gradient_descent(x0=[0.963, 0.09], buildings=buildings, inputs_dynamics=inputs_dynamics, policies_heater=policies_heater,
@@ -383,16 +384,6 @@ if __name__ == '__main__':
     #                  existing_annualized_costs_H2=0, lifetime_renov=50, lifetime_heater=20, discount_rate=0.045,
     #                  max_iter=20, sub_design=None, health=True, carbon_constraint=False, rebound=True)
 
-
-    # output, buildings, dict_optimizer = resirf_eoles_coupling_greenfield(buildings, energy_prices, taxes, cost_heater, cost_insulation,
-    #                                                        demolition_rate, flow_built, post_inputs, policies_heater, policies_insulation,
-    #                                                        scc=775, scenario_cost=scenario_cost,
-    #                                                        config_eoles=config_eoles, config_coupling=config_coupling,
-    #                                                        add_CH4_demand=False,
-    #                                                        technical_progress=technical_progress, financing_cost=financing_cost,
-    #                                                        premature_replacement=premature_replacement,
-    #                                                        optimization=False, list_sub_heater=[0.2],
-    #                                                        list_sub_insulation=[0.3])
 
     # # Test plot optimization blackbox
     # import matplotlib.tri as tri

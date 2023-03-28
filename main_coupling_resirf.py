@@ -121,7 +121,7 @@ def run_optimization_scenario(config_coupling, name_config_coupling="default"):
         path=os.path.join('eoles', 'outputs', 'ResIRF'),
         config=config_resirf)
 
-    energy_prices_ht, energy_taxes = get_energy_prices_and_taxes(config_resirf)
+    energy_taxes, energy_vta = get_energy_prices_and_taxes(config_resirf)
     calibration_elec_lcoe, calibration_elec_transport_distrib, calibration_gas, m_eoles = calibration_price(config_eoles, scc=100)
     config_coupling["calibration_elec_lcoe"] = calibration_elec_lcoe
     config_coupling["calibration_elec_transport_distrib"] = calibration_elec_transport_distrib
@@ -144,8 +144,8 @@ def run_optimization_scenario(config_coupling, name_config_coupling="default"):
                                                                           list_sub_heater=[0.0, 0.0, 0.0, 0.0, 0.0],
                                                                           list_sub_insulation=[0.0, 0.0, 0.0, 0.0, 0.0],
                                                                           price_feedback=price_feedback,
-                                                                          energy_prices_ht=energy_prices_ht,
-                                                                          energy_taxes=energy_taxes)
+                                                                          energy_taxes=energy_taxes,
+                                                                          energy_vta=energy_vta)
     elif "greenfield" in config_coupling.keys():  # we optimize in a greenfield manner
         assert config_coupling["greenfield"], "Parameter greenfield can only be True for the time being, when specified in config."
         print("Greenfield")
@@ -171,8 +171,8 @@ def run_optimization_scenario(config_coupling, name_config_coupling="default"):
                                                                           anticipated_demand_t10=anticipated_demand_t10,
                                                                           optimization=True,
                                                                           price_feedback=price_feedback,
-                                                                          energy_prices_ht=energy_prices_ht,
                                                                           energy_taxes=energy_taxes,
+                                                                          energy_vta=energy_vta,
                                                                           acquisition_jitter=acquisition_jitter,
                                                                           grid_initialize=grid_initialize,
                                                                           normalize_Y=normalize_Y)
@@ -2724,7 +2724,7 @@ if __name__ == '__main__':
     }
 
     DICT_CONFIGS_8 = {
-        'centralized_social_carbonbudget_greenfield': {
+        'centralized_social_carbonbudget_greenfield_dr2': {
             'greenfield': True,
             'config_resirf': "classic_simple",
             "calibration": None,
@@ -2735,10 +2735,10 @@ if __name__ == '__main__':
             'social': True,
             'premature_replacement': 3,
             'h2ccgt': True,
-            'max_iter': 120,
+            'max_iter': 130,
             'sub_design': None,
             "health": True,  # on inclut les coûts de santé
-            "discount_rate": 0.032,
+            "discount_rate": 0.02,
             "rebound": True,
             "carbon_constraint": True,
             'one_shot_setting': False,
@@ -2749,7 +2749,7 @@ if __name__ == '__main__':
             'acquisition_jitter': 0.03,
             'scenario_cost_eoles': {}
         },
-        'centralized_GR_carbonbudget_greenfield': {
+        'centralized_GR_carbonbudget_greenfield_dr2': {
             'greenfield': True,
             'config_resirf': "classic_simple",
             "calibration": None,
@@ -2760,10 +2760,10 @@ if __name__ == '__main__':
             'social': False,
             'premature_replacement': 3,
             'h2ccgt': True,
-            'max_iter': 120,
+            'max_iter': 130,
             'sub_design': "global_renovation",
             "health": True,  # on inclut les coûts de santé
-            "discount_rate": 0.032,
+            "discount_rate": 0.02,
             "rebound": True,
             "carbon_constraint": True,
             'one_shot_setting': False,
@@ -2774,7 +2774,7 @@ if __name__ == '__main__':
             'acquisition_jitter': 0.03,
             'scenario_cost_eoles': {}
         },
-        'centralized_carbonbudget_greenfield': {
+        'centralized_carbonbudget_greenfield_dr2': {
             'greenfield': True,
             'config_resirf': "classic_simple",
             "calibration": None,
@@ -2785,10 +2785,10 @@ if __name__ == '__main__':
             'social': False,
             'premature_replacement': 3,
             'h2ccgt': True,
-            'max_iter': 120,
+            'max_iter': 130,
             'sub_design': None,
             "health": True,  # on inclut les coûts de santé
-            "discount_rate": 0.032,
+            "discount_rate": 0.02,
             "rebound": True,
             "carbon_constraint": True,
             'one_shot_setting': False,
@@ -2799,10 +2799,57 @@ if __name__ == '__main__':
             'acquisition_jitter': 0.03,
             'scenario_cost_eoles': {}
         },
-        'centralized_carbonbudget_feedbackprices': {
-            "price_feedback": True,
+        'no_subsidy_insulation_carbonbudget_greenfield_dr2': {
+            'greenfield': True,
             'config_resirf': "classic_simple",
-            "calibration": None,
+            'calibration': os.path.join("eoles/inputs/calibration_20230321.pkl"),
+            "config_eoles": "eoles_classic",  # includes costs assumptions
+            'supply_insulation': False,
+            'supply_heater': False,
+            'rational_behavior': False,
+            'premature_replacement': 3,
+            'h2ccgt': True,
+            'max_iter': 40,
+            'sub_design': None,
+            "health": True,  # on inclut les coûts de santé
+            "discount_rate": 0.02,
+            "rebound": True,
+            "carbon_constraint": True,
+            'one_shot_setting': False,
+            'fix_sub_heater': False,
+            'fix_sub_insulation': True,
+            'list_year': [2025, 2030, 2035, 2040, 2045],
+            'list_trajectory_scc': [250, 350, 500, 650, 775],
+            'acquisition_jitter': 0.01,
+            'scenario_cost_eoles': {}
+        },
+        'no_subsidy_heater_carbonbudget_greenfield_dr2': {
+            'greenfield': True,
+            'config_resirf': "classic_simple",
+            'calibration': os.path.join("eoles/inputs/calibration_20230321.pkl"),
+            "config_eoles": "eoles_classic",  # includes costs assumptions
+            'supply_insulation': False,
+            'supply_heater': False,
+            'rational_behavior': False,
+            'premature_replacement': 3,
+            'h2ccgt': True,
+            'max_iter': 40,
+            'sub_design': None,
+            "health": True,  # on inclut les coûts de santé
+            "discount_rate": 0.02,
+            "rebound": True,
+            "carbon_constraint": True,
+            'one_shot_setting': False,
+            'fix_sub_heater': True,
+            'fix_sub_insulation': False,
+            'list_year': [2025, 2030, 2035, 2040, 2045],
+            'list_trajectory_scc': [250, 350, 500, 650, 775],
+            'acquisition_jitter': 0.01,
+            'scenario_cost_eoles': {}
+        },
+        'no_subsidy_heater_centralized_carbonbudget_greenfield_dr2': {
+            'greenfield': True,
+            'config_resirf': "classic_simple",
             "config_eoles": "eoles_classic",  # includes costs assumptions
             'supply_insulation': False,
             'supply_heater': False,
@@ -2810,10 +2857,34 @@ if __name__ == '__main__':
             'social': False,
             'premature_replacement': 3,
             'h2ccgt': True,
-            'max_iter': 110,
+            'max_iter': 40,
             'sub_design': None,
             "health": True,  # on inclut les coûts de santé
-            "discount_rate": 0.032,
+            "discount_rate": 0.02,
+            "rebound": True,
+            "carbon_constraint": True,
+            'one_shot_setting': False,
+            'fix_sub_heater': True,
+            'fix_sub_insulation': False,
+            'list_year': [2025, 2030, 2035, 2040, 2045],
+            'list_trajectory_scc': [250, 350, 500, 650, 775],
+            'acquisition_jitter': 0.01,
+            'scenario_cost_eoles': {}
+        },
+        'uniform_carbonbudget_greenfield_dr2': {
+            'greenfield': True,
+            'config_resirf': "classic_simple",
+            'calibration': os.path.join("eoles/inputs/calibration_20230321.pkl"),
+            "config_eoles": "eoles_classic",  # includes costs assumptions
+            'supply_insulation': False,
+            'supply_heater': False,
+            'rational_behavior': False,
+            'premature_replacement': 3,
+            'h2ccgt': True,
+            'max_iter': 130,
+            'sub_design': None,
+            "health": True,  # on inclut les coûts de santé
+            "discount_rate": 0.02,
             "rebound": True,
             "carbon_constraint": True,
             'one_shot_setting': False,
@@ -2823,7 +2894,31 @@ if __name__ == '__main__':
             'list_trajectory_scc': [250, 350, 500, 650, 775],
             'acquisition_jitter': 0.03,
             'scenario_cost_eoles': {}
-        }
+        },
+        'GR_carbonbudget_greenfield_dr2': {
+            'greenfield': True,
+            'config_resirf': "classic_simple",
+            'calibration': os.path.join("eoles/inputs/calibration_20230321.pkl"),
+            "config_eoles": "eoles_classic",  # includes costs assumptions
+            'supply_insulation': False,
+            'supply_heater': False,
+            'rational_behavior': False,
+            'premature_replacement': 3,
+            'h2ccgt': True,
+            'max_iter': 130,
+            'sub_design': "global_renovation",
+            "health": True,  # on inclut les coûts de santé
+            "discount_rate": 0.02,
+            "rebound": True,
+            "carbon_constraint": True,
+            'one_shot_setting': False,
+            'fix_sub_heater': False,
+            'fix_sub_insulation': False,
+            'list_year': [2025, 2030, 2035, 2040, 2045],
+            'list_trajectory_scc': [250, 350, 500, 650, 775],
+            'acquisition_jitter': 0.03,
+            'scenario_cost_eoles': {}
+        },
     }
 
     DICT_CONFIGS_NORENO = {

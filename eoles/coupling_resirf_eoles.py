@@ -2,7 +2,6 @@ import os.path
 from copy import deepcopy
 from project.coupling import ini_res_irf, simu_res_irf
 from project.building import AgentBuildings
-from project.input.param import generic_input
 
 from project.write_output import plot_scenario
 
@@ -792,8 +791,8 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
                                   add_CH4_demand=False, one_shot_setting=False,
                                   lifetime_renov=50, lifetime_heater=20,
                                   anticipated_scc=False, anticipated_demand_t10=False, optimization=True,
-                                  list_sub_heater=None, list_sub_insulation=None, price_feedback=False, energy_prices_ht=None,
-                                  energy_taxes=None, acquisition_jitter=0.01, grid_initialize=False, normalize_Y=True,
+                                  list_sub_heater=None, list_sub_insulation=None, price_feedback=False,
+                                  energy_taxes=None, energy_vta=None, acquisition_jitter=0.01, grid_initialize=False, normalize_Y=True,
                                   grad_descent=False):
     """Performs multistep optimization of capacities and subsidies.
     :param config_coupling: dict
@@ -1212,12 +1211,12 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
                                                                    calib_elec_transport_distrib=config_coupling["calibration_elec_transport_distrib"],
                                                                    calib_naturalgas=config_coupling["calibration_naturalgas_lcoe"],
                                                                    calib_biogas=config_coupling["calibration_biogas_lcoe"],
-                                                                   year=anticipated_year_eoles)
+                                                                   year=anticipated_year_eoles, endogenous_distribution=True)
             list_electricity_price_ht.append(elec_price_ht)
             list_transport_distribution_lcoe.append(transport_and_distribution_lcoe)
             # energy_prices = new_projection_prices(energy_prices, elec_price_ht, energy_taxes, start=anticipated_year_eoles, end=anticipated_year_eoles+5)
             inputs_dynamics['energy_prices'] = new_projection_prices_with_gas(inputs_dynamics['energy_prices'], elec_price_ht, gas_price_ht, energy_taxes,
-                                                           start=anticipated_year_eoles, end=anticipated_year_eoles+5)  # we update energy prices beliefs for the coming years
+                                                           vta=energy_vta, start=anticipated_year_eoles, end=anticipated_year_eoles+5)  # we update energy prices beliefs for the coming years
         ### Spot price
         spot_price = m_eoles.spot_price.rename(columns={"elec_spot_price": f"elec_spot_price_{anticipated_year_eoles}",
                                                         "CH4_spot_price": f"CH4_spot_price_{anticipated_year_eoles}"})
@@ -1435,9 +1434,11 @@ def electricity_price_ht(system_lcoe, system_transport_and_distrib, calib_elec, 
 
 
 def electricity_gas_price_ht(elec_lcoe, elec_transport_distrib, gas_furniture_cost, naturalgas_furniture_cost, biogas_furniture_cost,
-                             calib_elec_lcoe, calib_elec_transport_distrib, calib_naturalgas, calib_biogas, year):
+                             calib_elec_lcoe, calib_elec_transport_distrib, calib_naturalgas, calib_biogas, year,
+                             endogenous_distribution=True):
     """
-
+    Estimates the price of electricity and gas without tax. Allow to include endogenous or exogenous transport and
+     distribution costs.
     :param elec_system_cost: float
         LCOE of electricity coming from EOLES, and including capacities and energy, transport and distribution. Unit: €/MWh
     :param gas_furniture_cost: float
@@ -1457,7 +1458,12 @@ def electricity_gas_price_ht(elec_lcoe, elec_transport_distrib, gas_furniture_co
     electricity_prices_snbc = get_pandas("eoles/inputs/electricity_price_snbc.csv", lambda x: pd.read_csv(x, index_col=0).squeeze("columns"))
     electricity_prices_snbc_year = electricity_prices_snbc[[str(year)]].squeeze()
     commercial_electricity = electricity_prices_snbc_year["Commercial costs"]
-    elec_price_ht = elec_lcoe * calib_elec_lcoe + elec_transport_distrib * calib_elec_transport_distrib + commercial_electricity
+    if endogenous_distribution:
+        elec_price_ht = elec_lcoe * calib_elec_lcoe + elec_transport_distrib * calib_elec_transport_distrib + commercial_electricity
+    else:
+        distribution = electricity_prices_snbc_year["Distribution network"]
+        transport = electricity_prices_snbc_year["Transport network"]
+        elec_price_ht = elec_lcoe * calib_elec_lcoe + distribution + transport + commercial_electricity
 
     gas_prices_snbc = get_pandas("eoles/inputs/gas_price_snbc.csv", lambda x: pd.read_csv(x, index_col=0).squeeze("columns"))
     gas_prices_snbc_year = gas_prices_snbc[[str(year)]].squeeze()
@@ -1468,7 +1474,7 @@ def electricity_gas_price_ht(elec_lcoe, elec_transport_distrib, gas_furniture_co
     return elec_price_ht, gas_price_ht
 
 
-def new_projection_prices(energy_prices, price_elec_ht, energy_taxes, start, end):
+def new_projection_prices(energy_prices, price_elec_ht, energy_taxes, vta, start, end):
     """Modification of energy prices (from SNBC) based on EOLES output
     :param energy_prices: pd.DataFrame
         Contains energy prices with tax, as estimated by SNBC.
@@ -1480,7 +1486,10 @@ def new_projection_prices(energy_prices, price_elec_ht, energy_taxes, start, end
     # anticipated_energy_prices.loc[start:end-1, "Electricity"] = price_elec_ht / 1000  # only interested in the given time interval. Unit: €/kWh
     # new_energy_prices.loc[:, "Natural gas"] = price_gas_ht  # TODO: ajouter la modification du prix du gaz
 
-    energy_vta = anticipated_energy_prices * generic_input['vta_energy_prices']["Electricity"]
+    energy_vta_with_year = pd.DataFrame(np.repeat(vta[["Electricity"]].values, end-start, axis=0))  # create dataframe for VTA
+    energy_vta_with_year.index = anticipated_energy_prices.index
+    energy_vta_with_year.columns = vta[["Electricity"]].columns
+    energy_vta = anticipated_energy_prices * energy_vta_with_year
 
     anticipated_energy_prices = anticipated_energy_prices.add(energy_taxes.loc[start:end-1, "Electricity"], fill_value=0)  # we add exogenous taxes, as we would in ResIRF
     anticipated_energy_prices = anticipated_energy_prices.add(energy_vta, fill_value=0)  # we add VTA
@@ -1488,7 +1497,7 @@ def new_projection_prices(energy_prices, price_elec_ht, energy_taxes, start, end
     return energy_prices
 
 
-def new_projection_prices_with_gas(energy_prices, price_elec_ht, price_gas_ht, energy_taxes, start, end):
+def new_projection_prices_with_gas(energy_prices, price_elec_ht, price_gas_ht, energy_taxes, vta, start, end):
     """Modification of energy prices (from SNBC) based on EOLES output
     :param energy_prices: pd.DataFrame
         Contains energy prices with tax, as estimated by SNBC.
@@ -1501,7 +1510,10 @@ def new_projection_prices_with_gas(energy_prices, price_elec_ht, price_gas_ht, e
     # anticipated_energy_prices.loc[start:end-1, "Electricity"] = price_elec_ht / 1000  # only interested in the given time interval. Unit: €/kWh
     # new_energy_prices.loc[:, "Natural gas"] = price_gas_ht  # TODO: ajouter la modification du prix du gaz
 
-    energy_vta = anticipated_energy_prices * generic_input['vta_energy_prices'][["Electricity", "Natural gas"]]
+    energy_vta_with_year = pd.DataFrame(np.repeat(vta[["Electricity", "Natural gas"]].values, end-start, axis=0))
+    energy_vta_with_year.index = anticipated_energy_prices.index
+    energy_vta_with_year.columns = vta[["Electricity", "Natural gas"]].columns
+    energy_vta = anticipated_energy_prices * energy_vta_with_year
 
     anticipated_energy_prices = anticipated_energy_prices.add(energy_taxes.loc[start:end-1, ["Electricity", "Natural gas"]], fill_value=0)  # we add exogenous taxes, as we would in ResIRF
     anticipated_energy_prices = anticipated_energy_prices.add(energy_vta, fill_value=0)  # we add VTA
@@ -1602,7 +1614,6 @@ def calibration_price(config_eoles, scc=100):
 
     lcoe_CH4_noSCC = m_eoles.summary["lcoe_CH4_noSCC"]
     lcoe_CH4_naturalgas_noSCC = m_eoles.summary["lcoe_CH4_naturalgas_noSCC"]
-    lcoe_CH4_biogasgas_noSCC = m_eoles.summary["lcoe_CH4_biogas_noSCC"]
 
     snbc_gas_price = 23.50
     calibration_gas = snbc_gas_price / lcoe_CH4_naturalgas_noSCC
@@ -1619,7 +1630,7 @@ def get_energy_prices_and_taxes(config):
     """
     # with open(config) as file:
     #     config = json.load(file).get('Reference')
-    energy_prices = get_pandas(config['macro']['energy_prices'], lambda x: pd.read_csv(x, index_col=[0]).rename_axis('Year').rename_axis('Heating energy', axis=1))
-
+    # energy_prices = get_pandas(config['macro']['energy_prices'], lambda x: pd.read_csv(x, index_col=[0]).rename_axis('Year').rename_axis('Heating energy', axis=1))
     energy_taxes = get_pandas(config['macro']['energy_taxes'], lambda x: pd.read_csv(x, index_col=[0]).rename_axis('Year').rename_axis('Heating energy', axis=1))
-    return energy_prices, energy_taxes
+    energy_vta = get_pandas(config['macro']['energy_vta'], lambda x: pd.read_csv(x, header=None)).set_index(0).rename_axis("Heating energy").rename_axis("vta", axis=1).T
+    return energy_taxes, energy_vta

@@ -112,7 +112,17 @@ class ModelEOLES():
 
         self.hourly_heat_elec = hourly_heat_elec
 
-        self.elec_demand1y = self.elec_demand1y + self.hourly_heat_elec  # we add electricity demand from heating, may require changing if we include multiple weather years
+        if nb_years == 1:
+            self.elec_demand1y = self.elec_demand1y + self.hourly_heat_elec  # we add electricity demand from heating
+            self.elec_demand = self.elec_demand1y
+            for i in range(self.nb_years - 1):  # plus nécessaire
+                self.elec_demand = pd.concat([self.elec_demand, self.elec_demand1y], ignore_index=True)
+        else:
+            self.elec_demand = pd.DataFrame()
+            for i in range(self.nb_years - 1):
+                self.elec_demand_year = self.elec_demand1y + self.hourly_heat_elec.loc[0:8760]  # TODO: a changer selon format Lucas
+                self.elec_demand = pd.concat([self.elec_demand, self.elec_demand_year], ignore_index=True)
+
         self.hourly_heat_gas = hourly_heat_gas
         self.wood_consumption = wood_consumption
         self.oil_consumption = oil_consumption
@@ -120,12 +130,8 @@ class ModelEOLES():
         self.H2_demand = {}
         self.CH4_demand = {}
 
-        # concatenate electricity demand data
-        self.elec_demand = self.elec_demand1y
-        for i in range(self.nb_years - 1):  # TODO: a changer si on ajoute plusieurs années météo, ca ne sera plus simplement une concaténation
-            self.elec_demand = pd.concat([self.elec_demand, self.elec_demand1y], ignore_index=True)
-
         if self.hourly_heat_gas is not None:  # we provide hourly gas data
+            # TODO: a changer de manière identique selon le format choisi
             self.gas_demand = self.hourly_heat_gas
             for i in range(self.nb_years - 1):
                 self.gas_demand = pd.concat([self.gas_demand, self.hourly_heat_gas], ignore_index=True)
@@ -214,10 +220,14 @@ class ModelEOLES():
         self.first_month = self.miscellaneous['first_month']
 
         self.hours_by_months = {1: 744, 2: 672, 3: 744, 4: 720, 5: 744, 6: 720, 7: 744, 8: 744, 9: 720, 10: 744,
-                                11: 720, 12: 744}  # question: pas de problème avec les années bissextiles ?
+                                11: 720, 12: 744}
 
         self.months_hours = {1: range(0, self.hours_by_months[self.first_month])}
         self.month_hours = define_month_hours(self.first_month, self.nb_years, self.months_hours, self.hours_by_months)
+        for i in range(1, nb_years - 1):  # we update month_hours to add multiple years
+            new_month_hours = {key + 12*i: self.months_hours[key] for key in self.months_hours.keys()}
+            self.months_hours.update(new_month_hours)
+
 
     def define_sets(self):
         # Range of hour
@@ -287,7 +297,7 @@ class ModelEOLES():
         # Set the hydrogen demand for each hour
         for hour in self.model.h:
             # self.H2_demand[hour] = self.miscellaneous['H2_demand']
-            self.H2_demand[hour] = self.total_H2_demand / 8760  # We make the assumption that H2 demand profile is flat
+            self.H2_demand[hour] = self.total_H2_demand / 8760  # We make the assumption that H2 demand profile is flat, and is given with an annual value
 
         # Set the methane demand for each hour
         for hour in self.model.h:
@@ -324,7 +334,7 @@ class ModelEOLES():
         self.model.capacity = \
             Var(self.model.tec, within=NonNegativeReals, bounds=capacity_bounds)
 
-        # Charging power capacity of each storage technology in GW  # TODO: check the unit
+        # Charging power capacity of each storage technology in GW
         self.model.charging_capacity = \
             Var(self.model.str, within=NonNegativeReals, bounds=charging_capacity_bounds)
 
@@ -332,7 +342,7 @@ class ModelEOLES():
         self.model.energy_capacity = \
             Var(self.model.str, within=NonNegativeReals, bounds=energy_capacity_bounds)
 
-        # Hourly electricity input of battery storage GWh  # TODO: check that unit is right
+        # Hourly electricity input of battery storage GWh
         self.model.storage = \
             Var(((storage, h) for storage in self.model.str for h in self.model.h), within=NonNegativeReals,
                 initialize=0)
@@ -483,14 +493,6 @@ class ModelEOLES():
                    model.reserve[
                        'nuclear', h] <= \
                    self.miscellaneous['hourly_ramping_nuclear'] * model.capacity['nuclear']
-
-        def methanation_constraint_rule(model, h):
-            """Constraint on CO2 balance from methanization. OLD VERSION."""
-            # TODO: cette contrainte actuellement est peu réaliste car c'est une contrainte horaire ! normalement
-            #  (cf Behrang, 2021) cela devrait être une contrainte sur la somme sur toutes les heures, cf contrainte suivante
-            return model.gene['methanation', h] / self.conversion_efficiency['methanation'] <= (
-                    model.gene['methanization', h]) * self.miscellaneous[
-                       'percentage_co2_from_methanization']
 
         def methanation_CO2_constraint_rule(model):
             """Constraint on CO2 balance from methanization, summing over all hours of the year"""
@@ -644,7 +646,7 @@ class ModelEOLES():
         self.new_capacity_annualized_costs, self.new_energy_capacity_annualized_costs = \
             extract_annualized_costs_investment_new_capa(self.capacities, self.energy_capacity,
                                                          self.existing_capacity, self.existing_energy_capacity, self.annuities,
-                                                         self.storage_annuities, self.fOM)
+                                                         self.storage_annuities, self.fOM, self.nb_years)
 
         # self.use_elec = extract_use_elec(self.model, self.nb_years, self.miscellaneous)
         self.transport_distribution_cost = transportation_distribution_cost(self.model, self.prediction_transport_and_distrib_annuity)
@@ -659,7 +661,7 @@ class ModelEOLES():
         self.new_capacity_annualized_costs_nofOM, self.new_energy_capacity_annualized_costs_nofOM = \
             extract_annualized_costs_investment_new_capa_nofOM(self.capacities, self.energy_capacity,
                                                          self.existing_capacity, self.existing_energy_capacity, self.annuities,
-                                                         self.storage_annuities)  # pd.Series
+                                                         self.storage_annuities, self.nb_years)  # pd.Series
         self.functionment_cost = extract_functionment_cost(self.capacities, self.fOM, self.vOM,
                                                            pd.Series(self.generation_per_technology) * 1000, self.oil_consumption, self.wood_consumption,
                                                            self.anticipated_scc, self.actual_scc, carbon_constraint=self.carbon_constraint)  # pd.Series
@@ -723,7 +725,6 @@ def read_technology_data(config, year):
     storage_capex = storage_capex[[str(year)]].squeeze()  # get storage capex for year of interest
     fOM = get_pandas(config["fOM"], lambda x: pd.read_csv(x, index_col=0))  # 1e6€/GW/year
     fOM = fOM[[str(year)]].squeeze()  # get fOM for year of interest
-    # TODO: il y a des erreurs d'unités dans le choix des vOM je crois !!
     vOM = get_pandas(config["vOM"],
                      lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # 1e6€/GWh
     eta_in = get_pandas(config["eta_in"],
@@ -826,7 +827,6 @@ def read_input_static(config, year):
     storage_capex = storage_capex[[str(year)]].squeeze()  # get storage capex for year of interest
     fOM = get_pandas(config["fOM"], lambda x: pd.read_csv(x, index_col=0))  # 1e6€/GW/year
     fOM = fOM[[str(year)]].squeeze()  # get fOM for year of interest
-    # TODO: il y a des erreurs d'unités dans le choix des vOM je crois !!
     vOM = get_pandas(config["vOM"],
                      lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # 1e6€/GWh
     eta_in = get_pandas(config["eta_in"],
@@ -1030,7 +1030,7 @@ def extract_summary(model, elec_demand, H2_demand, CH4_demand, existing_capacity
     assert math.isclose(lcoe_CH4_noSCC, lcoe_CH4_naturalgas_noSCC + lcoe_CH4_biogas_noSCC), "Problem when estimating CH4 noSCC LCOE."
 
     # Estimation of transportation and distribution costs
-    transport_and_distrib_lcoe = transportation_distribution_cost * 1000 / elec_demand_tot  # € / yr / MWh
+    transport_and_distrib_lcoe = (transportation_distribution_cost * 1000 * nb_years) / elec_demand_tot  # € / yr / MWh
 
     summary["transport_and_distrib_lcoe"] = transport_and_distrib_lcoe
 
