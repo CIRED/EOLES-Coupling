@@ -15,7 +15,8 @@ from project.model import get_inputs, social_planner
 
 from project.model import create_logger, get_config, get_inputs
 from eoles.model_resirf_coupling import ModelEOLES
-from eoles.utils import get_config, get_pandas, calculate_annuities_resirf, modif_config_resirf
+from eoles.utils import get_config, get_pandas, calculate_annuities_resirf, modif_config_resirf, \
+    config_resirf_exogenous, create_multiple_coupling_configs
 from eoles.write_output import plot_simulation
 from eoles.coupling_resirf_eoles import resirf_eoles_coupling_dynamic, optimize_blackbox_resirf_eoles_coupling, \
     calibration_price, get_energy_prices_and_taxes, resirf_eoles_coupling_greenfield, gradient_descent
@@ -198,7 +199,7 @@ if __name__ == '__main__':
     }
 
     config_coupling = {
-        'price_feedback': True,
+        'price_feedback': False,
         'config_resirf': "classic_simple",
         'calibration': None,
         "config_eoles": "eoles_classic",  # includes costs assumptions
@@ -209,7 +210,7 @@ if __name__ == '__main__':
         'premature_replacement': 3,
         'h2ccgt': True,
         'max_iter': 30,
-        'sub_design': "global_renovation",
+        'sub_design': None,
         "no_MF": False,
         "health": True,  # on inclut les coûts de santé
         "discount_rate": 0.032,
@@ -224,21 +225,46 @@ if __name__ == '__main__':
         'scenario_cost_eoles': {}
     }
 
+    config_coupling = {
+        'aggregated_potential': True,
+        'config_resirf': "classic_simple",
+        "calibration": None,
+        "config_eoles": "eoles_classic",  # includes costs assumptions
+        'supply_insulation': False,
+        'supply_heater': False,
+        'rational_behavior': False,
+        'social': False,
+        'premature_replacement': 3,
+        'h2ccgt': True,
+        'max_iter': 130,
+        'sub_design': "global_renovation",
+        "health": True,  # on inclut les coûts de santé
+        "discount_rate": 0.032,
+        "rebound": True,
+        "carbon_constraint": True,
+        'fix_sub_heater': False,
+        'fix_sub_insulation': False,
+        'list_year': [2025, 2030, 2035, 2040, 2045],
+        'list_trajectory_scc': [250, 350, 500, 650, 775],
+        'acquisition_jitter': 0.03,
+        'scenario_cost_eoles': {}
+    }
+
     config_resirf_path, config_eoles_spec = DICT_CONFIG_RESIRF[config_coupling["config_resirf"]], DICT_CONFIG_EOLES[config_coupling["config_eoles"]]
     with open(config_resirf_path) as file:  # load config_resirf
         config_resirf = json.load(file).get('Reference')
     config_resirf = modif_config_resirf(config_resirf, config_coupling, calibration=config_coupling["calibration"])  # modif of this configuration file to consider coupling options
-    # config_resirf = modif_config_resirf(config_resirf, config_coupling, calibration=None)  # modif of this configuration file to consider coupling options
-    # print(config_resirf)
 
-    # # Calibration: whether we use threshold or not
-    # name_calibration = 'calibration'
-    # if calibration_threshold is True:
-    #     name_calibration = '{}_threshold'.format(name_calibration)
-    # print(name_calibration)
-    #
-    # export_calibration = os.path.join('eoles', 'outputs', 'calibration', '{}.pkl'.format(name_calibration))
-    # import_calibration = os.path.join('eoles', 'outputs', 'calibration', '{}.pkl'.format(name_calibration))
+    # ########## Test exogenous configurations
+    # sensitivity = {
+    #     # "no_policy": True,
+    #     "policies": {
+    #         "Ambitious": "project/input/policies/policies_ambitious.json",
+    #         # "Reference": "project/input/policies/current/policies_ref.json"
+    #     }
+    # }
+    # dict_config_resirf = config_resirf_exogenous(sensitivity=sensitivity, config_resirf=config_resirf)
+    # dict_config_coupling = create_multiple_coupling_configs(dict_config_resirf=dict_config_resirf, config_coupling=config_coupling)
 
     # initialization ResIRF
     buildings, inputs_dynamics, policies_heater, policies_insulation = ini_res_irf(
@@ -253,7 +279,7 @@ if __name__ == '__main__':
     #
     # sub_heater = 0.5763
     # sub_insulation = 0.6502
-
+    #
     # output, stock, heating_consumption = simu_res_irf(buildings=buildings, sub_heater=None,
     #                                                   sub_insulation=None,
     #                                                   start=start,
@@ -279,7 +305,6 @@ if __name__ == '__main__':
     # plot_scenario(output, stock, buildings)
     # plot_compare_scenarios(result={"Reference": output}, folder=os.path.join("eoles/outputs/test_plots"))
 
-
     list_year = config_coupling["list_year"]
     list_trajectory_scc = config_coupling["list_trajectory_scc"]  # SCC trajectory
     config_eoles = get_config(spec=config_eoles_spec)  # TODO: changer le nom de la config qu'on appelle
@@ -295,7 +320,7 @@ if __name__ == '__main__':
                 "h2_ccgt": 0
             }
 
-    max_iter, one_shot_setting, fix_sub_heater = config_coupling["max_iter"], config_coupling["one_shot_setting"], config_coupling["fix_sub_heater"]
+    max_iter, fix_sub_heater = config_coupling["max_iter"], config_coupling["fix_sub_heater"]
     price_feedback = False
     if "price_feedback" in config_coupling.keys():
         price_feedback = config_coupling["price_feedback"]
@@ -369,12 +394,12 @@ if __name__ == '__main__':
                                                                       config_eoles=config_eoles,
                                                                       config_coupling=config_coupling,
                                                                       add_CH4_demand=False,
-                                                                      optimization=False, list_sub_heater=[0.775598, 0.0, 0.84839800, 0.88300, 0.92762],
-                                                                      list_sub_insulation=[0.6363841, 0.831483, 0.765298, 0.50764, 0.239],
+                                                                      optimization=False, list_sub_heater=[0.0, 0.0, 0.0, 0.0, 0.0],
+                                                                      list_sub_insulation=[0.0, 0.0, 0.0, 0.0, 0.0],
                                                                       price_feedback=price_feedback,
                                                                       energy_taxes=energy_taxes,
                                                                       energy_vta=energy_vta,
-                                                                      acquisition_jitter=0.03, grad_descent=False)
+                                                                      acquisition_jitter=0.03, grad_descent=False, cofp=False)
 
     # gradient_descent(x0=[0.963, 0.09], buildings=buildings, inputs_dynamics=inputs_dynamics, policies_heater=policies_heater,
     #                  policies_insulation=policies_insulation, start_year_resirf=2045, timestep_resirf=5,
@@ -490,30 +515,6 @@ if __name__ == '__main__':
     #
     # plot_simulation(output, save_path=export_results)
 
-    # ### Study trajectory with given list of subsidies: to rerun quickly the result from a given scenario
-    # list_sub_heater = [1.0, 1.0, 1.0, 1.0, 1.0]
-    # list_sub_insulation = [0.0, 0.0, 0.0, 0.0, 0.0]
-    # output = resirf_eoles_coupling_dynamic_no_opti(list_sub_heater, list_sub_insulation, _buildings, _energy_prices, _taxes,
-    #                                       _cost_heater, _cost_insulation, _flow_built, _post_inputs, _policies_heater, _policies_insulation,
-    #                                       list_year, list_trajectory_scc, scenario_cost, config_eoles, add_CH4_demand=False)
-
-    #
-    # Test convergence of the result
-    # max_iter, initial_design_numdata, optimizer = test_convergence(max_iter=20, initial_design_numdata=3)
-    #
-    # optimizer.plot_acquisition()
-    # optimizer.plot_convergence()
-
-    # # Tester l'impact du choix du nombre d'itérations sur la convergence
-    # conv = {}
-    # max_iter, initial_design_numdata, optimizer = test_convergence(max_iter=20, initial_design_numdata=3)
-    # conv[20] = optimizer
-    # max_iter, initial_design_numdata, optimizer = test_convergence(max_iter=30, initial_design_numdata=3)
-    # conv[30] = optimizer
-    # max_iter, initial_design_numdata, optimizer = test_convergence(max_iter=10, initial_design_numdata=3)
-    # conv[10] = optimizer
-    #
-    # optimizer.plot_acquisition()
     #
     from GPyOpt.plotting.plots_bo import plot_acquisition
 
@@ -533,54 +534,4 @@ if __name__ == '__main__':
     #                  optimizer.acquisition.acquisition_function, optimizer.suggest_next_locations(),
     #                  filename=None, label_x=None, label_y=None, color_by_step=True)
 
-    # ################## Projection of transport and distribution costs #############
-    #
-    # from sklearn.linear_model import LinearRegression
-    # transport_and_distrib = pd.DataFrame(
-    #     data={'M0': [5, 2, 2, 0, 0, 19], 'M1': [5, 2, 2, 0, 0, 19], 'M23': [5, 3, 2, 0, 0, 17],
-    #           'N1': [5, 2, 2, 0, 0, 17], 'N2': [5, 1, 1, 0, 0, 16], 'N03': [5, 1, 1, 0, 0, 16]},
-    #     index=["Transport - réseau existant et renouvellement", "Transport - raccordement éolien en mer",
-    #            "Transport - adaptation", "Transport - interconnexions", "Transport - autre", "Distribution"])
-    # transport_and_distrib = transport_and_distrib.T
-    # transport_and_distrib["transport"] = transport_and_distrib["Transport - réseau existant et renouvellement"] + \
-    #                                      transport_and_distrib["Transport - adaptation"] + transport_and_distrib[
-    #                                          "Transport - interconnexions"] + transport_and_distrib["Transport - autre"]
-    # transport_and_distrib["transport_and_distribution"] = transport_and_distrib["transport"] + transport_and_distrib[
-    #     "Distribution"]
-    #
-    # prod_renewable = pd.DataFrame(
-    #     data={'M0': [208, 74, 62], 'M1': [214, 59, 45], 'M23': [125, 72, 60], 'N1': [118, 58, 45],
-    #           'N2': [90, 52, 36], 'N03': [70, 43, 22]}, index=["solar", "onshore_wind", "offshore_wind"])
-    # prod_renewable = prod_renewable.T
-    #
-    # y = transport_and_distrib[["transport_and_distribution"]].squeeze().to_numpy()
-    # X = prod_renewable[["solar", "onshore_wind"]].to_numpy()
-    #
-    # reg = LinearRegression().fit(X, y)
-    # print(f"Coefficients for predicting transport and distribution: {reg.coef_}")
-    # print(f"Intercept for predicting transport and distribution: {reg.intercept_}")
-    #
-    # y_distrib = transport_and_distrib[["Distribution"]].squeeze().to_numpy()
-    # reg_distrib = LinearRegression().fit(X, y_distrib)
-    # print(f"Coefficients for predicting distribution: {reg_distrib.coef_}")
-    # print(f"Intercept for predicting transport and distribution: {reg.intercept_}")
-    #
-    # y_offshore = transport_and_distrib[["Transport - raccordement éolien en mer"]].squeeze().to_numpy()
-    # X_offshore = prod_renewable[["offshore_wind"]].to_numpy()
-    # reg_offshore = LinearRegression().fit(X_offshore, y_offshore)
-    # print(f"Coefficients for predicting offshore costs: {reg_offshore.coef_}")
-    # print(f"Intercept for predicting transport and distribution: {reg.intercept_}")
 
-    ################### Calibration LCOE ##############
-    # #
-    # config_eoles = eoles.utils.get_config(spec="eoles_coupling")
-    # calibration_lcoe, m_eoles = calibration_price(config_eoles, scc=100)
-
-    # calibration_lcoe, m_eoles = calibration_price(config_eoles, existing_capacity=None,
-    #                                               existing_charging_capacity=None,
-    #                                               existing_energy_capacity=None,
-    #                                               maximum_capacity=None,
-    #                                               existing_annualized_costs_elec=0,
-    #                                               existing_annualized_costs_CH4=0,
-    #                                               existing_annualized_costs_H2=0,
-    #                                               scc=500)

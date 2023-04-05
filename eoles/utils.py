@@ -7,6 +7,7 @@ import json
 from matplotlib import pyplot as plt
 from pyomo.environ import value
 import datetime
+from copy import deepcopy
 
 
 def get_pandas(path, func=lambda x: pd.read_csv(x)):
@@ -103,7 +104,7 @@ def heating_hourly_profile(method, percentage=None):
     return hourly_profile_test
 
 
-def load_evolution_data(config, greenfield=False):
+def load_evolution_data(config, greenfield=False, aggregated_potential=False):
     """Load necessary data for the social planner trajectory"""
     # Load historical data
     existing_capacity_historical = get_pandas("eoles/inputs/historical_data/existing_capacity_historical.csv",
@@ -118,8 +119,11 @@ def load_evolution_data(config, greenfield=False):
         maximum_capacity_evolution = get_pandas(os.path.join("eoles/inputs/technology_potential/maximum_capacity_greenfield.csv"),
                                                 lambda x: pd.read_csv(x, index_col=0))  # GW
     else:
-        maximum_capacity_evolution = get_pandas(config["maximum_capacity_evolution"],
-                                                lambda x: pd.read_csv(x, index_col=0))  # GW
+        if not aggregated_potential:
+            maximum_capacity_evolution = get_pandas(config["maximum_capacity_evolution"], lambda x: pd.read_csv(x, index_col=0))  # GW
+        else:  # we use aggregated potential
+            maximum_capacity_evolution = get_pandas(os.path.join("eoles/inputs/technology_potential/maximum_capacity_evolution_aggregated.csv"),
+                                                    lambda x: pd.read_csv(x, index_col=0))  # GW
 
     capex_annuity_fOM_historical = get_pandas("eoles/inputs/historical_data/capex_annuity_fOM_historical.csv",
                                               lambda x: pd.read_csv(x, index_col=0).squeeze())
@@ -797,6 +801,37 @@ def modif_config_resirf(config_resirf, config_coupling, calibration=None):
         config_resirf["simple"]["prices_constant"] = config_coupling["prices_constant"]
 
     return config_resirf
+
+
+def config_resirf_exogenous(sensitivity, config_resirf):
+    """This function creates a dictionary of ResIRF configuration files, for exogenous scenarios."""
+
+    dict_config_resirf = {}
+    # dict_config_resirf["Reference"] = config_resirf
+    if "policies" in sensitivity.keys():
+        for scenario in sensitivity["policies"].keys():
+            new_config = deepcopy(config_resirf)
+            new_config["policies"] = sensitivity["policies"][scenario]
+            dict_config_resirf[scenario] = new_config
+    if "no_policy" in sensitivity.keys():
+        new_config = deepcopy(config_resirf)
+        new_config["simple"]["no_policy"] = True
+        dict_config_resirf["No policy"] = new_config
+    if "current_policies" in sensitivity.keys():
+        new_config = deepcopy(config_resirf)
+        new_config["simple"]["current_policies"] = True
+        dict_config_resirf["Current policies"] = new_config
+    return dict_config_resirf
+
+
+def create_multiple_coupling_configs(dict_config_resirf, config_coupling):
+    """Creates a dictionary of coupling configurations, with different ResIRF configurations."""
+    dict_config_coupling = {}
+    for scenario in dict_config_resirf.keys():
+        new_config = deepcopy(config_coupling)
+        new_config["config_resirf"] = dict_config_resirf[scenario]
+        dict_config_coupling[scenario] = new_config
+    return dict_config_coupling
 
 
 if __name__ == '__main__':

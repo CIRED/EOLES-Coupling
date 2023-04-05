@@ -1,6 +1,6 @@
 {
   "Reference": {
-    "end": 2050,
+    "end": 2051,
     "step": 1,
     "full_output": true,
     "start": 2018,
@@ -9,7 +9,9 @@
       "activated": true,
       "interest_rate": 0.04,
       "saving_rate": 0.025,
-      "duration": 10
+      "duration": 10,
+      "debt_ratio": 0.05,
+      "method": "MENFIS"
     },
     "supply": {
       "activated_insulation": false,
@@ -105,10 +107,11 @@
       "pop_housing": null,
       "share_multi_family": null
     },
+    "implicit_discount_rate": "project/input/revealed_data/implicit_discount_rate.csv",
     "health_cost": "project/input/policies/health_cost.csv",
     "carbon_value": "project/input/policies/carbon_value.csv",
     "policies": {
-      "file": "project/input/policies/coupling/policies_coupling_current.json"
+      "file": "project/input/policies/coupling/policies_2025.json"
     },
     "simple": {
       "quintiles": true,

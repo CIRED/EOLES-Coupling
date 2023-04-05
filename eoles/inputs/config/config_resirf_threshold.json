@@ -95,7 +95,7 @@
     },
     "health_cost": "project/input/policies/health_cost.csv",
     "carbon_value": "project/input/policies/carbon_value.csv",
-    "policies": "project/input/policies/coupling/policies_coupling_current.json",
+    "policies": "project/input/policies/coupling/policies_2025.json",
     "simple": {
       "quintiles": false,
       "surface": false,

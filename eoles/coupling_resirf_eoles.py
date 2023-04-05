@@ -87,11 +87,15 @@ def resirf_eoles_coupling_static(subvention, buildings, inputs_dynamics, policie
                                  existing_annualized_costs_CH4_naturalgas, existing_annualized_costs_CH4_biogas,
                                  existing_annualized_costs_H2, lifetime_renov=50, lifetime_heater=20,
                                  discount_rate=0.045, sub_design=None, health=True, carbon_constraint=False,
-                                 rebound=True, bayesian_optim=True):
+                                 rebound=True, bayesian_optim=True, initial_state_budget=0, cofp=False):
     """
 
     :param subvention: 2 dimensional numpy array
         Attention to the shape of the array necessary for optimization !!
+    :param bayesian_optim: bool
+        If true, uses the framework of GpyOpt. If False, uses gradient descent (not functional currently).
+    :param cofp: bool
+        If true, includes opportunity cost of public fund for subsidies. If false, not included.
     :return:
     """
 
@@ -175,6 +179,10 @@ def resirf_eoles_coupling_static(subvention, buildings, inputs_dynamics, policie
         objective += annuity_health_cost
         objective += annuity_investment_cost
         print(m_eoles.objective, annuity_health_cost, annuity_investment_cost)
+        if cofp:  # we add the opportunity cost of subsidies
+            current_state_budget = output.loc['Balance state (Billion euro)'].mean()
+            if current_state_budget >= initial_state_budget:  # we only add a COFP if the difference of budget is positive
+                objective += 0.3*(current_state_budget - initial_state_budget)
     return np.array([objective])  # return an array
 
 
@@ -191,7 +199,7 @@ def optimize_blackbox_resirf_eoles_coupling(buildings, inputs_dynamics, policies
                                             normalize_Y=True, plot=False,
                                             fix_sub_heater=False, fix_sub_insulation=False,
                                             sub_design=None, health=True, carbon_constraint=False,
-                                            rebound=True):
+                                            rebound=True, initial_state_budget=0, cofp=False):
     """
     Finds optimal subsidies by a blackbox optimization process, relying on bayesian optimization and gaussian processes.
     :param lifetime_renov: int
@@ -268,7 +276,8 @@ def optimize_blackbox_resirf_eoles_coupling(buildings, inputs_dynamics, policies
                                                  lifetime_renov=lifetime_renov, lifetime_heater=lifetime_heater,
                                                  discount_rate=discount_rate, sub_design=sub_design,
                                                  health=health, carbon_constraint=carbon_constraint,
-                                                 rebound=rebound),
+                                                 rebound=rebound, initial_state_budget=initial_state_budget,
+                                                 cofp=cofp),
         domain=bounds2d,
         model_type='GP',  # gaussian process
         # kernel=kernel,
@@ -599,7 +608,18 @@ def resirf_eoles_coupling_greenfield(buildings, inputs_dynamics, policies_heater
 
     if termination_condition == "infeasibleOrUnbounded":
         logger.info("Carbon budget is violated.")
-        return None, None
+        output = {
+            "ResIRF costs (Billion euro)": resirf_costs_df.T,
+            "ResIRF costs eff (euro/kWh)": investment_cost_eff_df.T,
+            "ResIRF consumption yearly (TWh)": resirf_consumption_yearly_df.T,
+            "ResIRF consumption savings (TWh)": resirf_consumption_saving_df.T,
+            "ResIRF replacement heater (Thousand)": replacement_heater_df.T,
+            "ResIRF stock heater (Thousand)": stock_heater_df,
+            "Output global ResIRF ()": output_global_ResIRF,
+            "Stock global ResIRF ()": stock_global_ResIRF,
+            "Energy prices (€/kWh)": inputs_dynamics['energy_prices']
+        }
+        return output, buildings, dict_optimizer
 
     ### Spot price
     spot_price = m_eoles.spot_price.rename(
@@ -788,20 +808,16 @@ def resirf_eoles_coupling_greenfield(buildings, inputs_dynamics, policies_heater
 
 def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, policies_insulation,
                                   list_year, list_trajectory_scc, scenario_cost, config_eoles, config_coupling,
-                                  add_CH4_demand=False, one_shot_setting=False,
-                                  lifetime_renov=50, lifetime_heater=20,
+                                  add_CH4_demand=False, lifetime_renov=50, lifetime_heater=20,
                                   anticipated_scc=False, anticipated_demand_t10=False, optimization=True,
                                   list_sub_heater=None, list_sub_insulation=None, price_feedback=False,
                                   energy_taxes=None, energy_vta=None, acquisition_jitter=0.01, grid_initialize=False, normalize_Y=True,
-                                  grad_descent=False):
+                                  grad_descent=False, aggregated_potential=False, cofp=False):
     """Performs multistep optimization of capacities and subsidies.
     :param config_coupling: dict
         Includes a number of parametrization for configuration of the coupling
     :param lifetime_renov: int
     :param lifetime_heater: int
-    :param rebound: bool
-    :param technical_progress: bool
-    :param financing_cost: ??
     :param anticipated_scc: bool
         If True, the social planner considers the social cost at t+5 when computing optimal subsidies and investment decisions.
     :param anticipated_demand_t10: bool
@@ -812,6 +828,21 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
         Provided when optimization is set to False. Provides the list of heater subsidies for the different time steps
     :param list_sub_insulation: list
         Provided when optimization is set to False. Provides the list of insulation subsidies for the different time steps
+    :param price_feedback: bool
+        Whether to include price feedback for agents
+    :param energy_taxes
+    :param energy_vta: pd.Series
+    :param acquisition_jitter: float
+        Parameter for blackbox optimization
+    :param grid_initialize: bool
+        Parameter for blackbox optimization
+    :param normalize_Y: bool
+        Parameter for blackbox optimization
+    :param aggregated_potential: bool
+        If True, then this means that the maximum capacities for each time step is an aggregated potential (thus allowing
+        to catch up for capacities not built initially because of myopic optimization)
+    :param coft: bool
+        If true, we include the opportunity cost of public funds in the objective.
     """
     if not optimization:
         assert list_sub_heater is not None, "Parameter list_sub_heater should be provided when optimization is set to False."
@@ -822,7 +853,7 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
     # importing evolution of historical capacity and expected evolution of demand
     existing_capacity_historical, existing_charging_capacity_historical, existing_energy_capacity_historical, \
     maximum_capacity_evolution, heating_gas_demand_RTE_timesteps, ECS_gas_demand_RTE_timesteps, capex_annuity_fOM_historical, \
-    capex_annuity_historical, storage_annuity_historical = eoles.utils.load_evolution_data(config=config_eoles, greenfield=False)
+    capex_annuity_historical, storage_annuity_historical = eoles.utils.load_evolution_data(config=config_eoles, greenfield=False, aggregated_potential=aggregated_potential)
 
     existing_capacity_historical = existing_capacity_historical.drop(
         ["heat_pump", "resistive", "gas_boiler", "fuel_boiler", "wood_boiler"], axis=0)
@@ -899,6 +930,7 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
                                                               technical_progress=inputs_dynamics['technical_progress'],
                                                               financing_cost=inputs_dynamics['financing_cost'], premature_replacement=inputs_dynamics['premature_replacement'],
                                                               supply=inputs_dynamics['supply'])
+    initial_state_budget = output_opt.loc["Balance state (Billion euro)"][2024]  # we get final state budget
 
     # we add initial values to observe what happens
     output_global_ResIRF = pd.concat([output_global_ResIRF, output_opt], axis=1)
@@ -909,19 +941,16 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
     for t, (y, scc) in enumerate(zip(list_year, list_trajectory_scc)):
         # IMPORTANT REMARK: here, list_trajectory_scc is already compiled so that list_trajectory_scc[t] corresponds to the SCC at the END of the period !
         print(f"Year {y}, SCC {scc}")
-        if not one_shot_setting:  # classical setting
-            if not anticipated_demand_t10:  # classical setting
-                if y < 2050:
-                    year_eoles, anticipated_year_eoles, start_year_resirf, timestep_resirf = y, y + 5, y, 5
-                else:  # specific case for 2050
-                    year_eoles, anticipated_year_eoles, start_year_resirf, timestep_resirf = y, y, y, 5
-            else:
-                if y < 2045:
-                    year_eoles, anticipated_year_eoles, start_year_resirf, timestep_resirf = y, y + 10, y, 5
-                else:  # specific case for 2050
-                    year_eoles, anticipated_year_eoles, start_year_resirf, timestep_resirf = y, 2050, y, 5
-        else:  # one shot setting
-            year_eoles, anticipated_year_eoles, start_year_resirf, timestep_resirf = 2050, 2050, 2025, 5
+        if not anticipated_demand_t10:  # classical setting
+            if y < 2050:
+                year_eoles, anticipated_year_eoles, start_year_resirf, timestep_resirf = y, y + 5, y, 5
+            else:  # specific case for 2050
+                year_eoles, anticipated_year_eoles, start_year_resirf, timestep_resirf = y, y, y, 5
+        else:
+            if y < 2045:
+                year_eoles, anticipated_year_eoles, start_year_resirf, timestep_resirf = y, y + 10, y, 5
+            else:  # specific case for 2050
+                year_eoles, anticipated_year_eoles, start_year_resirf, timestep_resirf = y, 2050, y, 5
 
         if anticipated_scc == "t5":  # we modify the scc to consider the scc at t+5
             if y < 2045:
@@ -952,8 +981,12 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
         existing_charging_capacity = existing_charging_capacity_historical_y + new_charging_capacity_tot
         existing_energy_capacity = existing_energy_capacity_historical_y + new_energy_capacity_tot
 
-        maximum_capacity = (
-                existing_capacity + new_maximum_capacity_y).dropna()  # we drop nan values, which correspond to technologies without any upper bound
+        if aggregated_potential:  # we do not take into account previously invested capacity
+            maximum_capacity = (existing_capa_historical_y + new_maximum_capacity_y).dropna()
+        else:
+            maximum_capacity = (
+                    existing_capacity + new_maximum_capacity_y).dropna()  # we drop nan values, which correspond to
+            # technologies without any upper bound
 
         #### Historical annualized costs based on historical costs
         annualized_costs_capacity_historical, annualized_costs_energy_capacity_historical = eoles.utils.annualized_costs_investment_historical(
@@ -1018,7 +1051,8 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
                                                         fix_sub_heater=config_coupling["fix_sub_heater"], fix_sub_insulation=config_coupling["fix_sub_insulation"],
                                                         sub_design=config_coupling["sub_design"],
                                                         health=config_coupling["health"], carbon_constraint=config_coupling["carbon_constraint"],
-                                                        rebound=config_coupling["rebound"])
+                                                        rebound=config_coupling["rebound"], initial_state_budget=initial_state_budget,
+                                                        cofp=cofp)
             dict_optimizer.update({y: optimizer})
             opt_sub_heater, opt_sub_insulation = opt_sub[0], opt_sub[1]
             list_sub_heater.append(opt_sub_heater)
@@ -1037,7 +1071,6 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
                                  existing_annualized_costs_H2=existing_annualized_costs_H2, lifetime_renov=50, lifetime_heater=20, discount_rate=0.045,
                                  max_iter=3, sub_design=config_coupling["sub_design"], health=config_coupling["health"],
                                            carbon_constraint=config_coupling["carbon_constraint"], rebound=config_coupling["rebound"])
-
 
         # Rerun ResIRF with optimal subvention parameters
         endyear_resirf = start_year_resirf + timestep_resirf
@@ -1173,7 +1206,7 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
                 "Annualized costs historical capacity (1e9€/yr)": annualized_historical_capacity_df,
                 "Annualized costs historical energy capacity (1e9€/yr)": annualized_historical_energy_capacity_df,
                  "System functionment (1e9€/yr)": functionment_costs_df,
-                 "Emissions (MtCO2)": pd.DataFrame({"Emissions": list_emissions}, index=list_anticipated_year[:t + 1]),
+                 # "Emissions (MtCO2)": pd.DataFrame({"Emissions": list_emissions}, index=list_anticipated_year[:t + 1]),
                  "Peak electricity load": peak_electricity_load_df,
                  "Peak heat load": peak_heat_load_df,
                  "Subsidies (%)": resirf_subsidies_df,
@@ -1469,7 +1502,8 @@ def electricity_gas_price_ht(elec_lcoe, elec_transport_distrib, gas_furniture_co
     gas_prices_snbc_year = gas_prices_snbc[[str(year)]].squeeze()
     distribution_gas = gas_prices_snbc_year["Distribution network"]
     transport_gas = gas_prices_snbc_year["Transport network"]
-    gas_price_ht = naturalgas_furniture_cost * calib_naturalgas + biogas_furniture_cost * calib_biogas + distribution_gas + transport_gas
+    # gas_price_ht = naturalgas_furniture_cost * calib_naturalgas + biogas_furniture_cost * calib_biogas + distribution_gas + transport_gas
+    gas_price_ht = naturalgas_furniture_cost * calib_naturalgas + distribution_gas + transport_gas  # TODO: we only include natural gas price
 
     return elec_price_ht, gas_price_ht
 
