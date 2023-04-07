@@ -63,93 +63,34 @@ DICT_CONFIG_EOLES = {
 }
 
 
-def test_convergence(max_iter, initial_design_numdata, buildings, energy_prices, taxes, cost_heater, cost_insulation,
-                     flow_built,
-                     post_inputs, policies_heater, policies_insulation, add_CH4_demand=False):
-    existing_capacity_historical, existing_charging_capacity_historical, existing_energy_capacity_historical, \
-    maximum_capacity_evolution, heating_gas_demand_RTE_timesteps, ECS_gas_demand_RTE_timesteps, annuity_fOM_historical, storage_annuity_historical = eoles.utils.load_evolution_data()
+def run_resirf_alone(year, timestep, config_coupling, buildings, inputs_dynamics, policies_heater, policies_insulation,
+                     sub_heater=None, sub_insulation=None):
+    """Test to run resirf for a small time period."""
+    start = year
+    end = year + timestep
 
-    existing_capacity_historical = existing_capacity_historical.drop(
-        ["heat_pump", "resistive", "gas_boiler", "fuel_boiler", "wood_boiler"], axis=0)
-
-    year_eoles, anticipated_year_eoles = 2025, 2030
-    start_year_resirf, timestep_resirf = 2025, 5
-
-    existing_capa_historical_y = existing_capacity_historical[
-        [str(anticipated_year_eoles)]].squeeze()  # get historical capacity still installed for year of interest
-    existing_charging_capacity_historical_y = existing_charging_capacity_historical[
-        [str(anticipated_year_eoles)]].squeeze()
-    existing_energy_capacity_historical_y = existing_energy_capacity_historical[[str(anticipated_year_eoles)]].squeeze()
-
-    new_maximum_capacity_y = maximum_capacity_evolution[
-        [str(anticipated_year_eoles)]].squeeze()  # get maximum new capacity to be built
-
-    # Existing capacities at year y
-    existing_capacity = existing_capa_historical_y
-    existing_charging_capacity = existing_charging_capacity_historical_y
-    existing_energy_capacity = existing_energy_capacity_historical_y
-
-    maximum_capacity = (
-            existing_capacity + new_maximum_capacity_y).dropna()  # we drop nan values, which correspond to technologies without any upper bound
-
-    #### Historical LCOE based on historical costs
-    annualized_costs_capacity_historical, annualized_costs_energy_capacity_historical = eoles.utils.annualized_costs_investment_historical(
-        existing_capa_historical_y, annuity_fOM_historical,
-        existing_energy_capacity_historical_y, storage_annuity_historical)
-    annualized_costs_new_capacity = pd.DataFrame(0, index=existing_capacity_historical.index,
-                                                 columns=["annualized_costs"], dtype=float)
-    annualized_costs_new_energy_capacity = pd.DataFrame(0, index=existing_energy_capacity_historical.index,
-                                                        columns=["annualized_costs"], dtype=float)
-
-    ### Compile total annualized investment costs from existing capacities (both historical capacities + newly built capacities before t)
-    # Necessary for calculus of LCOE accounting for evolution of capacities
-    annualized_costs_capacity = pd.concat(
-        [annualized_costs_capacity_historical.rename(columns={'annualized_costs': 'historical_annualized_costs'}),
-         annualized_costs_new_capacity], axis=1)
-    annualized_costs_capacity['annualized_costs'] = annualized_costs_capacity['historical_annualized_costs'] + \
-                                                    annualized_costs_capacity['annualized_costs']
-    annualized_costs_energy_capacity = pd.concat([annualized_costs_energy_capacity_historical.rename(
-        columns={'annualized_costs': 'historical_annualized_costs'}), annualized_costs_new_energy_capacity], axis=1)
-    annualized_costs_energy_capacity['annualized_costs'] = annualized_costs_energy_capacity[
-                                                               'historical_annualized_costs'] + \
-                                                           annualized_costs_energy_capacity['annualized_costs']
-
-    existing_annualized_costs_elec, existing_annualized_costs_CH4, existing_annualized_costs_H2 = eoles.utils.process_annualized_costs_per_vector(
-        annualized_costs_capacity[["annualized_costs"]].squeeze(),
-        annualized_costs_energy_capacity[["annualized_costs"]].squeeze())
-
-    if add_CH4_demand:
-        ### Create additional gas profile (tertiary heating + ECS)
-        heating_gas_demand = heating_gas_demand_RTE_timesteps[anticipated_year_eoles] * 1e3  # in TWh
-        ECS_gas_demand = ECS_gas_demand_RTE_timesteps[anticipated_year_eoles] * 1e3  # in TWh
-        ECS_demand_hourly = ECS_gas_demand / 8760
-        hourly_gas = eoles.utils.create_hourly_residential_demand_profile(total_consumption=heating_gas_demand,
-                                                                          method=HOURLY_PROFILE_METHOD)  # value for gas heating demand in tertiary sector
-        hourly_ECS = pd.Series(ECS_demand_hourly, index=hourly_gas.index)
-        hourly_exogeneous_CH4 = hourly_gas + hourly_ECS
-    else:
-        hourly_exogeneous_CH4 = eoles.utils.create_hourly_residential_demand_profile(total_consumption=0,
-                                                                                     method=HOURLY_PROFILE_METHOD)
-
-    # Find optimal subsidy
-    optimizer, opt_sub = \
-        optimize_blackbox_resirf_eoles_coupling(buildings, energy_prices, taxes, cost_heater, cost_insulation,
-                                                flow_built, post_inputs, policies_heater, policies_insulation,
-                                                start_year_resirf, timestep_resirf,
-                                                config_eoles, year_eoles, anticipated_year_eoles, scc=180,
-                                                hourly_gas_exogeneous=hourly_exogeneous_CH4,
-                                                existing_capacity=existing_capacity,
-                                                existing_charging_capacity=existing_charging_capacity,
-                                                existing_energy_capacity=existing_energy_capacity,
-                                                maximum_capacity=maximum_capacity, method_hourly_profile="valentin",
-                                                scenario_cost=scenario_cost,
-                                                existing_annualized_costs_elec=existing_annualized_costs_elec,
-                                                existing_annualized_costs_CH4=existing_annualized_costs_CH4,
-                                                existing_annualized_costs_H2=existing_annualized_costs_H2,
-                                                lifetime_renov=40, discount_rate_renov=0.045, plot=False,
-                                                max_iter=max_iter, initial_design_numdata=initial_design_numdata)
-
-    return max_iter, initial_design_numdata, optimizer
+    output, stock, heating_consumption = simu_res_irf(buildings=buildings, sub_heater=sub_heater,
+                                                      sub_insulation=sub_insulation,
+                                                      start=start,
+                                                      end=end, energy_prices=inputs_dynamics['energy_prices'],
+                                                      taxes=inputs_dynamics['taxes'],
+                                                      cost_heater=inputs_dynamics['cost_heater'],
+                                                      cost_insulation=inputs_dynamics['cost_insulation'],
+                                                      lifetime_heater=20, flow_built=inputs_dynamics['flow_built'],
+                                                      post_inputs=inputs_dynamics['post_inputs'],
+                                                      policies_heater=policies_heater,
+                                                      policies_insulation=policies_insulation,
+                                                      climate=2006, smooth=False, efficiency_hour=True,
+                                                      demolition_rate=inputs_dynamics['demolition_rate'],
+                                                      output_consumption=True,
+                                                      full_output=True,
+                                                      sub_design=config_coupling["sub_design"],
+                                                      rebound=config_coupling["rebound"],
+                                                      technical_progress=inputs_dynamics['technical_progress'],
+                                                      financing_cost=inputs_dynamics['financing_cost'],
+                                                      premature_replacement=inputs_dynamics['premature_replacement'],
+                                                      supply=inputs_dynamics['supply'])
+    return output, stock, heating_consumption
 
 
 # def test_convergence_2030():
@@ -232,8 +173,8 @@ if __name__ == '__main__':
             "config_eoles": "eoles_classic",  # includes costs assumptions
             'supply_insulation': False,
             'supply_heater': False,
-            'rational_behavior': True,
-            'social': True,
+            'rational_behavior': False,
+            'social': False,
             'premature_replacement': 3,
             'h2ccgt': True,
             'max_iter': 130,
@@ -271,33 +212,12 @@ if __name__ == '__main__':
         path=os.path.join('eoles', 'outputs', 'ResIRF'),
         config=config_resirf)
 
-    # # TEST for a given time step
-    # timestep = 5
-    # year = 2020
-    # start = year
-    # end = year + timestep
-    #
-    # sub_heater = 0.5763
-    # sub_insulation = 0.6502
-    #
-    # output, stock, heating_consumption = simu_res_irf(buildings=buildings, sub_heater=None,
-    #                                                   sub_insulation=None,
-    #                                                   start=start,
-    #                                                   end=end, energy_prices=inputs_dynamics['energy_prices'],
-    #                                                   taxes=inputs_dynamics['taxes'],
-    #                                                   cost_heater=inputs_dynamics['cost_heater'], cost_insulation=inputs_dynamics['cost_insulation'],
-    #                                                   lifetime_heater=20, flow_built=inputs_dynamics['flow_built'],
-    #                                                   post_inputs=inputs_dynamics['post_inputs'], policies_heater=policies_heater,
-    #                                                   policies_insulation=policies_insulation,
-    #                                                   climate=2006, smooth=False, efficiency_hour=True,
-    #                                                   demolition_rate=inputs_dynamics['demolition_rate'],
-    #                                                   output_consumption=True,
-    #                                                   full_output=True,
-    #                                                   sub_design=config_coupling["sub_design"],
-    #                                                   rebound=config_coupling["rebound"],
-    #                                                   technical_progress=inputs_dynamics['technical_progress'],
-    #                                                   financing_cost=inputs_dynamics['financing_cost'], premature_replacement=inputs_dynamics['premature_replacement'],
-    #                                                   supply=inputs_dynamics['supply'])
+    # TEST for a given time step
+    timestep = 5
+    year = 2020
+    output, stock, heating_consumption = run_resirf_alone(year, timestep, config_coupling, buildings, inputs_dynamics,
+                                                          policies_heater, policies_insulation, sub_heater=None, sub_insulation=None)
+
     #
     # elec_consumption = heating_consumption.T["Electricity"]
     #
@@ -325,26 +245,26 @@ if __name__ == '__main__':
     if "price_feedback" in config_coupling.keys():
         price_feedback = config_coupling["price_feedback"]
 
-    energy_taxes, energy_vta = get_energy_prices_and_taxes(config_resirf)
-    calibration_elec_lcoe, calibration_elec_transport_distrib, calibration_gas, m_eoles = calibration_price(config_eoles, scc=100)
-    config_coupling["calibration_elec_lcoe"] = calibration_elec_lcoe
-    config_coupling["calibration_elec_transport_distrib"] = calibration_elec_transport_distrib
-    config_coupling["calibration_naturalgas_lcoe"] = calibration_gas
-    config_coupling["calibration_biogas_lcoe"] = 1.2
-    # config_coupling["calibration_gas_lcoe"] = calibration_gas
-
-    output, buildings, dict_optimizer = resirf_eoles_coupling_dynamic(buildings, inputs_dynamics,
-                                                                      policies_heater, policies_insulation,
-                                                                      list_year, list_trajectory_scc, scenario_cost,
-                                                                      config_eoles=config_eoles,
-                                                                      config_coupling=config_coupling,
-                                                                      add_CH4_demand=False,
-                                                                      optimization=True,
-                                                                      price_feedback=price_feedback,
-                                                                      energy_taxes=energy_taxes,
-                                                                      energy_vta=energy_vta,
-                                                                      acquisition_jitter=0.03,
-                                                                      aggregated_potential=True)
+    # energy_taxes, energy_vta = get_energy_prices_and_taxes(config_resirf)
+    # calibration_elec_lcoe, calibration_elec_transport_distrib, calibration_gas, m_eoles = calibration_price(config_eoles, scc=100)
+    # config_coupling["calibration_elec_lcoe"] = calibration_elec_lcoe
+    # config_coupling["calibration_elec_transport_distrib"] = calibration_elec_transport_distrib
+    # config_coupling["calibration_naturalgas_lcoe"] = calibration_gas
+    # config_coupling["calibration_biogas_lcoe"] = 1.2
+    # # config_coupling["calibration_gas_lcoe"] = calibration_gas
+    #
+    # output, buildings, dict_optimizer = resirf_eoles_coupling_dynamic(buildings, inputs_dynamics,
+    #                                                                   policies_heater, policies_insulation,
+    #                                                                   list_year, list_trajectory_scc, scenario_cost,
+    #                                                                   config_eoles=config_eoles,
+    #                                                                   config_coupling=config_coupling,
+    #                                                                   add_CH4_demand=False,
+    #                                                                   optimization=True,
+    #                                                                   price_feedback=price_feedback,
+    #                                                                   energy_taxes=energy_taxes,
+    #                                                                   energy_vta=energy_vta,
+    #                                                                   acquisition_jitter=0.03,
+    #                                                                   aggregated_potential=True)
 
     # output, buildings, dict_optimizer = resirf_eoles_coupling_dynamic(buildings, inputs_dynamics,
     #                                                                   policies_heater, policies_insulation,

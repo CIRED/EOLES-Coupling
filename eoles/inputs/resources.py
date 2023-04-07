@@ -150,6 +150,7 @@ colors_eoles = {
     "Functionment costs": 'yellow',
     "Investment heater costs": '#029E73',
     "Investment insulation costs": '#FBAFE4',
+    "Carbon cost": 'brown',
     "Health costs": '#0173B2',
     "Stock Wood fuel (Million)": 'saddlebrown',
      "Stock Oil fuel (Million)": '#949494',
