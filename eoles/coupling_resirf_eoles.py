@@ -106,7 +106,7 @@ def resirf_eoles_coupling_static(subvention, buildings, inputs_dynamics, policie
         sub_heater, sub_insulation = float(subvention[0, 0]), float(subvention[0, 1])
     else:  # if gradient descent, subsidy does not have similar shape
         sub_heater, sub_insulation = float(subvention[0]), float(subvention[1])
-    # print(f'Subvention: {sub_heater}, {sub_insulation}')
+    print(f'Subvention: {sub_heater}, {sub_insulation}')
 
     buildings_copy = deepcopy(buildings)
     energy_prices, taxes, cost_heater, cost_insulation, demolition_rate = deepcopy(inputs_dynamics['energy_prices']), deepcopy(inputs_dynamics['taxes']), deepcopy(inputs_dynamics['cost_heater']), deepcopy(inputs_dynamics['cost_insulation']), deepcopy(inputs_dynamics['demolition_rate'])

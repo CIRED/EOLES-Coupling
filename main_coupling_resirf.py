@@ -1646,7 +1646,7 @@ if __name__ == '__main__':
 
     # classic
     DICT_CONFIGS_9 = {
-        'uniform_carbonbudget': {
+        'GR_carbonbudget': {
             'aggregated_potential': True,
             'config_resirf': "classic_simple",
             "calibration": None,
@@ -1657,7 +1657,7 @@ if __name__ == '__main__':
             'premature_replacement': 3,
             'h2ccgt': True,
             'max_iter': 150,
-            'sub_design': None,
+            'sub_design': "global_renovation",
             "health": True,  # on inclut les coûts de santé
             "discount_rate": 0.032,
             "rebound": True,
@@ -1670,6 +1670,30 @@ if __name__ == '__main__':
             'acquisition_jitter': 0.03,
             'scenario_cost_eoles': {}
         },
+        # 'uniform_carbonbudget': {
+        #     'aggregated_potential': True,
+        #     'config_resirf': "classic_simple",
+        #     "calibration": None,
+        #     "config_eoles": "eoles_classic",  # includes costs assumptions
+        #     'supply_insulation': False,
+        #     'supply_heater': False,
+        #     'rational_behavior': False,
+        #     'premature_replacement': 3,
+        #     'h2ccgt': True,
+        #     'max_iter': 150,
+        #     'sub_design': None,
+        #     "health": True,  # on inclut les coûts de santé
+        #     "discount_rate": 0.032,
+        #     "rebound": True,
+        #     "carbon_constraint": True,
+        #     'one_shot_setting': False,
+        #     'fix_sub_heater': False,
+        #     'fix_sub_insulation': False,
+        #     'list_year': [2025, 2030, 2035, 2040, 2045],
+        #     'list_trajectory_scc': [250, 350, 500, 650, 775],
+        #     'acquisition_jitter': 0.03,
+        #     'scenario_cost_eoles': {}
+        # },
         # 'centralized_social_carbonbudget': {
         #     'aggregated_potential': True,
         #     'config_resirf': "classic_simple",
