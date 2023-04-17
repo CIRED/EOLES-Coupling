@@ -104,7 +104,7 @@ def heating_hourly_profile(method, percentage=None):
     return hourly_profile_test
 
 
-def load_evolution_data(config, greenfield=False, aggregated_potential=False):
+def load_evolution_data(config):
     """Load necessary data for the social planner trajectory"""
     # Load historical data
     existing_capacity_historical = get_pandas("eoles/inputs/historical_data/existing_capacity_historical.csv",
@@ -113,17 +113,7 @@ def load_evolution_data(config, greenfield=False, aggregated_potential=False):
                                                        lambda x: pd.read_csv(x, index_col=0))  # GW
     existing_energy_capacity_historical = get_pandas("eoles/inputs/historical_data/existing_energy_capacity_historical.csv",
                                                      lambda x: pd.read_csv(x, index_col=0))  # GW
-    # maximum_capacity_evolution = get_pandas("eoles/inputs/technology_potential/maximum_capacity_evolution.csv",
-    #                                         lambda x: pd.read_csv(x, index_col=0))  # GW
-    if greenfield:
-        maximum_capacity_evolution = get_pandas(os.path.join("eoles/inputs/technology_potential/maximum_capacity_greenfield.csv"),
-                                                lambda x: pd.read_csv(x, index_col=0))  # GW
-    else:
-        if not aggregated_potential:
-            maximum_capacity_evolution = get_pandas(config["maximum_capacity_evolution"], lambda x: pd.read_csv(x, index_col=0))  # GW
-        else:  # we use aggregated potential
-            maximum_capacity_evolution = get_pandas(os.path.join("eoles/inputs/technology_potential/maximum_capacity_evolution_aggregated.csv"),
-                                                    lambda x: pd.read_csv(x, index_col=0))  # GW
+    maximum_capacity_evolution = get_pandas(config["maximum_capacity_evolution"], lambda x: pd.read_csv(x, index_col=0))  # GW
 
     capex_annuity_fOM_historical = get_pandas("eoles/inputs/historical_data/capex_annuity_fOM_historical.csv",
                                               lambda x: pd.read_csv(x, index_col=0).squeeze())
@@ -752,34 +742,86 @@ def plot_generation(df):
     df.plot.pie(ax=ax)
 
 
+def modif_config_eoles(config_eoles, config_coupling):
+    """Modify EOLES configuration based on specified options in config_coupling.
+    Namely, we modify: maximum capacity evolution"""
+    config_eoles_update = deepcopy(config_eoles)
+    if 'aggregated_potential' in config_coupling["eoles"].keys():
+        if 'N1' in config_coupling["eoles"].keys():
+            if config_coupling["eoles"]['N1']:
+                config_eoles_update["maximum_capacity_evolution"] = "eoles/inputs/technology_potential/maximum_capacity_evolution_aggregated_N1.csv"
+            else:
+                config_eoles_update["maximum_capacity_evolution"] = "eoles/inputs/technology_potential/maximum_capacity_evolution_aggregated.csv"
+        else:
+            config_eoles_update[
+                "maximum_capacity_evolution"] = "eoles/inputs/technology_potential/maximum_capacity_evolution_aggregated.csv"
+    else:
+        if 'N1' in config_coupling["eoles"].keys():
+            if config_coupling["eoles"]['N1']:
+                config_eoles_update["maximum_capacity_evolution"] = "eoles/inputs/technology_potential/maximum_capacity_evolution_N1.csv"
+            else:
+                config_eoles_update["maximum_capacity_evolution"] = "eoles/inputs/technology_potential/maximum_capacity_evolution.csv"
+        else:
+            config_eoles_update["maximum_capacity_evolution"] = "eoles/inputs/technology_potential/maximum_capacity_evolution.csv"
+
+    if 'greenfield' in config_coupling.keys():
+        if config_coupling['greenfield']:
+            config_eoles_update["maximum_capacity_evolution"] = "eoles/inputs/technology_potential/maximum_capacity_greenfield.csv"
+
+    if "biomass_potential" in config_coupling["eoles"].keys():
+        assert config_coupling["eoles"]["biomass_potential"] in ["S3", "S2"], "Biomass potential is not specified correctly in config_coupling."
+        biomass_potential = config_coupling["eoles"]["biomass_potential"]
+        config_eoles_update["biomass_potential"] = f"eoles/inputs/technology_potential/biomass_evolution_{biomass_potential}.csv"
+
+    if "worst_case" in config_coupling["eoles"].keys():  # definition of worst case scenario for EOLES
+        if config_coupling["eoles"]["worst_case"]:
+            config_eoles_update["capex"] = "eoles/inputs/technology_characteristics/overnight_capex_evolution_high.csv"
+            config_eoles_update["storage_capex"] =  "eoles/inputs/technology_characteristics/storage_capex_evolution_high.csv"
+            config_eoles_update["maximum_capacity_evolution"] = "eoles/inputs/technology_potential/maximum_capacity_evolution_low.csv"
+            config_eoles_update["capacity_factor_nuclear"] = 0.7
+            config_eoles_update["biomass_potential"] = f"eoles/inputs/technology_potential/biomass_evolution_S2.csv"
+
+    if "h2_ccgt" in config_coupling["eoles"].keys():
+        if not config_coupling["eoles"]["h2_ccgt"]:  # we do not allow h2 ccgt plants
+            if "fix_capa" in config_coupling["scenario_cost_eoles"].keys():
+                config_coupling["scenario_cost_eoles"]["fix_capa"]["h2_ccgt"] = 0
+            else:
+                config_coupling["scenario_cost_eoles"]["fix_capa"] = {
+                    "h2_ccgt": 0
+                }
+
+    return config_eoles_update
+
+
 def modif_config_resirf(config_resirf, config_coupling, calibration=None):
     """This function modifies the ResIRF configuration file based on specified options in config_coupling.
     Namely, we modify: supply, premature replacement, rational behavior"""
+    config_resirf_update = deepcopy(config_resirf)
     # Modification supply value
-    config_resirf["supply"]["activated_insulation"] = config_coupling["supply_insulation"]
-    config_resirf["supply"]["activated_heater"] = config_coupling["supply_heater"]
+    config_resirf_update["supply"]["activated_insulation"] = config_coupling["supply_insulation"]
+    config_resirf_update["supply"]["activated_heater"] = config_coupling["supply_heater"]
 
     # Modification rational behavior
-    config_resirf["renovation"]["rational_behavior"]["activated"] = config_coupling["rational_behavior"]
+    config_resirf_update["renovation"]["rational_behavior"]["activated"] = config_coupling["rational_behavior"]
     if config_coupling["rational_behavior"]:  # in this case, we have to modify parameter policies
-        config_resirf["policies"] = None
+        config_resirf_update["policies"] = None
 
     # Modification premature replacement
-    config_resirf["switch_heater"]["premature_replacement"] = config_coupling["premature_replacement"]
+    config_resirf_update["switch_heater"]["premature_replacement"] = config_coupling["premature_replacement"]
 
     # if 'calibration' in config_coupling.keys():
-    #     config_resirf['calibration'] = config_coupling["calibration"]
+    #     config_resirf_update['calibration'] = config_coupling["calibration"]
 
     if 'social' in config_coupling.keys():
-        config_resirf['renovation']["rational_behavior"]["social"] = config_coupling["social"]
+        config_resirf_update['renovation']["rational_behavior"]["social"] = config_coupling["social"]
 
     if "information_rate" in config_coupling.keys():
-        config_resirf['switch_heater']["information_rate"] = config_coupling["information_rate"]
+        config_resirf_update['switch_heater']["information_rate"] = config_coupling["information_rate"]
 
     if not config_coupling["rational_behavior"]:  # we use calibration file only for configs without rational behavior
         if calibration is not None:  #  only if calibration file is specified
             assert os.path.isfile(calibration), "Calibration should profile the name of a file"
-            config_resirf["calibration"] = calibration
+            config_resirf_update["calibration"] = calibration
 
     if 'no_MF' in config_coupling.keys():
         if config_coupling['no_MF']:  # we want to remove market failures
@@ -795,12 +837,12 @@ def modif_config_resirf(config_resirf, config_coupling, calibration=None):
                                   "policy": "regulation",
                                         "gest": "insulation"
                         }}
-            config_resirf["policies"].update(policy_noMF)
+            config_resirf_update["policies"].update(policy_noMF)
 
     if "prices_constant" in config_coupling.keys():  # we remove hypothesis of prices constant
-        config_resirf["simple"]["prices_constant"] = config_coupling["prices_constant"]
+        config_resirf_update["simple"]["prices_constant"] = config_coupling["prices_constant"]
 
-    return config_resirf
+    return config_resirf_update
 
 
 def config_resirf_exogenous(sensitivity, config_resirf):

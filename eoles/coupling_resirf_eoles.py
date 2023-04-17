@@ -342,7 +342,7 @@ def resirf_eoles_coupling_greenfield(buildings, inputs_dynamics, policies_heater
     # importing evolution of historical capacity and expected evolution of demand
     existing_capacity_historical, existing_charging_capacity_historical, existing_energy_capacity_historical, \
     maximum_capacity_evolution, heating_gas_demand_RTE_timesteps, ECS_gas_demand_RTE_timesteps, capex_annuity_fOM_historical, \
-    capex_annuity_historical, storage_annuity_historical = eoles.utils.load_evolution_data(config=config_eoles, greenfield=True)
+    capex_annuity_historical, storage_annuity_historical = eoles.utils.load_evolution_data(config=config_eoles)
 
     existing_capacity_historical = existing_capacity_historical.drop(
         ["heat_pump", "resistive", "gas_boiler", "fuel_boiler", "wood_boiler"], axis=0)
@@ -853,7 +853,7 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
     # importing evolution of historical capacity and expected evolution of demand
     existing_capacity_historical, existing_charging_capacity_historical, existing_energy_capacity_historical, \
     maximum_capacity_evolution, heating_gas_demand_RTE_timesteps, ECS_gas_demand_RTE_timesteps, capex_annuity_fOM_historical, \
-    capex_annuity_historical, storage_annuity_historical = eoles.utils.load_evolution_data(config=config_eoles, greenfield=False, aggregated_potential=aggregated_potential)
+    capex_annuity_historical, storage_annuity_historical = eoles.utils.load_evolution_data(config=config_eoles)
 
     existing_capacity_historical = existing_capacity_historical.drop(
         ["heat_pump", "resistive", "gas_boiler", "fuel_boiler", "wood_boiler"], axis=0)

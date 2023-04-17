@@ -17,7 +17,7 @@ from project.model import get_inputs, social_planner
 from project.model import create_logger, get_config, get_inputs
 from eoles.model_resirf_coupling import ModelEOLES
 from eoles.utils import get_config, get_pandas, calculate_annuities_resirf, modif_config_resirf, \
-    config_resirf_exogenous, create_multiple_coupling_configs, create_multiple_coupling_configs2
+    config_resirf_exogenous, create_multiple_coupling_configs, create_multiple_coupling_configs2, modif_config_eoles
 from eoles.write_output import plot_simulation, plot_blackbox_optimization, save_summary_pdf, comparison_simulations
 import eoles.utils
 from eoles.coupling_resirf_eoles import resirf_eoles_coupling_dynamic, optimize_blackbox_resirf_eoles_coupling, \
@@ -113,9 +113,9 @@ def save_simulation_results(output, buildings, name_config_coupling, config_coup
 
 
 def run_exogenous_scenario(config_coupling, name_config_coupling="default"):
-    config_resirf, config_eoles_spec = config_coupling["config_resirf"], DICT_CONFIG_EOLES[
-        config_coupling["config_eoles"]]
-    config_eoles = eoles.utils.get_config(spec=config_eoles_spec)  # TODO: changer le nom de la config qu'on appelle
+    config_resirf = config_coupling["config_resirf"]
+    config_eoles = eoles.utils.get_config(spec="eoles_coupling")
+    config_eoles = modif_config_eoles(config_eoles, config_coupling)
 
     list_year = config_coupling["list_year"]
     list_trajectory_scc = config_coupling["list_trajectory_scc"]  # SCC trajectory
@@ -212,27 +212,17 @@ def run_optimization_scenario(config_coupling, name_config_coupling="default"):
     Saves the output of the optimization + save plots
     """
     print(name_config_coupling)
-    config_resirf_path, config_eoles_spec = DICT_CONFIG_RESIRF[config_coupling["config_resirf"]], DICT_CONFIG_EOLES[
-        config_coupling["config_eoles"]]
+    config_resirf_path = DICT_CONFIG_RESIRF["classic_simple"]
     with open(config_resirf_path) as file:  # load config_resirf
         config_resirf = json.load(file).get('Reference')
     config_resirf = modif_config_resirf(config_resirf, config_coupling, calibration=config_coupling[
         "calibration"])  # modif of this configuration file to consider coupling options
 
-    config_eoles = eoles.utils.get_config(spec=config_eoles_spec)  # TODO: changer le nom de la config qu'on appelle
+    config_eoles = eoles.utils.get_config(spec="eoles_coupling")
+    config_eoles = modif_config_eoles(config_eoles, config_coupling)
 
     list_year = config_coupling["list_year"]
     list_trajectory_scc = config_coupling["list_trajectory_scc"]  # SCC trajectory
-
-    h2ccgt = config_coupling["h2ccgt"]
-    scenario_cost = config_coupling["scenario_cost_eoles"]
-    if not h2ccgt:  # we do not allow h2 ccgt plants
-        if "fix_capa" in scenario_cost.keys():
-            scenario_cost["fix_capa"]["h2_ccgt"] = 0
-        else:
-            scenario_cost["fix_capa"] = {
-                "h2_ccgt": 0
-            }
 
     acquisition_jitter = 0.01
     if "acquisition_jitter" in config_coupling.keys():
@@ -259,8 +249,8 @@ def run_optimization_scenario(config_coupling, name_config_coupling="default"):
         price_feedback = config_coupling["price_feedback"]
 
     aggregated_potential = False
-    if "aggregated_potential" in config_coupling.keys():
-        aggregated_potential = config_coupling["aggregated_potential"]
+    if "aggregated_potential" in config_coupling["eoles"].keys():
+        aggregated_potential = config_coupling["eoles"]["aggregated_potential"]
 
     cofp = False
     if "cofp" in config_coupling.keys():
@@ -288,7 +278,7 @@ def run_optimization_scenario(config_coupling, name_config_coupling="default"):
             print("Greenfield")
             output, buildings, dict_optimizer = resirf_eoles_coupling_greenfield(buildings, inputs_dynamics,
                                                                                  policies_heater, policies_insulation,
-                                                                                 scc=775, scenario_cost=scenario_cost,
+                                                                                 scc=775, scenario_cost=config_coupling["scenario_cost_eoles"],
                                                                                  config_eoles=config_eoles,
                                                                                  config_coupling=config_coupling,
                                                                                  add_CH4_demand=False,
@@ -300,7 +290,7 @@ def run_optimization_scenario(config_coupling, name_config_coupling="default"):
             output, buildings, dict_optimizer = resirf_eoles_coupling_dynamic(buildings, inputs_dynamics,
                                                                               policies_heater, policies_insulation,
                                                                               list_year, list_trajectory_scc,
-                                                                              scenario_cost,
+                                                                              config_coupling["scenario_cost_eoles"],
                                                                               config_eoles=config_eoles,
                                                                               config_coupling=config_coupling,
                                                                               add_CH4_demand=False,
@@ -321,7 +311,7 @@ def run_optimization_scenario(config_coupling, name_config_coupling="default"):
         print("Greenfield")
         output, buildings, dict_optimizer = resirf_eoles_coupling_greenfield(buildings, inputs_dynamics,
                                                                              policies_heater, policies_insulation,
-                                                                             scc=775, scenario_cost=scenario_cost,
+                                                                             scc=775, scenario_cost=config_coupling["scenario_cost_eoles"],
                                                                              config_eoles=config_eoles,
                                                                              config_coupling=config_coupling,
                                                                              add_CH4_demand=False,
@@ -333,7 +323,7 @@ def run_optimization_scenario(config_coupling, name_config_coupling="default"):
     else:  # we optimize the value of subsidy
         output, buildings, dict_optimizer = resirf_eoles_coupling_dynamic(buildings, inputs_dynamics,
                                                                           policies_heater, policies_insulation,
-                                                                          list_year, list_trajectory_scc, scenario_cost,
+                                                                          list_year, list_trajectory_scc, config_coupling["scenario_cost_eoles"],
                                                                           config_eoles=config_eoles,
                                                                           config_coupling=config_coupling,
                                                                           add_CH4_demand=False,
@@ -1645,19 +1635,21 @@ if __name__ == '__main__':
     }
 
     # classic
+
+    # classic with prices non constant
     DICT_CONFIGS_9 = {
-        'GR_carbonbudget': {
-            'aggregated_potential': True,
-            'config_resirf': "classic_simple",
+        'uniform_carbonbudget': {
             "calibration": None,
-            "config_eoles": "eoles_classic",  # includes costs assumptions
+            "eoles": {
+                "biomass_potential": "S3",
+                "aggregated_potential": True,
+            },
             'supply_insulation': False,
             'supply_heater': False,
             'rational_behavior': False,
             'premature_replacement': 3,
-            'h2ccgt': True,
             'max_iter': 150,
-            'sub_design': "global_renovation",
+            'sub_design': None,
             "health": True,  # on inclut les coûts de santé
             "discount_rate": 0.032,
             "rebound": True,
@@ -1670,217 +1662,17 @@ if __name__ == '__main__':
             'acquisition_jitter': 0.03,
             'scenario_cost_eoles': {}
         },
-        # 'uniform_carbonbudget': {
-        #     'aggregated_potential': True,
-        #     'config_resirf': "classic_simple",
-        #     "calibration": None,
-        #     "config_eoles": "eoles_classic",  # includes costs assumptions
-        #     'supply_insulation': False,
-        #     'supply_heater': False,
-        #     'rational_behavior': False,
-        #     'premature_replacement': 3,
-        #     'h2ccgt': True,
-        #     'max_iter': 150,
-        #     'sub_design': None,
-        #     "health": True,  # on inclut les coûts de santé
-        #     "discount_rate": 0.032,
-        #     "rebound": True,
-        #     "carbon_constraint": True,
-        #     'one_shot_setting': False,
-        #     'fix_sub_heater': False,
-        #     'fix_sub_insulation': False,
-        #     'list_year': [2025, 2030, 2035, 2040, 2045],
-        #     'list_trajectory_scc': [250, 350, 500, 650, 775],
-        #     'acquisition_jitter': 0.03,
-        #     'scenario_cost_eoles': {}
-        # },
-        # 'centralized_social_carbonbudget': {
-        #     'aggregated_potential': True,
-        #     'config_resirf': "classic_simple",
-        #     "calibration": None,
-        #     "config_eoles": "eoles_classic",  # includes costs assumptions
-        #     'supply_insulation': False,
-        #     'supply_heater': False,
-        #     'rational_behavior': True,
-        #     'social': True,
-        #     'premature_replacement': 3,
-        #     'h2ccgt': True,
-        #     'max_iter': 150,
-        #     'sub_design': None,
-        #     "health": True,  # on inclut les coûts de santé
-        #     "discount_rate": 0.032,
-        #     "rebound": True,
-        #     "carbon_constraint": True,
-        #     'fix_sub_heater': False,
-        #     'fix_sub_insulation': False,
-        #     'list_year': [2025, 2030, 2035, 2040, 2045],
-        #     'list_trajectory_scc': [250, 350, 500, 650, 775],
-        #     'acquisition_jitter': 0.03,
-        #     'scenario_cost_eoles': {}
-        # },
-        # 'centralized_GR_carbonbudget': {
-        #     'aggregated_potential': True,
-        #     'config_resirf': "classic_simple",
-        #     "calibration": None,
-        #     "config_eoles": "eoles_classic",  # includes costs assumptions
-        #     'supply_insulation': False,
-        #     'supply_heater': False,
-        #     'rational_behavior': True,
-        #     'social': False,
-        #     'premature_replacement': 3,
-        #     'h2ccgt': True,
-        #     'max_iter': 150,
-        #     'sub_design': "global_renovation",
-        #     "health": True,  # on inclut les coûts de santé
-        #     "discount_rate": 0.032,
-        #     "rebound": True,
-        #     "carbon_constraint": True,
-        #     'one_shot_setting': False,
-        #     'fix_sub_heater': False,
-        #     'fix_sub_insulation': False,
-        #     'list_year': [2025, 2030, 2035, 2040, 2045],
-        #     'list_trajectory_scc': [250, 350, 500, 650, 775],
-        #     'acquisition_jitter': 0.03,
-        #     'scenario_cost_eoles': {}
-        # },
-        # 'centralized_carbonbudget': {
-        #     'aggregated_potential': True,
-        #     'config_resirf': "classic_simple",
-        #     "calibration": None,
-        #     "config_eoles": "eoles_classic",  # includes costs assumptions
-        #     'supply_insulation': False,
-        #     'supply_heater': False,
-        #     'rational_behavior': True,
-        #     'social': False,
-        #     'premature_replacement': 3,
-        #     'h2ccgt': True,
-        #     'max_iter': 130,
-        #     'sub_design': None,
-        #     "health": True,  # on inclut les coûts de santé
-        #     "discount_rate": 0.032,
-        #     "rebound": True,
-        #     "carbon_constraint": True,
-        #     'one_shot_setting': False,
-        #     'fix_sub_heater': False,
-        #     'fix_sub_insulation': False,
-        #     'list_year': [2025, 2030, 2035, 2040, 2045],
-        #     'list_trajectory_scc': [250, 350, 500, 650, 775],
-        #     'acquisition_jitter': 0.03,
-        #     'scenario_cost_eoles': {}
-        # },
-        # 'no_subsidy_insulation_carbonbudget': {
-        #     'aggregated_potential': True,
-        #     'config_resirf': "classic_simple",
-        #     "calibration": None,
-        #     "config_eoles": "eoles_classic",  # includes costs assumptions
-        #     'supply_insulation': False,
-        #     'supply_heater': False,
-        #     'rational_behavior': False,
-        #     'premature_replacement': 3,
-        #     'h2ccgt': True,
-        #     'max_iter': 50,
-        #     'sub_design': None,
-        #     "health": True,  # on inclut les coûts de santé
-        #     "discount_rate": 0.032,
-        #     "rebound": True,
-        #     "carbon_constraint": True,
-        #     'one_shot_setting': False,
-        #     'fix_sub_heater': False,
-        #     'fix_sub_insulation': True,
-        #     'list_year': [2025, 2030, 2035, 2040, 2045],
-        #     'list_trajectory_scc': [250, 350, 500, 650, 775],
-        #     'acquisition_jitter': 0.01,
-        #     'scenario_cost_eoles': {}
-        # },
-        # 'no_subsidy_heater_carbonbudget': {
-        #     'aggregated_potential': True,
-        #     'config_resirf': "classic_simple",
-        #     "calibration": None,
-        #     "config_eoles": "eoles_classic",  # includes costs assumptions
-        #     'supply_insulation': False,
-        #     'supply_heater': False,
-        #     'rational_behavior': False,
-        #     'premature_replacement': 3,
-        #     'h2ccgt': True,
-        #     'max_iter': 50,
-        #     'sub_design': None,
-        #     "health": True,  # on inclut les coûts de santé
-        #     "discount_rate": 0.032,
-        #     "rebound": True,
-        #     "carbon_constraint": True,
-        #     'one_shot_setting': False,
-        #     'fix_sub_heater': True,
-        #     'fix_sub_insulation': False,
-        #     'list_year': [2025, 2030, 2035, 2040, 2045],
-        #     'list_trajectory_scc': [250, 350, 500, 650, 775],
-        #     'acquisition_jitter': 0.01,
-        #     'scenario_cost_eoles': {}
-        # },
-        # 'no_subsidy_heater_centralized_carbonbudget': {
-        #     'aggregated_potential': True,
-        #     'config_resirf': "classic_simple",
-        #     "calibration": None,
-        #     "config_eoles": "eoles_classic",  # includes costs assumptions
-        #     'supply_insulation': False,
-        #     'supply_heater': False,
-        #     'rational_behavior': True,
-        #     'social': False,
-        #     'premature_replacement': 3,
-        #     'h2ccgt': True,
-        #     'max_iter': 50,
-        #     'sub_design': None,
-        #     "health": True,  # on inclut les coûts de santé
-        #     "discount_rate": 0.032,
-        #     "rebound": True,
-        #     "carbon_constraint": True,
-        #     'one_shot_setting': False,
-        #     'fix_sub_heater': True,
-        #     'fix_sub_insulation': False,
-        #     'list_year': [2025, 2030, 2035, 2040, 2045],
-        #     'list_trajectory_scc': [250, 350, 500, 650, 775],
-        #     'acquisition_jitter': 0.01,
-        #     'scenario_cost_eoles': {}
-        # },
-        # 'GR_carbonbudget': {
-        #     'aggregated_potential': True,
-        #     'config_resirf': "classic_simple",
-        #     "calibration": None,
-        #     "config_eoles": "eoles_classic",  # includes costs assumptions
-        #     'supply_insulation': False,
-        #     'supply_heater': False,
-        #     'rational_behavior': False,
-        #     'premature_replacement': 3,
-        #     'h2ccgt': True,
-        #     'max_iter': 150,
-        #     'sub_design': "global_renovation",
-        #     "health": True,  # on inclut les coûts de santé
-        #     "discount_rate": 0.032,
-        #     "rebound": True,
-        #     "carbon_constraint": True,
-        #     'one_shot_setting': False,
-        #     'fix_sub_heater': False,
-        #     'fix_sub_insulation': False,
-        #     'list_year': [2025, 2030, 2035, 2040, 2045],
-        #     'list_trajectory_scc': [250, 350, 500, 650, 775],
-        #     'acquisition_jitter': 0.03,
-        #     'scenario_cost_eoles': {}
-        # }
-    }
-
-    # classic with prices non constant
-    DICT_CONFIGS_9_prices = {
-        'centralized_social_carbonbudget_prices': {
-            'aggregated_potential': True,
-            'prices_constant': False,
-            'config_resirf': "classic_simple",
+        'centralized_social_carbonbudget': {
             "calibration": None,
-            "config_eoles": "eoles_classic",  # includes costs assumptions
+            "eoles": {
+                "biomass_potential": "S3",
+                "aggregated_potential": True
+            },
             'supply_insulation': False,
             'supply_heater': False,
             'rational_behavior': True,
             'social': True,
             'premature_replacement': 3,
-            'h2ccgt': True,
             'max_iter': 150,
             'sub_design': None,
             "health": True,  # on inclut les coûts de santé
@@ -1894,18 +1686,17 @@ if __name__ == '__main__':
             'acquisition_jitter': 0.03,
             'scenario_cost_eoles': {}
         },
-        'centralized_GR_carbonbudget_prices': {
-            'aggregated_potential': True,
-            'prices_constant': False,
-            'config_resirf': "classic_simple",
+        'centralized_GR_carbonbudget': {
             "calibration": None,
-            "config_eoles": "eoles_classic",  # includes costs assumptions
+            "eoles": {
+                "biomass_potential": "S3",
+                "aggregated_potential": True,
+            },
             'supply_insulation': False,
             'supply_heater': False,
             'rational_behavior': True,
             'social': False,
             'premature_replacement': 3,
-            'h2ccgt': True,
             'max_iter': 150,
             'sub_design': "global_renovation",
             "health": True,  # on inclut les coûts de santé
@@ -1920,18 +1711,17 @@ if __name__ == '__main__':
             'acquisition_jitter': 0.03,
             'scenario_cost_eoles': {}
         },
-        'centralized_carbonbudget_prices': {
-            'aggregated_potential': True,
-            'prices_constant': False,
-            'config_resirf': "classic_simple",
+        'centralized_carbonbudget': {
             "calibration": None,
-            "config_eoles": "eoles_classic",  # includes costs assumptions
+            "eoles": {
+                "biomass_potential": "S3",
+                "aggregated_potential": True,
+            },
             'supply_insulation': False,
             'supply_heater': False,
             'rational_behavior': True,
             'social': False,
             'premature_replacement': 3,
-            'h2ccgt': True,
             'max_iter': 130,
             'sub_design': None,
             "health": True,  # on inclut les coûts de santé
@@ -1946,17 +1736,16 @@ if __name__ == '__main__':
             'acquisition_jitter': 0.03,
             'scenario_cost_eoles': {}
         },
-        'no_subsidy_insulation_carbonbudget_prices': {
-            'aggregated_potential': True,
-            'prices_constant': False,
-            'config_resirf': "classic_simple",
+        'no_subsidy_insulation_carbonbudget': {
             "calibration": None,
-            "config_eoles": "eoles_classic",  # includes costs assumptions
+            "eoles": {
+                "biomass_potential": "S3",
+                "aggregated_potential": True,
+            },
             'supply_insulation': False,
             'supply_heater': False,
             'rational_behavior': False,
             'premature_replacement': 3,
-            'h2ccgt': True,
             'max_iter': 50,
             'sub_design': None,
             "health": True,  # on inclut les coûts de santé
@@ -1971,17 +1760,16 @@ if __name__ == '__main__':
             'acquisition_jitter': 0.01,
             'scenario_cost_eoles': {}
         },
-        'no_subsidy_heater_carbonbudget_prices': {
-            'aggregated_potential': True,
-            'prices_constant': False,
-            'config_resirf': "classic_simple",
+        'no_subsidy_heater_carbonbudget': {
             "calibration": None,
-            "config_eoles": "eoles_classic",  # includes costs assumptions
+            "eoles": {
+                "biomass_potential": "S3",
+                "aggregated_potential": True,
+            },
             'supply_insulation': False,
             'supply_heater': False,
             'rational_behavior': False,
             'premature_replacement': 3,
-            'h2ccgt': True,
             'max_iter': 50,
             'sub_design': None,
             "health": True,  # on inclut les coûts de santé
@@ -1996,18 +1784,17 @@ if __name__ == '__main__':
             'acquisition_jitter': 0.01,
             'scenario_cost_eoles': {}
         },
-        'no_subsidy_heater_centralized_carbonbudget_prices': {
-            'aggregated_potential': True,
-            'prices_constant': False,
-            'config_resirf': "classic_simple",
+        'no_subsidy_heater_centralized_carbonbudget': {
             "calibration": None,
-            "config_eoles": "eoles_classic",  # includes costs assumptions
+            "eoles": {
+                "biomass_potential": "S3",
+                "aggregated_potential": True,
+            },
             'supply_insulation': False,
             'supply_heater': False,
             'rational_behavior': True,
             'social': False,
             'premature_replacement': 3,
-            'h2ccgt': True,
             'max_iter': 50,
             'sub_design': None,
             "health": True,  # on inclut les coûts de santé
@@ -2022,17 +1809,43 @@ if __name__ == '__main__':
             'acquisition_jitter': 0.01,
             'scenario_cost_eoles': {}
         },
-        'uniform_carbonbudget_prices': {
-            'aggregated_potential': True,
-            'prices_constant': False,
-            'config_resirf': "classic_simple",
+        'GR_carbonbudget': {
             "calibration": None,
-            "config_eoles": "eoles_classic",  # includes costs assumptions
+            "eoles": {
+                "biomass_potential": "S3",
+                "aggregated_potential": True,
+            },
             'supply_insulation': False,
             'supply_heater': False,
             'rational_behavior': False,
             'premature_replacement': 3,
-            'h2ccgt': True,
+            'max_iter': 150,
+            'sub_design': "global_renovation",
+            "health": True,  # on inclut les coûts de santé
+            "discount_rate": 0.032,
+            "rebound": True,
+            "carbon_constraint": True,
+            'one_shot_setting': False,
+            'fix_sub_heater': False,
+            'fix_sub_insulation': False,
+            'list_year': [2025, 2030, 2035, 2040, 2045],
+            'list_trajectory_scc': [250, 350, 500, 650, 775],
+            'acquisition_jitter': 0.03,
+            'scenario_cost_eoles': {}
+        }
+    }
+
+    DICT_CONFIGS_9_noagg = {
+        'uniform_carbonbudget_noagg': {
+            "calibration": None,
+            "eoles": {
+                "biomass_potential": "S3",
+                "aggregated_potential": False,
+            },
+            'supply_insulation': False,
+            'supply_heater': False,
+            'rational_behavior': False,
+            'premature_replacement': 3,
             'max_iter': 150,
             'sub_design': None,
             "health": True,  # on inclut les coûts de santé
@@ -2047,17 +1860,575 @@ if __name__ == '__main__':
             'acquisition_jitter': 0.03,
             'scenario_cost_eoles': {}
         },
-        'GR_carbonbudget_prices': {
-            'aggregated_potential': True,
-            'prices_constant': False,
-            'config_resirf': "classic_simple",
+        'centralized_social_carbonbudget_noagg': {
             "calibration": None,
-            "config_eoles": "eoles_classic",  # includes costs assumptions
+            "eoles": {
+                "biomass_potential": "S3",
+                "aggregated_potential": False
+            },
+            'supply_insulation': False,
+            'supply_heater': False,
+            'rational_behavior': True,
+            'social': True,
+            'premature_replacement': 3,
+            'max_iter': 150,
+            'sub_design': None,
+            "health": True,  # on inclut les coûts de santé
+            "discount_rate": 0.032,
+            "rebound": True,
+            "carbon_constraint": True,
+            'fix_sub_heater': False,
+            'fix_sub_insulation': False,
+            'list_year': [2025, 2030, 2035, 2040, 2045],
+            'list_trajectory_scc': [250, 350, 500, 650, 775],
+            'acquisition_jitter': 0.03,
+            'scenario_cost_eoles': {}
+        },
+        'centralized_GR_carbonbudget_noagg': {
+            "calibration": None,
+            "eoles": {
+                "biomass_potential": "S3",
+                "aggregated_potential": False,
+            },
+            'supply_insulation': False,
+            'supply_heater': False,
+            'rational_behavior': True,
+            'social': False,
+            'premature_replacement': 3,
+            'max_iter': 150,
+            'sub_design': "global_renovation",
+            "health": True,  # on inclut les coûts de santé
+            "discount_rate": 0.032,
+            "rebound": True,
+            "carbon_constraint": True,
+            'one_shot_setting': False,
+            'fix_sub_heater': False,
+            'fix_sub_insulation': False,
+            'list_year': [2025, 2030, 2035, 2040, 2045],
+            'list_trajectory_scc': [250, 350, 500, 650, 775],
+            'acquisition_jitter': 0.03,
+            'scenario_cost_eoles': {}
+        },
+        'centralized_carbonbudget_noagg': {
+            "calibration": None,
+            "eoles": {
+                "biomass_potential": "S3",
+                "aggregated_potential": False,
+            },
+            'supply_insulation': False,
+            'supply_heater': False,
+            'rational_behavior': True,
+            'social': False,
+            'premature_replacement': 3,
+            'max_iter': 130,
+            'sub_design': None,
+            "health": True,  # on inclut les coûts de santé
+            "discount_rate": 0.032,
+            "rebound": True,
+            "carbon_constraint": True,
+            'one_shot_setting': False,
+            'fix_sub_heater': False,
+            'fix_sub_insulation': False,
+            'list_year': [2025, 2030, 2035, 2040, 2045],
+            'list_trajectory_scc': [250, 350, 500, 650, 775],
+            'acquisition_jitter': 0.03,
+            'scenario_cost_eoles': {}
+        },
+        'no_subsidy_insulation_carbonbudget_noagg': {
+            "calibration": None,
+            "eoles": {
+                "biomass_potential": "S3",
+                "aggregated_potential": False,
+            },
             'supply_insulation': False,
             'supply_heater': False,
             'rational_behavior': False,
             'premature_replacement': 3,
-            'h2ccgt': True,
+            'max_iter': 50,
+            'sub_design': None,
+            "health": True,  # on inclut les coûts de santé
+            "discount_rate": 0.032,
+            "rebound": True,
+            "carbon_constraint": True,
+            'one_shot_setting': False,
+            'fix_sub_heater': False,
+            'fix_sub_insulation': True,
+            'list_year': [2025, 2030, 2035, 2040, 2045],
+            'list_trajectory_scc': [250, 350, 500, 650, 775],
+            'acquisition_jitter': 0.01,
+            'scenario_cost_eoles': {}
+        },
+        'no_subsidy_heater_carbonbudget_noagg': {
+            "calibration": None,
+            "eoles": {
+                "biomass_potential": "S3",
+                "aggregated_potential": False,
+            },
+            'supply_insulation': False,
+            'supply_heater': False,
+            'rational_behavior': False,
+            'premature_replacement': 3,
+            'max_iter': 50,
+            'sub_design': None,
+            "health": True,  # on inclut les coûts de santé
+            "discount_rate": 0.032,
+            "rebound": True,
+            "carbon_constraint": True,
+            'one_shot_setting': False,
+            'fix_sub_heater': True,
+            'fix_sub_insulation': False,
+            'list_year': [2025, 2030, 2035, 2040, 2045],
+            'list_trajectory_scc': [250, 350, 500, 650, 775],
+            'acquisition_jitter': 0.01,
+            'scenario_cost_eoles': {}
+        },
+        'no_subsidy_heater_centralized_carbonbudget_noagg': {
+            "calibration": None,
+            "eoles": {
+                "biomass_potential": "S3",
+                "aggregated_potential": False,
+            },
+            'supply_insulation': False,
+            'supply_heater': False,
+            'rational_behavior': True,
+            'social': False,
+            'premature_replacement': 3,
+            'max_iter': 50,
+            'sub_design': None,
+            "health": True,  # on inclut les coûts de santé
+            "discount_rate": 0.032,
+            "rebound": True,
+            "carbon_constraint": True,
+            'one_shot_setting': False,
+            'fix_sub_heater': True,
+            'fix_sub_insulation': False,
+            'list_year': [2025, 2030, 2035, 2040, 2045],
+            'list_trajectory_scc': [250, 350, 500, 650, 775],
+            'acquisition_jitter': 0.01,
+            'scenario_cost_eoles': {}
+        },
+        'GR_carbonbudget_noagg': {
+            "calibration": None,
+            "eoles": {
+                "biomass_potential": "S3",
+                "aggregated_potential": False,
+            },
+            'supply_insulation': False,
+            'supply_heater': False,
+            'rational_behavior': False,
+            'premature_replacement': 3,
+            'max_iter': 150,
+            'sub_design': "global_renovation",
+            "health": True,  # on inclut les coûts de santé
+            "discount_rate": 0.032,
+            "rebound": True,
+            "carbon_constraint": True,
+            'one_shot_setting': False,
+            'fix_sub_heater': False,
+            'fix_sub_insulation': False,
+            'list_year': [2025, 2030, 2035, 2040, 2045],
+            'list_trajectory_scc': [250, 350, 500, 650, 775],
+            'acquisition_jitter': 0.03,
+            'scenario_cost_eoles': {}
+        }
+    }
+
+    DICT_CONFIGS_9_agg_N1 = {
+        'uniform_carbonbudget_agg_N1': {
+            "calibration": None,
+            "eoles": {
+                "biomass_potential": "S3",
+                "aggregated_potential": True,
+                'N1': True,
+            },
+            'supply_insulation': False,
+            'supply_heater': False,
+            'rational_behavior': False,
+            'premature_replacement': 3,
+            'max_iter': 150,
+            'sub_design': None,
+            "health": True,  # on inclut les coûts de santé
+            "discount_rate": 0.032,
+            "rebound": True,
+            "carbon_constraint": True,
+            'one_shot_setting': False,
+            'fix_sub_heater': False,
+            'fix_sub_insulation': False,
+            'list_year': [2025, 2030, 2035, 2040, 2045],
+            'list_trajectory_scc': [250, 350, 500, 650, 775],
+            'acquisition_jitter': 0.03,
+            'scenario_cost_eoles': {}
+        },
+        'centralized_social_carbonbudget_agg_N1': {
+            "calibration": None,
+            "eoles": {
+                "biomass_potential": "S3",
+                "aggregated_potential": True,
+                'N1': True,
+            },
+            'supply_insulation': False,
+            'supply_heater': False,
+            'rational_behavior': True,
+            'social': True,
+            'premature_replacement': 3,
+            'max_iter': 150,
+            'sub_design': None,
+            "health": True,  # on inclut les coûts de santé
+            "discount_rate": 0.032,
+            "rebound": True,
+            "carbon_constraint": True,
+            'fix_sub_heater': False,
+            'fix_sub_insulation': False,
+            'list_year': [2025, 2030, 2035, 2040, 2045],
+            'list_trajectory_scc': [250, 350, 500, 650, 775],
+            'acquisition_jitter': 0.03,
+            'scenario_cost_eoles': {}
+        },
+        'centralized_GR_carbonbudget_agg_N1': {
+            "calibration": None,
+            "eoles": {
+                "biomass_potential": "S3",
+                "aggregated_potential": True,
+                'N1': True,
+            },
+            'supply_insulation': False,
+            'supply_heater': False,
+            'rational_behavior': True,
+            'social': False,
+            'premature_replacement': 3,
+            'max_iter': 150,
+            'sub_design': "global_renovation",
+            "health": True,  # on inclut les coûts de santé
+            "discount_rate": 0.032,
+            "rebound": True,
+            "carbon_constraint": True,
+            'one_shot_setting': False,
+            'fix_sub_heater': False,
+            'fix_sub_insulation': False,
+            'list_year': [2025, 2030, 2035, 2040, 2045],
+            'list_trajectory_scc': [250, 350, 500, 650, 775],
+            'acquisition_jitter': 0.03,
+            'scenario_cost_eoles': {}
+        },
+        'centralized_carbonbudget_agg_N1': {
+            "calibration": None,
+            "eoles": {
+                "biomass_potential": "S3",
+                "aggregated_potential": True,
+                'N1': True,
+            },
+            'supply_insulation': False,
+            'supply_heater': False,
+            'rational_behavior': True,
+            'social': False,
+            'premature_replacement': 3,
+            'max_iter': 130,
+            'sub_design': None,
+            "health": True,  # on inclut les coûts de santé
+            "discount_rate": 0.032,
+            "rebound": True,
+            "carbon_constraint": True,
+            'one_shot_setting': False,
+            'fix_sub_heater': False,
+            'fix_sub_insulation': False,
+            'list_year': [2025, 2030, 2035, 2040, 2045],
+            'list_trajectory_scc': [250, 350, 500, 650, 775],
+            'acquisition_jitter': 0.03,
+            'scenario_cost_eoles': {}
+        },
+        'no_subsidy_insulation_carbonbudget_agg_N1': {
+            "calibration": None,
+            "eoles": {
+                "biomass_potential": "S3",
+                "aggregated_potential": True,
+                'N1': True,
+            },
+            'supply_insulation': False,
+            'supply_heater': False,
+            'rational_behavior': False,
+            'premature_replacement': 3,
+            'max_iter': 50,
+            'sub_design': None,
+            "health": True,  # on inclut les coûts de santé
+            "discount_rate": 0.032,
+            "rebound": True,
+            "carbon_constraint": True,
+            'one_shot_setting': False,
+            'fix_sub_heater': False,
+            'fix_sub_insulation': True,
+            'list_year': [2025, 2030, 2035, 2040, 2045],
+            'list_trajectory_scc': [250, 350, 500, 650, 775],
+            'acquisition_jitter': 0.01,
+            'scenario_cost_eoles': {}
+        },
+        'no_subsidy_heater_carbonbudget_agg_N1': {
+            "calibration": None,
+            "eoles": {
+                "biomass_potential": "S3",
+                "aggregated_potential": True,
+                'N1': True,
+            },
+            'supply_insulation': False,
+            'supply_heater': False,
+            'rational_behavior': False,
+            'premature_replacement': 3,
+            'max_iter': 50,
+            'sub_design': None,
+            "health": True,  # on inclut les coûts de santé
+            "discount_rate": 0.032,
+            "rebound": True,
+            "carbon_constraint": True,
+            'one_shot_setting': False,
+            'fix_sub_heater': True,
+            'fix_sub_insulation': False,
+            'list_year': [2025, 2030, 2035, 2040, 2045],
+            'list_trajectory_scc': [250, 350, 500, 650, 775],
+            'acquisition_jitter': 0.01,
+            'scenario_cost_eoles': {}
+        },
+        'no_subsidy_heater_centralized_carbonbudget_agg_N1': {
+            "calibration": None,
+            "eoles": {
+                "biomass_potential": "S3",
+                "aggregated_potential": True,
+                'N1': True,
+            },
+            'supply_insulation': False,
+            'supply_heater': False,
+            'rational_behavior': True,
+            'social': False,
+            'premature_replacement': 3,
+            'max_iter': 50,
+            'sub_design': None,
+            "health": True,  # on inclut les coûts de santé
+            "discount_rate": 0.032,
+            "rebound": True,
+            "carbon_constraint": True,
+            'one_shot_setting': False,
+            'fix_sub_heater': True,
+            'fix_sub_insulation': False,
+            'list_year': [2025, 2030, 2035, 2040, 2045],
+            'list_trajectory_scc': [250, 350, 500, 650, 775],
+            'acquisition_jitter': 0.01,
+            'scenario_cost_eoles': {}
+        },
+        'GR_carbonbudget_agg_N1': {
+            "calibration": None,
+            "eoles": {
+                "biomass_potential": "S3",
+                "aggregated_potential": True,
+                'N1': True
+            },
+            'supply_insulation': False,
+            'supply_heater': False,
+            'rational_behavior': False,
+            'premature_replacement': 3,
+            'max_iter': 150,
+            'sub_design': "global_renovation",
+            "health": True,  # on inclut les coûts de santé
+            "discount_rate": 0.032,
+            "rebound": True,
+            "carbon_constraint": True,
+            'one_shot_setting': False,
+            'fix_sub_heater': False,
+            'fix_sub_insulation': False,
+            'list_year': [2025, 2030, 2035, 2040, 2045],
+            'list_trajectory_scc': [250, 350, 500, 650, 775],
+            'acquisition_jitter': 0.03,
+            'scenario_cost_eoles': {}
+        }
+    }
+
+    DICT_CONFIGS_9_greenfield = {
+        'uniform_carbonbudget_greenfield': {
+            'greenfield': True,
+            "calibration": None,
+            "eoles": {
+                "biomass_potential": "S3",
+                "aggregated_potential": False,
+            },
+            'supply_insulation': False,
+            'supply_heater': False,
+            'rational_behavior': False,
+            'premature_replacement': 3,
+            'max_iter': 150,
+            'sub_design': None,
+            "health": True,  # on inclut les coûts de santé
+            "discount_rate": 0.032,
+            "rebound": True,
+            "carbon_constraint": True,
+            'one_shot_setting': False,
+            'fix_sub_heater': False,
+            'fix_sub_insulation': False,
+            'list_year': [2025, 2030, 2035, 2040, 2045],
+            'list_trajectory_scc': [250, 350, 500, 650, 775],
+            'acquisition_jitter': 0.03,
+            'scenario_cost_eoles': {}
+        },
+        'centralized_social_carbonbudget_greenfield': {
+            'greenfield': True,
+            "calibration": None,
+            "eoles": {
+                "biomass_potential": "S3",
+                "aggregated_potential": False
+            },
+            'supply_insulation': False,
+            'supply_heater': False,
+            'rational_behavior': True,
+            'social': True,
+            'premature_replacement': 3,
+            'max_iter': 150,
+            'sub_design': None,
+            "health": True,  # on inclut les coûts de santé
+            "discount_rate": 0.032,
+            "rebound": True,
+            "carbon_constraint": True,
+            'fix_sub_heater': False,
+            'fix_sub_insulation': False,
+            'list_year': [2025, 2030, 2035, 2040, 2045],
+            'list_trajectory_scc': [250, 350, 500, 650, 775],
+            'acquisition_jitter': 0.03,
+            'scenario_cost_eoles': {}
+        },
+        'centralized_GR_carbonbudget_greenfield': {
+            'greenfield': True,
+            "calibration": None,
+            "eoles": {
+                "biomass_potential": "S3",
+                "aggregated_potential": False,
+            },
+            'supply_insulation': False,
+            'supply_heater': False,
+            'rational_behavior': True,
+            'social': False,
+            'premature_replacement': 3,
+            'max_iter': 150,
+            'sub_design': "global_renovation",
+            "health": True,  # on inclut les coûts de santé
+            "discount_rate": 0.032,
+            "rebound": True,
+            "carbon_constraint": True,
+            'one_shot_setting': False,
+            'fix_sub_heater': False,
+            'fix_sub_insulation': False,
+            'list_year': [2025, 2030, 2035, 2040, 2045],
+            'list_trajectory_scc': [250, 350, 500, 650, 775],
+            'acquisition_jitter': 0.03,
+            'scenario_cost_eoles': {}
+        },
+        'centralized_carbonbudget_greenfield': {
+            'greenfield': True,
+            "calibration": None,
+            "eoles": {
+                "biomass_potential": "S3",
+                "aggregated_potential": False,
+            },
+            'supply_insulation': False,
+            'supply_heater': False,
+            'rational_behavior': True,
+            'social': False,
+            'premature_replacement': 3,
+            'max_iter': 130,
+            'sub_design': None,
+            "health": True,  # on inclut les coûts de santé
+            "discount_rate": 0.032,
+            "rebound": True,
+            "carbon_constraint": True,
+            'one_shot_setting': False,
+            'fix_sub_heater': False,
+            'fix_sub_insulation': False,
+            'list_year': [2025, 2030, 2035, 2040, 2045],
+            'list_trajectory_scc': [250, 350, 500, 650, 775],
+            'acquisition_jitter': 0.03,
+            'scenario_cost_eoles': {}
+        },
+        'no_subsidy_insulation_carbonbudget_greenfield': {
+            'greenfield': True,
+            "calibration": None,
+            "eoles": {
+                "biomass_potential": "S3",
+                "aggregated_potential": False,
+            },
+            'supply_insulation': False,
+            'supply_heater': False,
+            'rational_behavior': False,
+            'premature_replacement': 3,
+            'max_iter': 50,
+            'sub_design': None,
+            "health": True,  # on inclut les coûts de santé
+            "discount_rate": 0.032,
+            "rebound": True,
+            "carbon_constraint": True,
+            'one_shot_setting': False,
+            'fix_sub_heater': False,
+            'fix_sub_insulation': True,
+            'list_year': [2025, 2030, 2035, 2040, 2045],
+            'list_trajectory_scc': [250, 350, 500, 650, 775],
+            'acquisition_jitter': 0.01,
+            'scenario_cost_eoles': {}
+        },
+        'no_subsidy_heater_carbonbudget_greenfield': {
+            'greenfield': True,
+            "calibration": None,
+            "eoles": {
+                "biomass_potential": "S3",
+                "aggregated_potential": False,
+            },
+            'supply_insulation': False,
+            'supply_heater': False,
+            'rational_behavior': False,
+            'premature_replacement': 3,
+            'max_iter': 50,
+            'sub_design': None,
+            "health": True,  # on inclut les coûts de santé
+            "discount_rate": 0.032,
+            "rebound": True,
+            "carbon_constraint": True,
+            'one_shot_setting': False,
+            'fix_sub_heater': True,
+            'fix_sub_insulation': False,
+            'list_year': [2025, 2030, 2035, 2040, 2045],
+            'list_trajectory_scc': [250, 350, 500, 650, 775],
+            'acquisition_jitter': 0.01,
+            'scenario_cost_eoles': {}
+        },
+        'no_subsidy_heater_centralized_carbonbudget_greenfield': {
+            'greenfield': True,
+            "calibration": None,
+            "eoles": {
+                "biomass_potential": "S3",
+                "aggregated_potential": False,
+            },
+            'supply_insulation': False,
+            'supply_heater': False,
+            'rational_behavior': True,
+            'social': False,
+            'premature_replacement': 3,
+            'max_iter': 50,
+            'sub_design': None,
+            "health": True,  # on inclut les coûts de santé
+            "discount_rate": 0.032,
+            "rebound": True,
+            "carbon_constraint": True,
+            'one_shot_setting': False,
+            'fix_sub_heater': True,
+            'fix_sub_insulation': False,
+            'list_year': [2025, 2030, 2035, 2040, 2045],
+            'list_trajectory_scc': [250, 350, 500, 650, 775],
+            'acquisition_jitter': 0.01,
+            'scenario_cost_eoles': {}
+        },
+        'GR_carbonbudget_greenfield': {
+            'greenfield': True,
+            "calibration": None,
+            "eoles": {
+                "biomass_potential": "S3",
+                "aggregated_potential": False,
+            },
+            'supply_insulation': False,
+            'supply_heater': False,
+            'rational_behavior': False,
+            'premature_replacement': 3,
             'max_iter': 150,
             'sub_design': "global_renovation",
             "health": True,  # on inclut les coûts de santé
@@ -2769,7 +3140,7 @@ if __name__ == '__main__':
     # # dict_config_resirf = config_resirf_exogenous(sensitivity=sensitivity, config_resirf=config_resirf)
     # # dict_config_coupling = create_multiple_coupling_configs(dict_config_resirf=dict_config_resirf, config_coupling=config_coupling)
 
-    results = run_multiple_configs(DICT_CONFIGS_9, cpu=cpu, exogenous=False, reference=None, greenfield=False,
+    results = run_multiple_configs(DICT_CONFIGS_9_agg_N1, cpu=cpu, exogenous=False, reference=None, greenfield=False,
                                    health=True, carbon_constraint=True)
 
     # dict_output = {"Reference": os.path.join("eoles/outputs/0407_134331_Reference"),
