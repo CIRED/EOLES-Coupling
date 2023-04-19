@@ -16,7 +16,7 @@ from project.model import get_inputs, social_planner
 from project.model import create_logger, get_config, get_inputs
 from eoles.model_resirf_coupling import ModelEOLES
 from eoles.utils import get_config, get_pandas, calculate_annuities_resirf, modif_config_resirf, \
-    config_resirf_exogenous, create_multiple_coupling_configs
+    config_resirf_exogenous, create_multiple_coupling_configs, modif_config_eoles
 from eoles.write_output import plot_simulation
 from eoles.coupling_resirf_eoles import resirf_eoles_coupling_dynamic, optimize_blackbox_resirf_eoles_coupling, \
     calibration_price, get_energy_prices_and_taxes, resirf_eoles_coupling_greenfield, gradient_descent
@@ -167,34 +167,37 @@ if __name__ == '__main__':
     }
 
     config_coupling = {
+        "calibration": None,
+        'eoles': {
             'aggregated_potential': True,
-            'config_resirf': "classic_simple",
-            "calibration": None,
-            "config_eoles": "eoles_classic",  # includes costs assumptions
-            'supply_insulation': False,
-            'supply_heater': False,
-            'rational_behavior': False,
-            'social': False,
-            'premature_replacement': 3,
-            'h2ccgt': True,
-            'max_iter': 130,
-            'sub_design': None,
-            "health": True,  # on inclut les coûts de santé
-            "discount_rate": 0.032,
-            "rebound": True,
-            "carbon_constraint": True,
-            'fix_sub_heater': False,
-            'fix_sub_insulation': False,
-            'list_year': [2025, 2030, 2035, 2040, 2045],
-            'list_trajectory_scc': [250, 350, 500, 650, 775],
-            'acquisition_jitter': 0.03,
-            'scenario_cost_eoles': {}
+        },
+        'supply_insulation': False,
+        'supply_heater': False,
+        'rational_behavior': False,
+        'social': False,
+        'premature_replacement': 3,
+        'max_iter': 130,
+        'sub_design': None,
+        "health": True,  # on inclut les coûts de santé
+        "discount_rate": 0.032,
+        "rebound": True,
+        "carbon_constraint": True,
+        'fix_sub_heater': False,
+        'fix_sub_insulation': False,
+        'list_year': [2025, 2030, 2035, 2040, 2045],
+        'list_trajectory_scc': [250, 350, 500, 650, 775],
+        'acquisition_jitter': 0.03,
+        'scenario_cost_eoles': {}
         }
 
-    config_resirf_path, config_eoles_spec = DICT_CONFIG_RESIRF[config_coupling["config_resirf"]], DICT_CONFIG_EOLES[config_coupling["config_eoles"]]
+    config_resirf_path = DICT_CONFIG_RESIRF["classic_simple"]
     with open(config_resirf_path) as file:  # load config_resirf
         config_resirf = json.load(file).get('Reference')
-    config_resirf = modif_config_resirf(config_resirf, config_coupling, calibration=config_coupling["calibration"])  # modif of this configuration file to consider coupling options
+    config_resirf = modif_config_resirf(config_resirf, config_coupling, calibration=config_coupling[
+        "calibration"])  # modif of this configuration file to consider coupling options
+
+    config_eoles = get_config(spec="eoles_coupling")
+    config_eoles = modif_config_eoles(config_eoles, config_coupling)
 
     # ########## Test exogenous configurations
     # sensitivity = {
@@ -213,7 +216,7 @@ if __name__ == '__main__':
         config=config_resirf)
 
     # TEST for a given time step
-    timestep = 5
+    timestep = 2
     year = 2020
     output, stock, heating_consumption = run_resirf_alone(year, timestep, config_coupling, buildings, inputs_dynamics,
                                                           policies_heater, policies_insulation, sub_heater=None, sub_insulation=None)
@@ -227,18 +230,6 @@ if __name__ == '__main__':
 
     list_year = config_coupling["list_year"]
     list_trajectory_scc = config_coupling["list_trajectory_scc"]  # SCC trajectory
-    config_eoles = get_config(spec=config_eoles_spec)  # TODO: changer le nom de la config qu'on appelle
-
-    h2ccgt = config_coupling["h2ccgt"]
-    scenario_cost = config_coupling["scenario_cost_eoles"]
-
-    if not h2ccgt:  # we do not allow h2 ccgt plants
-        if "fix_capa" in scenario_cost.keys():
-            scenario_cost["fix_capa"]["h2_ccgt"] = 0
-        else:
-            scenario_cost["fix_capa"] = {
-                "h2_ccgt": 0
-            }
 
     max_iter, fix_sub_heater = config_coupling["max_iter"], config_coupling["fix_sub_heater"]
     price_feedback = False

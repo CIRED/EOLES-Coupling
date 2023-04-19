@@ -746,23 +746,31 @@ def modif_config_eoles(config_eoles, config_coupling):
     """Modify EOLES configuration based on specified options in config_coupling.
     Namely, we modify: maximum capacity evolution"""
     config_eoles_update = deepcopy(config_eoles)
+
+    aggregated_potential = False
+    N1 = False
+
     if 'aggregated_potential' in config_coupling["eoles"].keys():
-        if 'N1' in config_coupling["eoles"].keys():
-            if config_coupling["eoles"]['N1']:
-                config_eoles_update["maximum_capacity_evolution"] = "eoles/inputs/technology_potential/maximum_capacity_evolution_aggregated_N1.csv"
-            else:
-                config_eoles_update["maximum_capacity_evolution"] = "eoles/inputs/technology_potential/maximum_capacity_evolution_aggregated.csv"
+        if config_coupling["eoles"]['aggregated_potential']:
+            aggregated_potential = True
+    if 'N1' in config_coupling["eoles"].keys():
+        if config_coupling["eoles"]['N1']:
+            N1 = True
+
+    if aggregated_potential:
+        if N1:
+            config_eoles_update[
+                "maximum_capacity_evolution"] = "eoles/inputs/technology_potential/maximum_capacity_evolution_aggregated_N1.csv"
         else:
             config_eoles_update[
                 "maximum_capacity_evolution"] = "eoles/inputs/technology_potential/maximum_capacity_evolution_aggregated.csv"
     else:
-        if 'N1' in config_coupling["eoles"].keys():
-            if config_coupling["eoles"]['N1']:
-                config_eoles_update["maximum_capacity_evolution"] = "eoles/inputs/technology_potential/maximum_capacity_evolution_N1.csv"
-            else:
-                config_eoles_update["maximum_capacity_evolution"] = "eoles/inputs/technology_potential/maximum_capacity_evolution.csv"
+        if N1:
+            config_eoles_update[
+                "maximum_capacity_evolution"] = "eoles/inputs/technology_potential/maximum_capacity_evolution_N1.csv"
         else:
-            config_eoles_update["maximum_capacity_evolution"] = "eoles/inputs/technology_potential/maximum_capacity_evolution.csv"
+            config_eoles_update[
+                "maximum_capacity_evolution"] = "eoles/inputs/technology_potential/maximum_capacity_evolution.csv"
 
     if 'greenfield' in config_coupling.keys():
         if config_coupling['greenfield']:

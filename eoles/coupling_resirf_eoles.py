@@ -1537,6 +1537,7 @@ def calibration_price(config_eoles, scc=100):
     existing_capacity_historical, existing_charging_capacity_historical, existing_energy_capacity_historical, \
     maximum_capacity_evolution, heating_gas_demand_RTE_timesteps, ECS_gas_demand_RTE_timesteps, capex_annuity_fOM_historical, capex_annuity_historical, storage_annuity_historical = eoles.utils.load_evolution_data(config=config_eoles)
 
+    maximum_capacity_evolution = get_pandas("eoles/inputs/technology_potential/maximum_capacity_evolution.csv", lambda x: pd.read_csv(x, index_col=0))  # this calibration is independent from the choice of configuration
     existing_capacity_historical = existing_capacity_historical.drop(
         ["heat_pump", "resistive", "gas_boiler", "fuel_boiler", "wood_boiler"], axis=0)
 
