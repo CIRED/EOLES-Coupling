@@ -199,7 +199,7 @@ def optimize_blackbox_resirf_eoles_coupling(buildings, inputs_dynamics, policies
                                             normalize_Y=True, plot=False,
                                             fix_sub_heater=False, fix_sub_insulation=False,
                                             sub_design=None, health=True, carbon_constraint=False,
-                                            rebound=True, initial_state_budget=0, cofp=False):
+                                            rebound=True, initial_state_budget=0, cofp=False, x_opt=None):
     """
     Finds optimal subsidies by a blackbox optimization process, relying on bayesian optimization and gaussian processes.
     :param lifetime_renov: int
@@ -223,15 +223,30 @@ def optimize_blackbox_resirf_eoles_coupling(buildings, inputs_dynamics, policies
     :return:
     """
     assert (not fix_sub_insulation) or (not fix_sub_heater), "It is not possible to fix both sub heater and sub insulation."
-    if fix_sub_heater:
-        bounds2d = [{'name': 'sub_heater', 'type': 'continuous', 'domain': (0, 0)},
-                    {'name': 'sub_insulation', 'type': 'continuous', 'domain': (0, 1)}]
-    elif fix_sub_insulation:
-        bounds2d = [{'name': 'sub_heater', 'type': 'continuous', 'domain': (0, 1)},
-                    {'name': 'sub_insulation', 'type': 'continuous', 'domain': (0, 0)}]
-    else:
-        bounds2d = [{'name': 'sub_heater', 'type': 'continuous', 'domain': (0, 1)},
-                    {'name': 'sub_insulation', 'type': 'continuous', 'domain': (0, 1)}]
+    if x_opt is None:
+        if fix_sub_heater:
+            bounds2d = [{'name': 'sub_heater', 'type': 'continuous', 'domain': (0, 0)},
+                        {'name': 'sub_insulation', 'type': 'continuous', 'domain': (0, 1)}]
+        elif fix_sub_insulation:
+            bounds2d = [{'name': 'sub_heater', 'type': 'continuous', 'domain': (0, 1)},
+                        {'name': 'sub_insulation', 'type': 'continuous', 'domain': (0, 0)}]
+        else:
+            bounds2d = [{'name': 'sub_heater', 'type': 'continuous', 'domain': (0, 1)},
+                        {'name': 'sub_insulation', 'type': 'continuous', 'domain': (0, 1)}]
+    else:  # we want to refine the model around the optimal value
+        x_opt_heater = x_opt[0]
+        x_opt_insulation = x_opt[1]
+        bounds_insulation_sup, bounds_insulation_inf = min(x_opt_insulation+0.1,1), max(x_opt_insulation-0.1,0)
+        bounds_heater_sup, bounds_heater_inf = min(x_opt_heater + 0.1, 1), max(x_opt_heater - 0.1, 0)
+        if fix_sub_heater:
+            bounds2d = [{'name': 'sub_heater', 'type': 'continuous', 'domain': (0, 0)},
+                        {'name': 'sub_insulation', 'type': 'continuous', 'domain': (bounds_insulation_inf, bounds_insulation_sup)}]
+        elif fix_sub_insulation:
+            bounds2d = [{'name': 'sub_heater', 'type': 'continuous', 'domain': (bounds_heater_inf, bounds_heater_sup)},
+                        {'name': 'sub_insulation', 'type': 'continuous', 'domain': (0, 0)}]
+        else:
+            bounds2d = [{'name': 'sub_heater', 'type': 'continuous', 'domain': (bounds_heater_inf, bounds_heater_sup)},
+                        {'name': 'sub_insulation', 'type': 'continuous', 'domain': (bounds_insulation_inf, bounds_insulation_sup)}]
 
     if grid_initialize:
         if not fix_sub_heater and not fix_sub_insulation:
@@ -812,7 +827,7 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
                                   anticipated_scc=False, anticipated_demand_t10=False, optimization=True,
                                   list_sub_heater=None, list_sub_insulation=None, price_feedback=False,
                                   energy_taxes=None, energy_vta=None, acquisition_jitter=0.01, grid_initialize=False, normalize_Y=True,
-                                  grad_descent=False, aggregated_potential=False, cofp=False):
+                                  grad_descent=False, aggregated_potential=False, cofp=False, two_stage_optim=False):
     """Performs multistep optimization of capacities and subsidies.
     :param config_coupling: dict
         Includes a number of parametrization for configuration of the coupling
@@ -1053,8 +1068,45 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
                                                         health=config_coupling["health"], carbon_constraint=config_coupling["carbon_constraint"],
                                                         rebound=config_coupling["rebound"], initial_state_budget=initial_state_budget,
                                                         cofp=cofp)
-            dict_optimizer.update({y: optimizer})
-            opt_sub_heater, opt_sub_insulation = opt_sub[0], opt_sub[1]
+            if two_stage_optim:
+                optimizer_refined, opt_sub_refined = \
+                    optimize_blackbox_resirf_eoles_coupling(buildings, inputs_dynamics, policies_heater,
+                                                            policies_insulation,
+                                                            start_year_resirf, timestep_resirf,
+                                                            config_eoles, year_eoles, anticipated_year_eoles, scc,
+                                                            hourly_gas_exogeneous=hourly_exogeneous_CH4,
+                                                            existing_capacity=existing_capacity,
+                                                            existing_charging_capacity=existing_charging_capacity,
+                                                            existing_energy_capacity=existing_energy_capacity,
+                                                            maximum_capacity=maximum_capacity,
+                                                            method_hourly_profile="valentin",
+                                                            scenario_cost=scenario_cost,
+                                                            existing_annualized_costs_elec=existing_annualized_costs_elec,
+                                                            existing_annualized_costs_CH4=existing_annualized_costs_CH4,
+                                                            existing_annualized_costs_CH4_naturalgas=existing_annualized_costs_CH4_naturalgas,
+                                                            existing_annualized_costs_CH4_biogas=existing_annualized_costs_CH4_biogas,
+                                                            existing_annualized_costs_H2=existing_annualized_costs_H2,
+                                                            lifetime_renov=lifetime_renov,
+                                                            lifetime_heater=lifetime_heater,
+                                                            discount_rate=config_coupling["discount_rate"], plot=False,
+                                                            max_iter=config_coupling["max_iter"],
+                                                            initial_design_numdata=3,
+                                                            grid_initialize=grid_initialize,
+                                                            acquisition_jitter=acquisition_jitter,
+                                                            normalize_Y=normalize_Y,
+                                                            fix_sub_heater=config_coupling["fix_sub_heater"],
+                                                            fix_sub_insulation=config_coupling["fix_sub_insulation"],
+                                                            sub_design=config_coupling["sub_design"],
+                                                            health=config_coupling["health"],
+                                                            carbon_constraint=config_coupling["carbon_constraint"],
+                                                            rebound=config_coupling["rebound"],
+                                                            initial_state_budget=initial_state_budget,
+                                                            cofp=cofp, x_opt=opt_sub)
+                dict_optimizer.update({y: {"first_stage": optimizer, "second_stage": optimizer_refined}})
+                opt_sub_heater, opt_sub_insulation = opt_sub_refined[0], opt_sub_refined[1]
+            else:
+                dict_optimizer.update({y: optimizer})
+                opt_sub_heater, opt_sub_insulation = opt_sub[0], opt_sub[1]
             list_sub_heater.append(opt_sub_heater)
             list_sub_insulation.append(opt_sub_insulation)
         else:

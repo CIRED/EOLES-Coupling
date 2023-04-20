@@ -1357,12 +1357,24 @@ def make_area_plot_multiple(df1, df2, y_label=None, colors=None, format_y=lambda
     save_fig(fig, save=save)
 
 
-def plot_blackbox_optimization(dict_optimizer, save_path):
-    for key in dict_optimizer.keys():  # save evaluations
-        optimizer = dict_optimizer[key]
-        optimizer.save_evaluations(os.path.join(save_path, f'evaluations_optimizer_{key}.csv'))
-        optimizer.save_report(os.path.join(save_path, f'report_optimizer_{key}.txt'))
-    for key in dict_optimizer.keys():  # save plots
-        optimizer = dict_optimizer[key]
-        optimizer.plot_convergence(filename=os.path.join(save_path, "plots", f"optimizer_{key}_convergence.png"))
-        optimizer.plot_acquisition(filename=os.path.join(save_path, "plots", f"optimizer_{key}_acquisition.png"))
+def plot_blackbox_optimization(dict_optimizer, save_path, two_stage_optim=False):
+    if not two_stage_optim:
+        for key in dict_optimizer.keys():  # save evaluations
+            optimizer = dict_optimizer[key]
+            optimizer.save_evaluations(os.path.join(save_path, f'evaluations_optimizer_{key}.csv'))
+            optimizer.save_report(os.path.join(save_path, f'report_optimizer_{key}.txt'))
+        for key in dict_optimizer.keys():  # save plots
+            optimizer = dict_optimizer[key]
+            optimizer.plot_convergence(filename=os.path.join(save_path, "plots", f"optimizer_{key}_convergence.png"))
+            optimizer.plot_acquisition(filename=os.path.join(save_path, "plots", f"optimizer_{key}_acquisition.png"))
+    else:  # we have two successive optimizer to refine the optimum
+        for key in dict_optimizer.keys():  # save evaluations
+            for stage in dict_optimizer[key].keys():
+                optimizer = dict_optimizer[key][stage]
+                optimizer.save_evaluations(os.path.join(save_path, f'evaluations_optimizer_{key}_{stage}.csv'))
+                optimizer.save_report(os.path.join(save_path, f'report_optimizer_{key}_{stage}.txt'))
+        for key in dict_optimizer.keys():  # save plots
+            for stage in dict_optimizer[key].keys():
+                optimizer = dict_optimizer[key][stage]
+                optimizer.plot_convergence(filename=os.path.join(save_path, "plots", f"optimizer_{key}_{stage}_convergence.png"))
+                optimizer.plot_acquisition(filename=os.path.join(save_path, "plots", f"optimizer_{key}_{stage}_acquisition.png"))
