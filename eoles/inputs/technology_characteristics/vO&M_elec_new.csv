@@ -24,5 +24,10 @@ natural_gas,0.02354
 heat_pump,0
 resistive,0
 gas_boiler,0
-fuel_boiler,10
-wood_boiler,10
+oil,10
+wood,10
+geothermal,0.073
+central_gas_boiler,0
+central_wood_boiler,0
+uiom,0
+CTES,0

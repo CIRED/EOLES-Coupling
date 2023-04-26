@@ -35,7 +35,8 @@ from pyomo.environ import (
 
 
 class ModelEOLES():
-    def __init__(self, name, config, path, logger, nb_years, hourly_heat_elec, hourly_heat_gas, wood_consumption=0, oil_consumption=0,
+    def __init__(self, name, config, path, logger, nb_years, hourly_heat_elec, hourly_heat_gas, hourly_heat_district=None,
+                 wood_consumption=0, oil_consumption=0,
                  existing_capacity=None, existing_charging_capacity=None, existing_energy_capacity=None, maximum_capacity=None,
                  method_hourly_profile="valentin", anticipated_social_cost_of_carbon=0, actual_social_cost_of_carbon=0, year=2050, anticipated_year=2050,
                  scenario_cost=None, existing_annualized_costs_elec=0,
@@ -115,7 +116,7 @@ class ModelEOLES():
         if nb_years == 1:
             self.elec_demand1y = self.elec_demand1y + self.hourly_heat_elec  # we add electricity demand from heating
             self.elec_demand = self.elec_demand1y
-            for i in range(self.nb_years - 1):  # plus nécessaire
+            for i in range(self.nb_years - 1):  # plus nécessaire avec la condition if /else
                 self.elec_demand = pd.concat([self.elec_demand, self.elec_demand1y], ignore_index=True)
         else:
             self.elec_demand = pd.DataFrame()
@@ -123,6 +124,13 @@ class ModelEOLES():
                 self.elec_demand_year = self.elec_demand1y + self.hourly_heat_elec.loc[0:8760]  # TODO: a changer selon format Lucas
                 self.elec_demand = pd.concat([self.elec_demand, self.elec_demand_year], ignore_index=True)
 
+        # Creation of demand for district heating
+        if hourly_heat_district is not None:
+            self.district_heating_demand = hourly_heat_district
+            for i in range(self.nb_years - 1):
+                self.district_heating_demand = pd.concat([self.district_heating_demand, hourly_heat_district], ignore_index=True)
+        else:
+            self.district_heating_demand = pd.Series(0, index=self.elec_demand.index)
         self.hourly_heat_gas = hourly_heat_gas
         self.wood_consumption = wood_consumption
         self.oil_consumption = oil_consumption
@@ -194,11 +202,12 @@ class ModelEOLES():
         self.prediction_transport_and_distrib_annuity = data_static["prediction_transport_and_distrib_annuity"]
         self.prediction_transport_offshore_annuity = data_static["prediction_transport_offshore_annuity"]
         self.biomass_potential = data_static["biomass_potential"]
+        self.district_heating_potential = data_static["district_heating_potential"]
         self.total_H2_demand = data_static["demand_H2_RTE"]
         self.energy_prices = data_static["energy_prices"]
         self.carbon_budget = data_static["carbon_budget"]
-        self.vOM["wood_boiler"], self.vOM["fuel_boiler"] = self.energy_prices["wood"] * 1e-3, self.energy_prices[
-            "fuel"] * 1e-3  # €/kWh
+        self.vOM["wood"], self.vOM["oil"] = self.energy_prices["wood"] * 1e-3, self.energy_prices[
+            "oil"] * 1e-3  # €/kWh
         self.vOM["natural_gas"] = self.energy_prices["natural_gas"] * 1e-3
 
         # calculate annuities
@@ -210,8 +219,8 @@ class ModelEOLES():
         if not self.carbon_constraint:  # on prend en compte le scc mais pas de contrainte sur le budget
             # Update natural gaz vOM based on social cost of carbon
             self.vOM.loc["natural_gas"] = update_ngas_cost(self.vOM.loc["natural_gas"], scc=self.anticipated_scc, emission_rate=0.2295)  # €/kWh
-            self.vOM["fuel_boiler"] = update_ngas_cost(self.vOM["fuel_boiler"], scc=self.anticipated_scc, emission_rate=0.324)  # to check !!
-            self.vOM["wood_boiler"] = update_ngas_cost(self.vOM["wood_boiler"], scc=self.anticipated_scc,
+            self.vOM["oil"] = update_ngas_cost(self.vOM["oil"], scc=self.anticipated_scc, emission_rate=0.324)  # to check !!
+            self.vOM["wood"] = update_ngas_cost(self.vOM["wood"], scc=self.anticipated_scc,
                                                        emission_rate=0)  # to check !!
 
         # defining needed time steps
@@ -240,7 +249,8 @@ class ModelEOLES():
         self.model.tec = \
             Set(initialize=["offshore_f", "offshore_g", "onshore", "pv_g", "pv_c", "river", "lake", "methanization",
                             "ocgt", "ccgt", "nuclear", "h2_ccgt", "phs", "battery1", "battery4",
-                            "methanation", "pyrogazification", "electrolysis", "natural_gas", "hydrogen", "methane"])
+                            "methanation", "pyrogazification", "electrolysis", "natural_gas", "hydrogen", "methane",
+                            "geothermal", "central_gas_boiler", "central_wood_boiler", "uiom", "CTES"])
         # Variables Technologies
         self.model.vre = \
             Set(initialize=["offshore_f", "offshore_g", "onshore", "pv_g", "pv_c", "river"])
@@ -275,6 +285,9 @@ class ModelEOLES():
         self.model.CH4_balance_biogas = Set(initialize=["methanization", "pyrogazification", "methanation"])
         self.model.H2_balance = Set(initialize=["electrolysis", "hydrogen"])
 
+        # District heating technologies
+        self.model.district_heating_balance = Set(initialize=["geothermal", "central_gas_boiler", "central_wood_boiler", "CTES"])
+
         # Conversion technologies
         self.model.from_elec_to_CH4 = Set(initialize=["methanation"])
         self.model.from_elec_to_H2 = Set(initialize=["electrolysis"])
@@ -283,7 +296,7 @@ class ModelEOLES():
 
         # Storage technologies
         self.model.str = \
-            Set(initialize=["phs", "battery1", "battery4", "hydrogen", "methane"])
+            Set(initialize=["phs", "battery1", "battery4", "hydrogen", "methane", "CTES"])
         # Electricity storage Technologies
         self.model.str_elec = Set(initialize=["phs", "battery1", "battery4"])
         # Battery Storage
@@ -292,6 +305,8 @@ class ModelEOLES():
         self.model.str_CH4 = Set(initialize=["methane"])
         # H2 storage
         self.model.str_H2 = Set(initialize=["hydrogen"])
+        # Central heat storage
+        self.model.str_district_heating = Set(initialize=["CTES"])
 
     def define_other_demand(self):
         # Set the hydrogen demand for each hour
@@ -446,6 +461,21 @@ class ModelEOLES():
             gene_pyro = sum(model.gene['pyrogazification', hour] for hour in model.h)
             return gene_pyro <= self.biomass_potential["pyrogazification"] * 1000  # max pyro yearly energy expressed in TWh
 
+        def geothermal_constraint_rule(model):
+            """Constraint on geothermal potential in TWh."""
+            gene_geothermal = sum(model.gene['geothermal', hour] for hour in model.h)
+            return gene_geothermal <= self.district_heating_potential["geothermal"] * 1000
+
+        def central_wood_constraint_rule(model):
+            """Constraint on central wood potential in TWh."""
+            gene_central_wood = sum(model.gene['central_wood_boiler', hour] for hour in model.h)
+            return gene_central_wood <= self.district_heating_potential["central_wood_boiler"] * 1000
+
+        def uiom_constraint_rule(model):
+            """Constraint on UIOM potential in TWh."""
+            gene_uiom = sum(model.gene['uiom', hour] for hour in model.h)
+            return gene_uiom <= self.district_heating_potential["uiom"] * 1000
+
         def reserves_constraint_rule(model, h):
             """Constraint on frr reserves"""
             res_req = sum(self.epsilon[vre] * model.capacity[vre] for vre in model.vre)
@@ -465,8 +495,14 @@ class ModelEOLES():
             gene_methane = model.gene['methanation', h] + model.gene['methanization', h] + \
                            model.gene['pyrogazification', h] + model.gene['methane', h] + model.gene["natural_gas", h]
             dem_sto = model.gene['ocgt', h] / self.conversion_efficiency['ocgt'] + model.gene['ccgt', h] / \
-                      self.conversion_efficiency['ccgt'] + self.CH4_demand[h] + model.storage['methane', h]
+                      self.conversion_efficiency['ccgt'] + model.gene['central_gas_boiler', h] + self.CH4_demand[h] + model.storage['methane', h]
             return gene_methane == dem_sto
+
+        def district_heating_balance_constraint_rule(model, h):
+            """Constraint on district heating balance. District heating demand can be satisfied either by geothermal energy,
+            wood biomass, central gas boiler, or storage."""
+            gene_DH = sum(model.gene[tec, h] * self.conversion_efficiency[tec] for tec in model.district_heating_balance)
+            return gene_DH >= self.district_heating_demand[h]
 
         def electricity_adequacy_constraint_rule(model, h):
             """Constraint for supply/demand electricity relation'"""
@@ -542,6 +578,12 @@ class ModelEOLES():
 
         self.model.pyrogazification_constraint = Constraint(rule=pyrogazification_constraint_rule)
 
+        self.model.geothermal_constraint = Constraint(rule=geothermal_constraint_rule)
+
+        self.model.central_wood_constraint = Constraint(rule=central_wood_constraint_rule)
+
+        self.model.uiom_constraint_rule = Constraint(rule=uiom_constraint_rule)
+
         self.model.ramping_nuclear_up_constraint = Constraint(self.model.h, rule=ramping_nuclear_up_constraint_rule)
 
         self.model.ramping_nuclear_down_constraint = Constraint(self.model.h, rule=ramping_nuclear_down_constraint_rule)
@@ -553,6 +595,8 @@ class ModelEOLES():
         self.model.hydrogen_balance_constraint = Constraint(self.model.h, rule=hydrogen_balance_constraint_rule)
 
         self.model.methane_balance_constraint = Constraint(self.model.h, rule=methane_balance_constraint_rule)
+
+        self.model.district_heating_balance_constraint = Constraint(self.model.h, rule=district_heating_balance_constraint_rule)
 
         self.model.electricity_adequacy_constraint = Constraint(self.model.h, rule=electricity_adequacy_constraint_rule)
 
@@ -578,7 +622,8 @@ class ModelEOLES():
                     #     model.charging_capacity[storage_tecs] * self.charging_opex[storage_tecs] * self.nb_years
                     #     for storage_tecs in model.str)
                     + sum(sum(model.gene[tec, h] * self.vOM[tec] for h in model.h) for tec in model.tec)
-                    + self.oil_consumption * self.vOM["fuel_boiler"] + self.wood_consumption * self.vOM["wood_boiler"]  # we add variable costs from wood and fuel
+                    + self.oil_consumption * self.vOM["oil"]
+                    + (self.wood_consumption + sum(model.gene["central_wood_boiler", h] for h in model.h)) * self.vOM["wood"]  # we add variable costs from wood and fuel
                     ) / 1000
 
         # Creation of the objective -> Cost
@@ -662,7 +707,7 @@ class ModelEOLES():
             extract_annualized_costs_investment_new_capa_nofOM(self.capacities, self.energy_capacity,
                                                          self.existing_capacity, self.existing_energy_capacity, self.annuities,
                                                          self.storage_annuities, self.nb_years)  # pd.Series
-        self.functionment_cost = extract_functionment_cost(self.capacities, self.fOM, self.vOM,
+        self.functionment_cost = extract_functionment_cost(self.model, self.capacities, self.fOM, self.vOM,
                                                            pd.Series(self.generation_per_technology) * 1000, self.oil_consumption, self.wood_consumption,
                                                            self.anticipated_scc, self.actual_scc, carbon_constraint=self.carbon_constraint)  # pd.Series
         self.results = {'objective': self.objective, 'summary': self.summary,
@@ -784,6 +829,10 @@ def read_annual_data(config, year):
                                    lambda x: pd.read_csv(x, index_col=0))  # 1e6€/GW
     biomass_potential = biomass_potential[[str(year)]].squeeze()  # get storage capex for year of interest
 
+    district_heating_potential = get_pandas(config["district_heating_potential"],
+                                   lambda x: pd.read_csv(x, index_col=0))  # 1e6€/GW
+    district_heating_potential = district_heating_potential[[str(year)]].squeeze()  # get storage capex for year of interest
+
     energy_prices = get_pandas(config["energy_prices"],
                                lambda x: pd.read_csv(x, index_col=0))  # €/MWh
     energy_prices = energy_prices[[str(year)]].squeeze()  # get storage capex for year of interest
@@ -795,6 +844,7 @@ def read_annual_data(config, year):
     o["energy_prices"] = energy_prices  # € / MWh
     o["carbon_budget"] = carbon_budget  # MtCO2eq
     o["biomass_potential"] = biomass_potential
+    o["district_heating_potential"] = district_heating_potential
     return o
 
 

@@ -27,3 +27,8 @@ resistive,2,2,2,2,2,2
 gas_boiler,3.5,3.5,3.5,3.5,3.5,3.5
 fuel_boiler,3.5,3.5,3.5,3.5,3.5,3.5
 wood_boiler,3.5,3.5,3.5,3.5,3.5,3.5
+geothermal,0,0,0,0,0,0
+central_gas_boiler,1.9,1.9,1.9,1.9,1.9,1.9
+central_wood_boiler,1.9,1.9,1.9,1.9,1.9,1.9
+uiom,0,0,0,0,0,0
+CTES,0,0,0,0,0,0

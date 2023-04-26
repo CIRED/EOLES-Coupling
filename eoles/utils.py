@@ -555,7 +555,7 @@ def extract_annualized_costs_investment_new_capa_nofOM(capacities, energy_capaci
     return costs_new_capacity[["annualized_costs"]], costs_new_energy_capacity[["annualized_costs"]]
 
 
-def extract_functionment_cost(capacities, fOM, vOM, generation, oil_consumption, wood_consumption, anticipated_scc, actual_scc, carbon_constraint=True):
+def extract_functionment_cost(model, capacities, fOM, vOM, generation, oil_consumption, wood_consumption, anticipated_scc, actual_scc, carbon_constraint=True):
     """Returns functionment cost, including fOM and vOM. vOM for gas and oil include the SCC. Unit: 1e6€/yr
     This function has to update vOM for natural gas and fossil fuel based on the actual scc, and no longer based on the
     anticipated_scc which was used to find optimal investment and dispatch.
@@ -568,11 +568,11 @@ def extract_functionment_cost(capacities, fOM, vOM, generation, oil_consumption,
     if not carbon_constraint:  # we include cost of carbon
         vOM_no_scc = vOM.copy()  # we remove the SCC in this vOM
         vOM_no_scc.loc["natural_gas"] = update_ngas_cost(vOM_no_scc.loc["natural_gas"], scc=(-anticipated_scc), emission_rate=0.2295)  # €/kWh
-        vOM_no_scc["fuel_boiler"] = update_ngas_cost(vOM_no_scc["fuel_boiler"], scc=(- anticipated_scc), emission_rate=0.324)
+        vOM_no_scc["oil"] = update_ngas_cost(vOM_no_scc["oil"], scc=(- anticipated_scc), emission_rate=0.324)
 
         vOM_SCC_only = (vOM - vOM_no_scc).copy()  # variable cost only due to actual scc, not anticipated scc
         vOM_SCC_only.loc["natural_gas"] = update_ngas_cost(vOM_SCC_only.loc["natural_gas"], scc=(actual_scc - anticipated_scc), emission_rate=0.2295)  # €/kWh
-        vOM_SCC_only["fuel_boiler"] = update_ngas_cost(vOM_SCC_only["fuel_boiler"], scc=(actual_scc - anticipated_scc), emission_rate=0.324)
+        vOM_SCC_only["oil"] = update_ngas_cost(vOM_SCC_only["oil"], scc=(actual_scc - anticipated_scc), emission_rate=0.324)
 
         system_fOM_vOM = pd.concat([capacities, fOM, vOM_no_scc, vOM_SCC_only, generation], axis=1, ignore_index=True).rename(
             columns={0: "capacity", 1: "fOM", 2: "vOM_no_scc", 3: "vOM_SCC_only", 4: "generation"})
@@ -581,11 +581,12 @@ def extract_functionment_cost(capacities, fOM, vOM, generation, oil_consumption,
         system_fOM_vOM["functionment_cost_SCC"] = system_fOM_vOM["generation"] * system_fOM_vOM["vOM_SCC_only"]
         system_fOM_vOM_df = system_fOM_vOM[["functionment_cost_noSCC"]]
 
-        oil_functionment_cost_no_scc, wood_functionment_cost_no_scc = oil_consumption * vOM_no_scc["fuel_boiler"], wood_consumption * vOM_no_scc["wood_boiler"]
-        carbon_cost = system_fOM_vOM["functionment_cost_SCC"].sum() + oil_consumption * vOM_SCC_only["fuel_boiler"] + wood_consumption * vOM_SCC_only["wood_boiler"]
+        total_wood_consumption = wood_consumption + sum(value(model.gene["central_wood_boiler", h]) for h in model.h)
+        oil_functionment_cost_no_scc, wood_functionment_cost_no_scc = oil_consumption * vOM_no_scc["oil"], total_wood_consumption * vOM_no_scc["wood"]
+        carbon_cost = system_fOM_vOM["functionment_cost_SCC"].sum() + oil_consumption * vOM_SCC_only["oil"] + total_wood_consumption * vOM_SCC_only["wood"]
 
-        system_fOM_vOM_df = pd.concat([system_fOM_vOM_df, pd.DataFrame(index=["oil_boiler"], data={'functionment_cost_noSCC': [oil_functionment_cost_no_scc]})], axis=0)
-        system_fOM_vOM_df = pd.concat([system_fOM_vOM_df, pd.DataFrame(index=["wood_boiler"], data={'functionment_cost_noSCC': [wood_functionment_cost_no_scc]})], axis=0)
+        system_fOM_vOM_df = pd.concat([system_fOM_vOM_df, pd.DataFrame(index=["oil"], data={'functionment_cost_noSCC': [oil_functionment_cost_no_scc]})], axis=0)
+        system_fOM_vOM_df = pd.concat([system_fOM_vOM_df, pd.DataFrame(index=["wood"], data={'functionment_cost_noSCC': [wood_functionment_cost_no_scc]})], axis=0)
         system_fOM_vOM_df = pd.concat([system_fOM_vOM_df, pd.DataFrame(index=["carbon_cost"], data={'functionment_cost_noSCC': [carbon_cost]})], axis=0)
         system_fOM_vOM_df = system_fOM_vOM_df.rename(columns={'functionment_cost_noSCC': 'functionment_cost'})
     else:
@@ -594,9 +595,10 @@ def extract_functionment_cost(capacities, fOM, vOM, generation, oil_consumption,
         system_fOM_vOM = system_fOM_vOM.dropna()
         system_fOM_vOM["functionment_cost"] = system_fOM_vOM["capacity"] * system_fOM_vOM["fOM"] + system_fOM_vOM["generation"] * system_fOM_vOM["vOM"]
         system_fOM_vOM_df = system_fOM_vOM[["functionment_cost"]]
-        oil_functionment_cost, wood_functionment_cost = oil_consumption * new_vOM["fuel_boiler"], wood_consumption * new_vOM["wood_boiler"]
-        system_fOM_vOM_df = pd.concat([system_fOM_vOM_df, pd.DataFrame(index=["oil_boiler"], data={'functionment_cost': [oil_functionment_cost]})], axis=0)
-        system_fOM_vOM_df = pd.concat([system_fOM_vOM_df, pd.DataFrame(index=["wood_boiler"], data={'functionment_cost': [wood_functionment_cost]})], axis=0)
+        total_wood_consumption = wood_consumption + sum(value(model.gene["central_wood_boiler", h]) for h in model.h)
+        oil_functionment_cost, wood_functionment_cost = oil_consumption * new_vOM["oil"], total_wood_consumption * new_vOM["wood"]
+        system_fOM_vOM_df = pd.concat([system_fOM_vOM_df, pd.DataFrame(index=["oil"], data={'functionment_cost': [oil_functionment_cost]})], axis=0)
+        system_fOM_vOM_df = pd.concat([system_fOM_vOM_df, pd.DataFrame(index=["wood"], data={'functionment_cost': [wood_functionment_cost]})], axis=0)
 
     # # OLD VERSION
     # new_vOM = vOM.copy()

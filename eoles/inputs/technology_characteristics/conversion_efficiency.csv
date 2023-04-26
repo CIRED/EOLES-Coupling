@@ -8,3 +8,8 @@ methanation,0.6
 ocgt,0.4
 ccgt,0.57
 h2_ccgt,0.57
+geothermal,1
+central_gas_boiler,0.9
+central_wood_boiler,0.87
+uiom,1
+CTES,1
