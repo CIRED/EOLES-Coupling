@@ -778,10 +778,9 @@ def modif_config_eoles(config_eoles, config_coupling):
         if config_coupling['greenfield']:
             config_eoles_update["maximum_capacity_evolution"] = "eoles/inputs/technology_potential/maximum_capacity_greenfield.csv"
 
-    if "biomass_potential" in config_coupling["eoles"].keys():
-        assert config_coupling["eoles"]["biomass_potential"] in ["S3", "S2"], "Biomass potential is not specified correctly in config_coupling."
-        biomass_potential = config_coupling["eoles"]["biomass_potential"]
-        config_eoles_update["biomass_potential"] = f"eoles/inputs/technology_potential/biomass_evolution_{biomass_potential}.csv"
+    if "biomass_potential_scenario" in config_coupling["eoles"].keys():
+        assert config_coupling["eoles"]["biomass_potential_scenario"] in ["S3", "S2"], "Biomass potential scenario is not specified correctly in config_coupling."
+        config_eoles_update["biomass_potential_scenario"] = config_coupling["eoles"]["biomass_potential_scenario"]
 
     if "worst_case" in config_coupling["eoles"].keys():  # definition of worst case scenario for EOLES
         if config_coupling["eoles"]["worst_case"]:
@@ -807,46 +806,55 @@ def modif_config_resirf(config_resirf, config_coupling, calibration=None):
     """This function modifies the ResIRF configuration file based on specified options in config_coupling.
     Namely, we modify: supply, premature replacement, rational behavior"""
     config_resirf_update = deepcopy(config_resirf)
-    # Modification supply value
-    config_resirf_update["supply"]["activated_insulation"] = config_coupling["supply_insulation"]
-    config_resirf_update["supply"]["activated_heater"] = config_coupling["supply_heater"]
+
+    if 'file' in config_resirf_update.keys():
+        path_reference = config_resirf_update['file']
+        with open(path_reference) as file:
+            config_reference = json.load(file)
+
+    # # Modification supply value
+    # config_resirf_update["supply"]["activated_insulation"] = config_coupling["supply_insulation"]
+    # config_resirf_update["supply"]["activated_heater"] = config_coupling["supply_heater"]
 
     # Modification rational behavior
+    config_resirf_update["renovation"] = config_reference["renovation"]
     config_resirf_update["renovation"]["rational_behavior"]["activated"] = config_coupling["rational_behavior"]
     if config_coupling["rational_behavior"]:  # in this case, we have to modify parameter policies
         config_resirf_update["policies"] = None
 
-    # Modification premature replacement
-    config_resirf_update["switch_heater"]["premature_replacement"] = config_coupling["premature_replacement"]
+    if 'social' in config_coupling.keys():
+        config_resirf_update['renovation']["rational_behavior"]["social"] = config_coupling["social"]
+
+    # # Modification premature replacement
+    # config_resirf_update["switch_heater"]["premature_replacement"] = config_coupling["premature_replacement"]
 
     # if 'calibration' in config_coupling.keys():
     #     config_resirf_update['calibration'] = config_coupling["calibration"]
 
-    if 'social' in config_coupling.keys():
-        config_resirf_update['renovation']["rational_behavior"]["social"] = config_coupling["social"]
-
     if "information_rate" in config_coupling.keys():
+        config_resirf_update["switch_heater"] = config_reference["switch_heater"]
         config_resirf_update['switch_heater']["information_rate"] = config_coupling["information_rate"]
 
-    if not config_coupling["rational_behavior"]:  # we use calibration file only for configs without rational behavior
-        if calibration is not None:  #  only if calibration file is specified
-            assert os.path.isfile(calibration), "Calibration should profile the name of a file"
-            config_resirf_update["calibration"] = calibration
+    # if not config_coupling["rational_behavior"]:  # we use calibration file only for configs without rational behavior
+    #     if calibration is not None:  #  only if calibration file is specified
+    #         assert os.path.isfile(calibration), "Calibration should profile the name of a file"
+    #         config_resirf_update["calibration"] = calibration
 
     if 'no_MF' in config_coupling.keys():
         if config_coupling['no_MF']:  # we want to remove market failures
             policy_noMF = {"landlord": {
-                                  "start": 2020,
-                                  "end": 2051,
-                                  "policy": "regulation",
-                                  "gest": "insulation"
-                                },
+                                          "start": 2020,
+                                          "end": 2051,
+                                          "policy": "regulation",
+                                          "gest": "insulation"
+                                        },
                           "multi-family": {
-                                  "start": 2020,
-                                  "end": 2051,
-                                  "policy": "regulation",
-                                        "gest": "insulation"
-                        }}
+                                            "start": 2020,
+                                            "end": 2051,
+                                            "policy": "regulation",
+                                            "gest": "insulation"
+                                          }
+            }
             config_resirf_update["policies"].update(policy_noMF)
 
     if "prices_constant" in config_coupling.keys():  # we remove hypothesis of prices constant

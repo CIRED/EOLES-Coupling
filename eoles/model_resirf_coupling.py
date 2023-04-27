@@ -826,8 +826,9 @@ def read_annual_data(config, year):
     demand_H2_RTE = demand_H2_timesteps[year]  # TWh
 
     biomass_potential = get_pandas(config["biomass_potential"],
-                                   lambda x: pd.read_csv(x, index_col=0))  # 1e6€/GW
-    biomass_potential = biomass_potential[[str(year)]].squeeze()  # get storage capex for year of interest
+                                   lambda x: pd.read_csv(x, index_col=[0, 1]))  # 1e6€/GW
+    biomass_potential = biomass_potential.loc[config["biomass_potential_scenario"]]  # we select the desired ADEME scenario
+    biomass_potential = biomass_potential[[str(year)]].squeeze()  # get specific potential for year of interest
 
     district_heating_potential = get_pandas(config["district_heating_potential"],
                                    lambda x: pd.read_csv(x, index_col=0))  # 1e6€/GW

@@ -215,8 +215,7 @@ def run_optimization_scenario(config_coupling, name_config_coupling="default"):
     config_resirf_path = DICT_CONFIG_RESIRF["classic_simple"]
     with open(config_resirf_path) as file:  # load config_resirf
         config_resirf = json.load(file).get('Reference')
-    config_resirf = modif_config_resirf(config_resirf, config_coupling, calibration=config_coupling[
-        "calibration"])  # modif of this configuration file to consider coupling options
+    config_resirf = modif_config_resirf(config_resirf, config_coupling)  # modif of this configuration file to consider coupling options
 
     config_eoles = eoles.utils.get_config(spec="eoles_coupling")
     config_eoles = modif_config_eoles(config_eoles, config_coupling)
@@ -2239,6 +2238,34 @@ if __name__ == '__main__':
         }
     }
 
+    DICT_NEW_CONFIGS = {
+        'uniform_carbonbudget_greenfield': {
+            'greenfield': True,
+            "eoles": {
+                "biomass_potential_scenario": "S3",
+                "aggregated_potential": False,
+            },
+            'rational_behavior': False,
+            'max_iter': 150,
+            'sub_design': None,
+            "health": True,  # on inclut les coûts de santé
+            "discount_rate": 0.032,
+            "rebound": True,
+            "carbon_constraint": True,
+            'one_shot_setting': False,
+            'fix_sub_heater': False,
+            'fix_sub_insulation': False,
+            'list_year': [2025, 2030, 2035, 2040, 2045],
+            'list_trajectory_scc': [250, 350, 500, 650, 775],
+            'acquisition_jitter': 0.03,
+            'scenario_cost_eoles': {
+                'fix_capacities': {
+                    "CTES": 0
+                }
+            }
+        }
+    }
+
     DICT_CONFIGS_9_greenfield = {
         'uniform_carbonbudget_greenfield': {
             'greenfield': True,
@@ -3140,7 +3167,7 @@ if __name__ == '__main__':
     # # dict_config_resirf = config_resirf_exogenous(sensitivity=sensitivity, config_resirf=config_resirf)
     # # dict_config_coupling = create_multiple_coupling_configs(dict_config_resirf=dict_config_resirf, config_coupling=config_coupling)
 
-    results = run_multiple_configs(DICT_CONFIGS_9_greenfield, cpu=cpu, exogenous=False, reference=None, greenfield=False,
+    results = run_multiple_configs(DICT_NEW_CONFIGS, cpu=cpu, exogenous=False, reference=None, greenfield=False,
                                    health=True, carbon_constraint=True)
 
     # dict_output = {"Reference": os.path.join("eoles/outputs/0407_134331_Reference"),
