@@ -62,15 +62,45 @@ def load_building(filename: Path):
     return building
 
 
-def resirf_eoles_coupling_static(subvention, buildings, inputs_dynamics, policies_heater, policies_insulation,
+def create_sub_resirf(start, end, sub_heater_value, sub_insulation_value, policy, proportional, target, cap):
+    """Create subsidies following ResIRF framework.
+    Important remark: when policy = 'subsidy_proportional', we take sub_heater_value = sub_insulation_value, so that the subsidy is the same."""
+    if policy == 'subsidy_proportional':
+        sub_heater_value = sub_insulation_value
+    if cap is not None:  # in the case of proportional subsidy, the value is proportional to a cap
+        sub_heater_value *= cap
+        sub_insulation_value *= cap
+    sub_heater = {'name': 'sub_heater',
+                  'start': start,
+                  'end': end,
+                  'value': sub_heater_value,
+                  'policy': policy,
+                  'gest': 'heater',
+                  'columns': 'project/input/policies/target/target_heat_pump.csv',
+                  'proportional': proportional
+                  }
+    sub_insulation = {'name': 'sub_insulation',
+                      'start': start,
+                      'end': end,
+                      'value': sub_insulation_value,
+                      'policy': policy,
+                      'gest': 'insulation',
+                      'target': target,
+                      'proportional': proportional
+                      }
+    return sub_heater, sub_insulation
+
+
+def resirf_eoles_coupling_static(subsidy, subsidy_policy, subsidy_target, subsidy_proportional, subsidy_cap, buildings, inputs_dynamics,
+                                 policies_heater, policies_insulation,
                                  start_year_resirf, timestep_resirf, config_eoles,
                                  year_eoles, anticipated_year_eoles, scc, hourly_gas_exogeneous,
                                  existing_capacity, existing_charging_capacity, existing_energy_capacity,
                                  maximum_capacity, method_hourly_profile,
                                  scenario_cost, existing_annualized_costs_elec, existing_annualized_costs_CH4,
                                  existing_annualized_costs_CH4_naturalgas, existing_annualized_costs_CH4_biogas,
-                                 existing_annualized_costs_H2, lifetime_insulation=50, lifetime_heater=20,
-                                 discount_rate=0.045, sub_design=None, health=True, carbon_constraint=False,
+                                 existing_annualized_costs_H2, lifetime_insulation_annuity=50, lifetime_heater_annuity=20,
+                                 discount_rate=0.045, health=True, carbon_constraint=False,
                                  bayesian_optim=True, initial_state_budget=0, cofp=False):
     """
 
@@ -87,25 +117,28 @@ def resirf_eoles_coupling_static(subvention, buildings, inputs_dynamics, policie
     endyear_resirf = start_year_resirf + timestep_resirf
 
     if bayesian_optim:
-        sub_heater, sub_insulation = float(subvention[0, 0]), float(subvention[0, 1])
+        sub_heater_value, sub_insulation_value = float(subsidy[0, 0]), float(subsidy[0, 1])
     else:  # if gradient descent, subsidy does not have similar shape
-        sub_heater, sub_insulation = float(subvention[0]), float(subvention[1])
-    print(f'Subvention: {sub_heater}, {sub_insulation}')
+        sub_heater_value, sub_insulation_value = float(subsidy[0]), float(subsidy[1])
+    print(f'Subvention: {sub_heater_value}, {sub_insulation_value}')
 
     buildings_copy = deepcopy(buildings)
     energy_prices, taxes, cost_heater, cost_insulation, demolition_rate = deepcopy(inputs_dynamics['energy_prices']), deepcopy(inputs_dynamics['taxes']), deepcopy(inputs_dynamics['cost_heater']), deepcopy(inputs_dynamics['cost_insulation']), deepcopy(inputs_dynamics['demolition_rate'])
+    lifetime_heater, lifetime_insulation = deepcopy(inputs_dynamics["lifetime_heater"]), deepcopy(inputs_dynamics["lifetime_insulation"])
     flow_built, post_inputs, policies_heater_copy, policies_insulation_copy = deepcopy(inputs_dynamics['flow_built']), deepcopy(inputs_dynamics['post_inputs']), deepcopy(policies_heater), deepcopy(policies_insulation)
     technical_progress, financing_cost, premature_replacement = deepcopy(inputs_dynamics['technical_progress']), deepcopy(inputs_dynamics['financing_cost']), deepcopy(inputs_dynamics['premature_replacement'])
 
     # simulation between start and end - flow output represents annual values for year "end"
+    sub_heater, sub_insulation = create_sub_resirf(start_year_resirf, endyear_resirf, sub_heater_value, sub_insulation_value,
+                                                   subsidy_policy, subsidy_proportional, subsidy_target, subsidy_cap)
 
-    output, stock, heating_consumption = simu_res_irf(buildings=buildings_copy, sub_heater=sub_heater, sub_insulation=sub_insulation,
-                                                      start=start_year_resirf, end=endyear_resirf, energy_prices=energy_prices,
+    output, stock, heating_consumption = simu_res_irf(buildings=buildings_copy, start=start_year_resirf, end=endyear_resirf, energy_prices=energy_prices,
                                                       taxes=taxes, cost_heater=cost_heater, cost_insulation=cost_insulation,
                                                       lifetime_heater=lifetime_heater, lifetime_insulation=lifetime_insulation,
                                                       flow_built=flow_built, post_inputs=post_inputs, policies_heater=policies_heater_copy,
                                                       policies_insulation=policies_insulation_copy,
-                                                      sub_design=sub_design, financing_cost=financing_cost, climate=2006, smooth=False, efficiency_hour=True,
+                                                      financing_cost=financing_cost, sub_heater=sub_heater, sub_insulation=sub_insulation,
+                                                      climate=2006, smooth=False, efficiency_hour=True,
                                                       demolition_rate=demolition_rate, output_consumption=True,
                                                       technical_progress=technical_progress,  premature_replacement=premature_replacement,
                                                       output_details='cost_benefit'
@@ -130,8 +163,8 @@ def resirf_eoles_coupling_static(subvention, buildings, inputs_dynamics, policie
 
     # TODO: attention, certains coûts sont peut-être déjà la somme de coûts annuels !!
 
-    annuity_investment_cost = calculate_annuities_resirf(investment_heater_cost, lifetime=lifetime_heater, discount_rate=discount_rate) + \
-                              calculate_annuities_resirf(investment_insulation_cost, lifetime=lifetime_insulation, discount_rate=discount_rate)
+    annuity_investment_cost = calculate_annuities_resirf(investment_heater_cost, lifetime=lifetime_heater_annuity, discount_rate=discount_rate) + \
+                              calculate_annuities_resirf(investment_insulation_cost, lifetime=lifetime_insulation_annuity, discount_rate=discount_rate)
     if health:
         annuity_health_cost = health_cost
     else:
@@ -166,24 +199,25 @@ def resirf_eoles_coupling_static(subvention, buildings, inputs_dynamics, policie
         # print(m_eoles.objective, annuity_health_cost, annuity_investment_cost)
         if cofp:  # we add the opportunity cost of subsidies
             current_state_budget = output.loc['Balance state (Billion euro)'].mean()
-            if current_state_budget >= initial_state_budget:  # we only add a COFP if the difference of budget is positive
-                objective += 0.3*(current_state_budget - initial_state_budget)
+            if current_state_budget <= initial_state_budget:  # we only add a COFP if the difference of budget is positive
+                objective += 0.3*(initial_state_budget - current_state_budget)
     return np.array([objective])  # return an array
 
 
-def optimize_blackbox_resirf_eoles_coupling(buildings, inputs_dynamics, policies_heater, policies_insulation,
+def optimize_blackbox_resirf_eoles_coupling(subsidy_policy, subsidy_target, subsidy_proportional, subsidy_cap, buildings, inputs_dynamics,
+                                            policies_heater, policies_insulation,
                                             start_year_resirf, timestep_resirf, config_eoles,
                                             year_eoles, anticipated_year_eoles, scc, hourly_gas_exogeneous,
                                             existing_capacity, existing_charging_capacity, existing_energy_capacity,
                                             maximum_capacity, method_hourly_profile,
                                             scenario_cost, existing_annualized_costs_elec,
                                             existing_annualized_costs_CH4, existing_annualized_costs_CH4_naturalgas, existing_annualized_costs_CH4_biogas,
-                                            existing_annualized_costs_H2, lifetime_insulation=50, lifetime_heater=20,
+                                            existing_annualized_costs_H2, lifetime_insulation_annuity=50, lifetime_heater_annuity=20,
                                             discount_rate=0.045,
                                             max_iter=20, initial_design_numdata=3, grid_initialize=False, acquisition_jitter=0.01,
                                             normalize_Y=True, plot=False,
                                             fix_sub_heater=False, fix_sub_insulation=False,
-                                            sub_design=None, health=True, carbon_constraint=False,
+                                            health=True, carbon_constraint=False,
                                             initial_state_budget=0, cofp=False, x_opt=None):
     """
     Finds optimal subsidies by a blackbox optimization process, relying on bayesian optimization and gaussian processes.
@@ -256,7 +290,8 @@ def optimize_blackbox_resirf_eoles_coupling(buildings, inputs_dynamics, policies
     else:
         X_init = None
     optimizer = BayesianOptimization(
-        f=lambda x: resirf_eoles_coupling_static(x, buildings=buildings, inputs_dynamics=inputs_dynamics, policies_heater=policies_heater,
+        f=lambda x: resirf_eoles_coupling_static(x, subsidy_policy=subsidy_policy, subsidy_target=subsidy_target, subsidy_proportional=subsidy_proportional, subsidy_cap=subsidy_cap,
+                                                 buildings=buildings, inputs_dynamics=inputs_dynamics, policies_heater=policies_heater,
                                                  policies_insulation=policies_insulation, start_year_resirf=start_year_resirf,
                                                  timestep_resirf=timestep_resirf,
                                                  config_eoles=config_eoles, year_eoles=year_eoles,
@@ -273,9 +308,8 @@ def optimize_blackbox_resirf_eoles_coupling(buildings, inputs_dynamics, policies
                                                  existing_annualized_costs_CH4_naturalgas=existing_annualized_costs_CH4_naturalgas,
                                                  existing_annualized_costs_CH4_biogas=existing_annualized_costs_CH4_biogas,
                                                  existing_annualized_costs_H2=existing_annualized_costs_H2,
-                                                 lifetime_insulation=lifetime_insulation, lifetime_heater=lifetime_heater,
-                                                 discount_rate=discount_rate, sub_design=sub_design,
-                                                 health=health, carbon_constraint=carbon_constraint,
+                                                 lifetime_insulation_annuity=lifetime_insulation_annuity, lifetime_heater_annuity=lifetime_heater_annuity,
+                                                 discount_rate=discount_rate, health=health, carbon_constraint=carbon_constraint,
                                                  initial_state_budget=initial_state_budget,
                                                  cofp=cofp),
         domain=bounds2d,
@@ -300,15 +334,16 @@ def optimize_blackbox_resirf_eoles_coupling(buildings, inputs_dynamics, policies
     return optimizer, optimizer.x_opt
 
 
-def gradient_descent(x0, bounds, buildings, inputs_dynamics, policies_heater, policies_insulation, start_year_resirf, timestep_resirf,
+def gradient_descent(x0, bounds, subsidy_policy, subsidy_target, subsidy_proportional, subsidy_cap, buildings, inputs_dynamics, policies_heater, policies_insulation, start_year_resirf, timestep_resirf,
                      config_eoles, year_eoles, anticipated_year_eoles, scc, hourly_gas_exogeneous,
                      existing_capacity, existing_charging_capacity, existing_energy_capacity, maximum_capacity,
                      method_hourly_profile, scenario_cost, existing_annualized_costs_elec, existing_annualized_costs_CH4,
                      existing_annualized_costs_CH4_naturalgas, existing_annualized_costs_CH4_biogas,
-                     existing_annualized_costs_H2, lifetime_insulation=50, lifetime_heater=20, discount_rate=0.045,
-                     max_iter=20, sub_design=None, health=True, carbon_constraint=False, rebound=True):
+                     existing_annualized_costs_H2, lifetime_insulation_annuity=50, lifetime_heater_annuity=20, discount_rate=0.045,
+                     max_iter=20, health=True, carbon_constraint=False, rebound=True):
     bfgs_descent = minimize(
-        fun=lambda x: resirf_eoles_coupling_static(x, buildings=buildings, inputs_dynamics=inputs_dynamics, policies_heater=policies_heater,
+        fun=lambda x: resirf_eoles_coupling_static(x, subsidy_policy=subsidy_policy, subsidy_target=subsidy_target, subsidy_proportional=subsidy_proportional, subsidy_cap=subsidy_cap,
+                                                   buildings=buildings, inputs_dynamics=inputs_dynamics, policies_heater=policies_heater,
                                                  policies_insulation=policies_insulation, start_year_resirf=start_year_resirf,
                                                  timestep_resirf=timestep_resirf,
                                                  config_eoles=config_eoles, year_eoles=year_eoles,
@@ -325,8 +360,8 @@ def gradient_descent(x0, bounds, buildings, inputs_dynamics, policies_heater, po
                                                  existing_annualized_costs_CH4_naturalgas=existing_annualized_costs_CH4_naturalgas,
                                                  existing_annualized_costs_CH4_biogas=existing_annualized_costs_CH4_biogas,
                                                  existing_annualized_costs_H2=existing_annualized_costs_H2,
-                                                 lifetime_insulation=lifetime_insulation, lifetime_heater=lifetime_heater,
-                                                 discount_rate=discount_rate, sub_design=sub_design,
+                                                 lifetime_insulation_annuity=lifetime_insulation_annuity, lifetime_heater_annuity=lifetime_heater_annuity,
+                                                 discount_rate=discount_rate,
                                                  health=health, carbon_constraint=carbon_constraint,
                                                  bayesian_optim=False),
         x0=x0,
@@ -339,9 +374,10 @@ def gradient_descent(x0, bounds, buildings, inputs_dynamics, policies_heater, po
 
 def resirf_eoles_coupling_greenfield(buildings, inputs_dynamics, policies_heater, policies_insulation,
                                      scc, scenario_cost, config_eoles, config_coupling,
-                                     add_CH4_demand=False, lifetime_insulation=50, lifetime_heater=20,
+                                     add_CH4_demand=False, lifetime_insulation_annuity=50, lifetime_heater_annuity=20,
                                      optimization=True, list_sub_heater=None, list_sub_insulation=None,
-                                     acquisition_jitter=0.01, grid_initialize=False, normalize_Y=True):
+                                     acquisition_jitter=0.01, grid_initialize=False, normalize_Y=True,
+                                     cofp=False):
     # importing evolution of historical capacity and expected evolution of demand
     existing_capacity_historical, existing_charging_capacity_historical, existing_energy_capacity_historical, \
     maximum_capacity_evolution, heating_gas_demand_RTE_timesteps, ECS_gas_demand_RTE_timesteps, capex_annuity_fOM_historical, \
@@ -398,23 +434,22 @@ def resirf_eoles_coupling_greenfield(buildings, inputs_dynamics, policies_heater
     dict_optimizer = {}
 
     # Run ResIRF for the first 5 years, with current policies and no additional subsidy
-    output_opt, stock_opt, heating_consumption = simu_res_irf(buildings=buildings, sub_heater=None,
-                                                              sub_insulation=None,
-                                                              start=2020,
-                                                              end=2025, energy_prices=inputs_dynamics['energy_prices'],
+    output_opt, stock_opt, heating_consumption = simu_res_irf(buildings=buildings, start=2019, end=2025,
+                                                              energy_prices=inputs_dynamics['energy_prices'],
                                                               taxes=inputs_dynamics['taxes'],
                                                               cost_heater=inputs_dynamics['cost_heater'], cost_insulation=inputs_dynamics['cost_insulation'],
-                                                              lifetime_heater=lifetime_heater, lifetime_insulation=lifetime_insulation,
+                                                              lifetime_heater=inputs_dynamics['lifetime_heater'], lifetime_insulation=inputs_dynamics['lifetime_insulation'],
                                                               flow_built=inputs_dynamics['flow_built'],
                                                               post_inputs=inputs_dynamics['post_inputs'], policies_heater=policies_heater,
-                                                              policies_insulation=policies_insulation,
+                                                              policies_insulation=policies_insulation, financing_cost=inputs_dynamics['financing_cost'],
+                                                              sub_heater=None, sub_insulation=None,
                                                               climate=2006, smooth=False, efficiency_hour=True,
                                                               demolition_rate=inputs_dynamics['demolition_rate'],
                                                               output_consumption=True,
-                                                              sub_design=config_coupling["sub_design"],
                                                               technical_progress=inputs_dynamics['technical_progress'],
-                                                              financing_cost=inputs_dynamics['financing_cost'], premature_replacement=inputs_dynamics['premature_replacement'],
+                                                              premature_replacement=inputs_dynamics['premature_replacement'],
                                                               output_details='full')
+    initial_state_budget = output_opt.loc["Balance state (Billion euro)"][2024]  # we get final state budget
 
     # we add initial values to observe what happens
     output_global_ResIRF = pd.concat([output_global_ResIRF, output_opt], axis=1)
@@ -468,7 +503,8 @@ def resirf_eoles_coupling_greenfield(buildings, inputs_dynamics, policies_heater
     if optimization:
         # Find optimal subsidy
         optimizer, opt_sub = \
-            optimize_blackbox_resirf_eoles_coupling(buildings, inputs_dynamics, policies_heater,
+            optimize_blackbox_resirf_eoles_coupling(config_coupling["subsidy"]["policy"], config_coupling["subsidy"]["target"], config_coupling["subsidy"]["proportional"],
+                                                    config_coupling["subsidy"]["cap"], buildings, inputs_dynamics, policies_heater,
                                                     policies_insulation,
                                                     start_year_resirf, timestep_resirf,
                                                     config_eoles, year_eoles, anticipated_year_eoles, scc,
@@ -483,7 +519,7 @@ def resirf_eoles_coupling_greenfield(buildings, inputs_dynamics, policies_heater
                                                     existing_annualized_costs_CH4_naturalgas=existing_annualized_costs_CH4_naturalgas,
                                                     existing_annualized_costs_CH4_biogas=existing_annualized_costs_CH4_biogas,
                                                     existing_annualized_costs_H2=existing_annualized_costs_H2,
-                                                    lifetime_insulation=lifetime_insulation, lifetime_heater=lifetime_heater,
+                                                    lifetime_insulation_annuity=lifetime_insulation_annuity, lifetime_heater_annuity=lifetime_heater_annuity,
                                                     discount_rate=config_coupling["discount_rate"], plot=False,
                                                     max_iter=config_coupling["max_iter"], initial_design_numdata=3,
                                                     grid_initialize=grid_initialize,
@@ -491,34 +527,37 @@ def resirf_eoles_coupling_greenfield(buildings, inputs_dynamics, policies_heater
                                                     normalize_Y=normalize_Y,
                                                     fix_sub_heater=config_coupling["fix_sub_heater"],
                                                     fix_sub_insulation=config_coupling["fix_sub_insulation"],
-                                                    sub_design=config_coupling["sub_design"],
                                                     health=config_coupling["health"],
-                                                    carbon_constraint=config_coupling["carbon_constraint"])
+                                                    carbon_constraint=config_coupling["carbon_constraint"],
+                                                    initial_state_budget=initial_state_budget,
+                                                    cofp=cofp)
         dict_optimizer.update({year_eoles: optimizer})
-        opt_sub_heater, opt_sub_insulation = opt_sub[0], opt_sub[1]
-        list_sub_heater.append(opt_sub_heater)
-        list_sub_insulation.append(opt_sub_insulation)
+        opt_sub_heater_value, opt_sub_insulation_value = opt_sub[0], opt_sub[1]
+        list_sub_heater.append(opt_sub_heater_value)
+        list_sub_insulation.append(opt_sub_insulation_value)
     else:
-        opt_sub_heater, opt_sub_insulation = list_sub_heater[0], list_sub_insulation[0]
+        opt_sub_heater_value, opt_sub_insulation_value = list_sub_heater[0], list_sub_insulation[0]
 
     # Rerun ResIRF with optimal subvention parameters
     endyear_resirf = start_year_resirf + timestep_resirf
-    output_opt, stock_opt, heating_consumption = simu_res_irf(buildings=buildings, sub_heater=opt_sub_heater,
-                                                              sub_insulation=opt_sub_insulation,
+    opt_sub_heater, opt_sub_insulation = create_sub_resirf(start_year_resirf, endyear_resirf, opt_sub_heater_value, opt_sub_insulation_value,
+                                                   config_coupling["subsidy"]["policy"], config_coupling["subsidy"]["proportional"], config_coupling["subsidy"]["target"])
+    output_opt, stock_opt, heating_consumption = simu_res_irf(buildings=buildings,
                                                               start=start_year_resirf,
                                                               end=endyear_resirf, energy_prices=inputs_dynamics['energy_prices'],
                                                               taxes=inputs_dynamics['taxes'],
                                                               cost_heater=inputs_dynamics['cost_heater'], cost_insulation=inputs_dynamics['cost_insulation'],
-                                                              lifetime_heater=lifetime_heater, lifetime_insulation=lifetime_insulation,
+                                                              lifetime_heater=inputs_dynamics['lifetime_heater'], lifetime_insulation=inputs_dynamics['lifetime_insulation'],
                                                               flow_built=inputs_dynamics['flow_built'],
                                                               post_inputs=inputs_dynamics['post_inputs'], policies_heater=policies_heater,
-                                                              policies_insulation=policies_insulation,
+                                                              policies_insulation=policies_insulation, financing_cost=inputs_dynamics['financing_cost'],
+                                                              sub_heater=opt_sub_heater,
+                                                              sub_insulation=opt_sub_insulation,
                                                               climate=2006, smooth=False, efficiency_hour=True,
                                                               demolition_rate=inputs_dynamics['demolition_rate'],
                                                               output_consumption=True,
-                                                              sub_design=config_coupling["sub_design"],
                                                               technical_progress=inputs_dynamics['technical_progress'],
-                                                              financing_cost=inputs_dynamics['financing_cost'], premature_replacement=inputs_dynamics['premature_replacement'],
+                                                              premature_replacement=inputs_dynamics['premature_replacement'],
                                                               output_details='full')
 
     output_global_ResIRF = pd.concat([output_global_ResIRF, output_opt], axis=1)
@@ -556,9 +595,9 @@ def resirf_eoles_coupling_greenfield(buildings, inputs_dynamics, policies_heater
 
     annuity_investment_heater_cost = calculate_annuities_resirf(
         output_opt.loc["Investment heater WT (Billion euro)"].sum(),
-        lifetime=lifetime_heater, discount_rate=config_coupling["discount_rate"])
+        lifetime=lifetime_heater_annuity, discount_rate=config_coupling["discount_rate"])
     annuity_investment_insulation_cost = calculate_annuities_resirf(
-        output_opt.loc["Investment insulation WT (Billion euro)"].sum(), lifetime=lifetime_insulation,
+        output_opt.loc["Investment insulation WT (Billion euro)"].sum(), lifetime=lifetime_insulation_annuity,
         discount_rate=config_coupling["discount_rate"])
 
     annuity_health_cost = output_opt.loc["Health cost (Billion euro)"][endyear_resirf - 1]
@@ -808,7 +847,7 @@ def resirf_eoles_coupling_greenfield(buildings, inputs_dynamics, policies_heater
 
 def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, policies_insulation,
                                   list_year, list_trajectory_scc, scenario_cost, config_eoles, config_coupling,
-                                  add_CH4_demand=False, lifetime_insulation=50, lifetime_heater=20,
+                                  add_CH4_demand=False, lifetime_insulation_annuity=50, lifetime_heater_annuity=20,
                                   anticipated_scc=False, anticipated_demand_t10=False, optimization=True,
                                   list_sub_heater=None, list_sub_insulation=None, price_feedback=False,
                                   energy_taxes=None, energy_vta=None, acquisition_jitter=0.01, grid_initialize=False, normalize_Y=True,
@@ -912,22 +951,20 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
     dict_optimizer = {}
 
     # Run ResIRF for the first 5 years, with current policies and no additional subsidy
-    output_opt, stock_opt, heating_consumption = simu_res_irf(buildings=buildings, sub_heater=None,
-                                                              sub_insulation=None,
-                                                              start=2020,
-                                                              end=2025, energy_prices=inputs_dynamics['energy_prices'],
+    output_opt, stock_opt, heating_consumption = simu_res_irf(buildings=buildings, start=2019, end=2025,
+                                                              energy_prices=inputs_dynamics['energy_prices'],
                                                               taxes=inputs_dynamics['taxes'],
                                                               cost_heater=inputs_dynamics['cost_heater'], cost_insulation=inputs_dynamics['cost_insulation'],
-                                                              lifetime_heater=lifetime_heater, lifetime_insulation=lifetime_insulation,
+                                                              lifetime_heater=inputs_dynamics['lifetime_heater'], lifetime_insulation=inputs_dynamics['lifetime_insulation'],
                                                               flow_built=inputs_dynamics['flow_built'],
                                                               post_inputs=inputs_dynamics['post_inputs'], policies_heater=policies_heater,
-                                                              policies_insulation=policies_insulation,
+                                                              policies_insulation=policies_insulation, financing_cost=inputs_dynamics['financing_cost'],
+                                                              sub_heater=None, sub_insulation=None,
                                                               climate=2006, smooth=False, efficiency_hour=True,
                                                               demolition_rate=inputs_dynamics['demolition_rate'],
                                                               output_consumption=True,
-                                                              sub_design=config_coupling["sub_design"],
                                                               technical_progress=inputs_dynamics['technical_progress'],
-                                                              financing_cost=inputs_dynamics['financing_cost'], premature_replacement=inputs_dynamics['premature_replacement'],
+                                                              premature_replacement=inputs_dynamics['premature_replacement'],
                                                               output_details='full')
     initial_state_budget = output_opt.loc["Balance state (Billion euro)"][2024]  # we get final state budget
 
@@ -1028,7 +1065,8 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
         if optimization:
             # Find optimal subsidy
             optimizer, opt_sub = \
-                optimize_blackbox_resirf_eoles_coupling(buildings, inputs_dynamics, policies_heater, policies_insulation,
+                optimize_blackbox_resirf_eoles_coupling(config_coupling["subsidy"]["policy"], config_coupling["subsidy"]["target"], config_coupling["subsidy"]["proportional"],
+                                                        config_coupling["subsidy"]["cap"], buildings, inputs_dynamics, policies_heater, policies_insulation,
                                                         start_year_resirf, timestep_resirf,
                                                         config_eoles, year_eoles, anticipated_year_eoles, scc,
                                                         hourly_gas_exogeneous=hourly_exogeneous_CH4,
@@ -1042,19 +1080,19 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
                                                         existing_annualized_costs_CH4_naturalgas=existing_annualized_costs_CH4_naturalgas,
                                                         existing_annualized_costs_CH4_biogas=existing_annualized_costs_CH4_biogas,
                                                         existing_annualized_costs_H2=existing_annualized_costs_H2,
-                                                        lifetime_insulation=lifetime_insulation, lifetime_heater=lifetime_heater,
+                                                        lifetime_insulation_annuity=lifetime_insulation_annuity, lifetime_heater_annuity=lifetime_heater_annuity,
                                                         discount_rate=config_coupling["discount_rate"], plot=False,
                                                         max_iter=config_coupling["max_iter"], initial_design_numdata=3,
                                                         grid_initialize=grid_initialize, acquisition_jitter=acquisition_jitter,
                                                         normalize_Y=normalize_Y,
                                                         fix_sub_heater=config_coupling["fix_sub_heater"], fix_sub_insulation=config_coupling["fix_sub_insulation"],
-                                                        sub_design=config_coupling["sub_design"],
                                                         health=config_coupling["health"], carbon_constraint=config_coupling["carbon_constraint"],
                                                         initial_state_budget=initial_state_budget,
                                                         cofp=cofp)
             if two_stage_optim:
                 optimizer_refined, opt_sub_refined = \
-                    optimize_blackbox_resirf_eoles_coupling(buildings, inputs_dynamics, policies_heater,
+                    optimize_blackbox_resirf_eoles_coupling(config_coupling["subsidy"]["policy"], config_coupling["subsidy"]["target"], config_coupling["subsidy"]["proportional"],
+                                                            config_coupling["subsidy"]["cap"], buildings, inputs_dynamics, policies_heater,
                                                             policies_insulation,
                                                             start_year_resirf, timestep_resirf,
                                                             config_eoles, year_eoles, anticipated_year_eoles, scc,
@@ -1070,8 +1108,8 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
                                                             existing_annualized_costs_CH4_naturalgas=existing_annualized_costs_CH4_naturalgas,
                                                             existing_annualized_costs_CH4_biogas=existing_annualized_costs_CH4_biogas,
                                                             existing_annualized_costs_H2=existing_annualized_costs_H2,
-                                                            lifetime_insulation=lifetime_insulation,
-                                                            lifetime_heater=lifetime_heater,
+                                                            lifetime_insulation_annuity=lifetime_insulation_annuity,
+                                                            lifetime_heater_annuity=lifetime_heater_annuity,
                                                             discount_rate=config_coupling["discount_rate"], plot=False,
                                                             max_iter=config_coupling["max_iter"],
                                                             initial_design_numdata=3,
@@ -1080,20 +1118,19 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
                                                             normalize_Y=normalize_Y,
                                                             fix_sub_heater=config_coupling["fix_sub_heater"],
                                                             fix_sub_insulation=config_coupling["fix_sub_insulation"],
-                                                            sub_design=config_coupling["sub_design"],
                                                             health=config_coupling["health"],
                                                             carbon_constraint=config_coupling["carbon_constraint"],
                                                             initial_state_budget=initial_state_budget,
                                                             cofp=cofp, x_opt=opt_sub)
                 dict_optimizer.update({y: {"first_stage": optimizer, "second_stage": optimizer_refined}})
-                opt_sub_heater, opt_sub_insulation = opt_sub_refined[0], opt_sub_refined[1]
+                opt_sub_heater_value, opt_sub_insulation_value = opt_sub_refined[0], opt_sub_refined[1]
             else:
                 dict_optimizer.update({y: optimizer})
-                opt_sub_heater, opt_sub_insulation = opt_sub[0], opt_sub[1]
-            list_sub_heater.append(opt_sub_heater)
-            list_sub_insulation.append(opt_sub_insulation)
+                opt_sub_heater_value, opt_sub_insulation_value = opt_sub[0], opt_sub[1]
+            list_sub_heater.append(opt_sub_heater_value)
+            list_sub_insulation.append(opt_sub_insulation_value)
         else:
-            opt_sub_heater, opt_sub_insulation = list_sub_heater[t], list_sub_insulation[t]
+            opt_sub_heater_value, opt_sub_insulation_value = list_sub_heater[t], list_sub_insulation[t]
             if grad_descent and year_eoles == 2045:  # NOT USED, TEST
                 print("Doing gradient descent...")
                 opt_res = gradient_descent(x0=[0.964, 0.09], bounds=((0.96, 0.97), (0.05, 0.15)), buildings=buildings, inputs_dynamics=inputs_dynamics, policies_heater=policies_heater,
@@ -1109,26 +1146,28 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
 
         # Rerun ResIRF with optimal subvention parameters
         endyear_resirf = start_year_resirf + timestep_resirf
-        output_opt, stock_opt, heating_consumption = simu_res_irf(buildings=buildings, sub_heater=opt_sub_heater,
-                                                                  sub_insulation=opt_sub_insulation,
+        opt_sub_heater, opt_sub_insulation = create_sub_resirf(start_year_resirf, endyear_resirf, opt_sub_heater_value, opt_sub_insulation_value,
+                                                               config_coupling["subsidy"]["policy"], config_coupling["subsidy"]["proportional"],
+                                                               config_coupling["subsidy"]["target"])
+        output_opt, stock_opt, heating_consumption = simu_res_irf(buildings=buildings,
                                                                   start=start_year_resirf,
                                                                   end=endyear_resirf,
                                                                   energy_prices=inputs_dynamics['energy_prices'],
                                                                   taxes=inputs_dynamics['taxes'],
                                                                   cost_heater=inputs_dynamics['cost_heater'],
                                                                   cost_insulation=inputs_dynamics['cost_insulation'],
-                                                                  lifetime_heater=lifetime_heater, lifetime_insulation=lifetime_insulation,
+                                                                  lifetime_heater=inputs_dynamics['lifetime_heater'], lifetime_insulation=inputs_dynamics['lifetime_insulation'],
                                                                   flow_built=inputs_dynamics['flow_built'],
                                                                   post_inputs=inputs_dynamics['post_inputs'],
                                                                   policies_heater=policies_heater,
-                                                                  policies_insulation=policies_insulation,
+                                                                  policies_insulation=policies_insulation, financing_cost=inputs_dynamics['financing_cost'],
+                                                                  sub_heater=opt_sub_heater,
+                                                                  sub_insulation=opt_sub_insulation,
                                                                   climate=2006, smooth=False, efficiency_hour=True,
                                                                   demolition_rate=inputs_dynamics['demolition_rate'],
                                                                   output_consumption=True,
-                                                                  sub_design=config_coupling["sub_design"],
                                                                   technical_progress=inputs_dynamics[
                                                                       'technical_progress'],
-                                                                  financing_cost=inputs_dynamics['financing_cost'],
                                                                   premature_replacement=inputs_dynamics[
                                                                       'premature_replacement'],
                                                                   output_details='full')
@@ -1164,8 +1203,8 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
         resirf_consumption_saving_df = pd.concat([resirf_consumption_saving_df, consumption_saving], axis=1)
 
         annuity_investment_heater_cost = calculate_annuities_resirf(output_opt.loc["Investment heater WT (Billion euro)"].sum(),
-                                                                    lifetime=lifetime_heater, discount_rate=config_coupling["discount_rate"])
-        annuity_investment_insulation_cost = calculate_annuities_resirf( output_opt.loc["Investment insulation WT (Billion euro)"].sum(), lifetime=lifetime_insulation,
+                                                                    lifetime=lifetime_heater_annuity, discount_rate=config_coupling["discount_rate"])
+        annuity_investment_insulation_cost = calculate_annuities_resirf( output_opt.loc["Investment insulation WT (Billion euro)"].sum(), lifetime=lifetime_insulation_annuity,
                                                                     discount_rate=config_coupling["discount_rate"])
 
         annuity_health_cost = output_opt.loc["Health cost (Billion euro)"][endyear_resirf - 1]

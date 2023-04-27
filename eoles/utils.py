@@ -113,7 +113,8 @@ def load_evolution_data(config):
                                                        lambda x: pd.read_csv(x, index_col=0))  # GW
     existing_energy_capacity_historical = get_pandas("eoles/inputs/historical_data/existing_energy_capacity_historical.csv",
                                                      lambda x: pd.read_csv(x, index_col=0))  # GW
-    maximum_capacity_evolution = get_pandas(config["maximum_capacity_evolution"], lambda x: pd.read_csv(x, index_col=0))  # GW
+    maximum_capacity_evolution = get_pandas(config["maximum_capacity_evolution"], lambda x: pd.read_csv(x, index_col=[0,1]))  # GW
+    maximum_capacity_evolution = maximum_capacity_evolution.loc[config["maximum_capacity_evolution_scenario"]]  # we select the scenario we are interested in
 
     capex_annuity_fOM_historical = get_pandas("eoles/inputs/historical_data/capex_annuity_fOM_historical.csv",
                                               lambda x: pd.read_csv(x, index_col=0).squeeze())
@@ -744,6 +745,95 @@ def plot_generation(df):
     df.plot.pie(ax=ax)
 
 
+def modif_config_coupling(design, config_coupling, max_iter_single_iteration=40):
+    """Creates a new configuration file based on an initial configuration file, for a given subsidy design."""
+    config_coupling_update = deepcopy(config_coupling)
+    if design == "uniform":
+        config_coupling_update["subsidy"] = {
+                'rational_behavior': False,
+                'policy': 'subsidy_ad_valorem',
+                'target': None,
+                'proportional': None,
+                'cap': None
+            }
+    elif design == "GR":
+        config_coupling_update["subsidy"] = {
+            'rational_behavior': False,
+            'policy': 'subsidy_ad_valorem',
+            'target': "global_renovation",
+            'proportional': None,
+            'cap': None
+        }
+    elif design == "centralized":
+        config_coupling_update["subsidy"] = {
+            'rational_behavior': True,
+            'policy': 'subsidy_ad_valorem',
+            'target': None,
+            'proportional': None,
+            'cap': None
+        }
+    elif design == "centralized_social":
+        config_coupling_update["subsidy"] = {
+            'rational_behavior': True,
+            'social': True,
+            'policy': 'subsidy_ad_valorem',
+            'target': None,
+            'proportional': None,
+            'cap': None
+        }
+    elif design == "no_subsidy_heater":
+        config_coupling_update["fix_sub_heater"] = True
+        config_coupling_update["max_iter"] = max_iter_single_iteration
+        config_coupling_update["subsidy"] = {
+                'rational_behavior': False,
+                'policy': 'subsidy_ad_valorem',
+                'target': None,
+                'proportional': None,
+                'cap': None
+            }
+    elif design == "no_subsidy_insulation":
+        config_coupling_update["fix_sub_insulation"] = True
+        config_coupling_update["max_iter"] = max_iter_single_iteration
+        config_coupling_update["subsidy"] = {
+                'rational_behavior': False,
+                'policy': 'subsidy_ad_valorem',
+                'target': None,
+                'proportional': None,
+                'cap': None
+            }
+    elif design == "no_subsidy_heater_centralized":
+        config_coupling_update["fix_sub_heater"] = True
+        config_coupling_update["max_iter"] = max_iter_single_iteration
+        config_coupling_update["subsidy"] = {
+                'rational_behavior': True,
+                'policy': 'subsidy_ad_valorem',
+                'target': None,
+                'proportional': None,
+                'cap': None
+            }
+    elif design == "MWh_cumac":
+        config_coupling_update["fix_sub_heater"] = True  # pour l'instant, c'est juste pour forcer à simuler une seule valeur de subvention, qui sera la même pour insulation et heater.
+        config_coupling_update["max_iter"] = max_iter_single_iteration
+        config_coupling_update["subsidy"] = {
+                'rational_behavior': False,
+                'policy': 'subsidy_proportional',
+                'target': None,
+                'proportional': 'MWh_cumac',
+                'cap': 200
+            }
+    else:  # 'tCO2_cumac'
+        config_coupling_update["fix_sub_heater"] = True  # pour l'instant, c'est juste pour forcer à simuler une seule valeur de subvention, qui sera la même pour insulation et heater.
+        config_coupling_update["max_iter"] = max_iter_single_iteration
+        config_coupling_update["subsidy"] = {
+                'rational_behavior': False,
+                'policy': 'subsidy_proportional',
+                'target': None,
+                'proportional': 'tCO2_cumac',
+                'cap': 1000
+            }
+    return config_coupling_update
+
+
 def modif_config_eoles(config_eoles, config_coupling):
     """Modify EOLES configuration based on specified options in config_coupling.
     Namely, we modify: maximum capacity evolution"""
@@ -759,24 +849,21 @@ def modif_config_eoles(config_eoles, config_coupling):
         if config_coupling["eoles"]['N1']:
             N1 = True
 
+    # Choice of evolution of capacity
     if aggregated_potential:
-        if N1:
-            config_eoles_update[
-                "maximum_capacity_evolution"] = "eoles/inputs/technology_potential/maximum_capacity_evolution_aggregated_N1.csv"
-        else:
-            config_eoles_update[
-                "maximum_capacity_evolution"] = "eoles/inputs/technology_potential/maximum_capacity_evolution_aggregated.csv"
+        config_eoles_update["maximum_capacity_evolution"] = "eoles/inputs/technology_potential/maximum_capacity_evolution_aggregated.csv"
     else:
-        if N1:
-            config_eoles_update[
-                "maximum_capacity_evolution"] = "eoles/inputs/technology_potential/maximum_capacity_evolution_N1.csv"
-        else:
-            config_eoles_update[
-                "maximum_capacity_evolution"] = "eoles/inputs/technology_potential/maximum_capacity_evolution.csv"
+        config_eoles_update["maximum_capacity_evolution"] = "eoles/inputs/technology_potential/maximum_capacity_evolution.csv"
 
     if 'greenfield' in config_coupling.keys():
         if config_coupling['greenfield']:
             config_eoles_update["maximum_capacity_evolution"] = "eoles/inputs/technology_potential/maximum_capacity_greenfield.csv"
+
+    # Choice of scenario
+    if N1:
+        config_eoles_update["maximum_capacity_evolution_scenario"] = "N1"
+    else:
+        config_eoles_update["maximum_capacity_evolution_scenario"] = "Opt"
 
     if "biomass_potential_scenario" in config_coupling["eoles"].keys():
         assert config_coupling["eoles"]["biomass_potential_scenario"] in ["S3", "S2"], "Biomass potential scenario is not specified correctly in config_coupling."
@@ -786,16 +873,17 @@ def modif_config_eoles(config_eoles, config_coupling):
         if config_coupling["eoles"]["worst_case"]:
             config_eoles_update["capex"] = "eoles/inputs/technology_characteristics/overnight_capex_evolution_high.csv"
             config_eoles_update["storage_capex"] =  "eoles/inputs/technology_characteristics/storage_capex_evolution_high.csv"
-            config_eoles_update["maximum_capacity_evolution"] = "eoles/inputs/technology_potential/maximum_capacity_evolution_low.csv"
+            config_eoles_update["maximum_capacity_evolution"] = "eoles/inputs/technology_potential/maximum_capacity_evolution.csv"
+            config_eoles_update["maximum_capacity_evolution_scenario"] = "N1"
             config_eoles_update["capacity_factor_nuclear"] = 0.7
             config_eoles_update["biomass_potential"] = f"eoles/inputs/technology_potential/biomass_evolution_S2.csv"
 
     if "h2_ccgt" in config_coupling["eoles"].keys():
         if not config_coupling["eoles"]["h2_ccgt"]:  # we do not allow h2 ccgt plants
-            if "fix_capa" in config_coupling["scenario_cost_eoles"].keys():
+            if "fix_capacities" in config_coupling["scenario_cost_eoles"].keys():
                 config_coupling["scenario_cost_eoles"]["fix_capa"]["h2_ccgt"] = 0
             else:
-                config_coupling["scenario_cost_eoles"]["fix_capa"] = {
+                config_coupling["scenario_cost_eoles"]["fix_capacities"] = {
                     "h2_ccgt": 0
                 }
 
@@ -818,12 +906,16 @@ def modif_config_resirf(config_resirf, config_coupling, calibration=None):
 
     # Modification rational behavior
     config_resirf_update["renovation"] = config_reference["renovation"]
-    config_resirf_update["renovation"]["rational_behavior"]["activated"] = config_coupling["rational_behavior"]
-    if config_coupling["rational_behavior"]:  # in this case, we have to modify parameter policies
-        config_resirf_update["policies"] = None
+    config_resirf_update["renovation"]["rational_behavior"]["activated"] = config_coupling["subsidy"]["rational_behavior"]
+    # # TODO: a enlever ?
+    # if config_coupling["rational_behavior"]:  # in this case, we have to modify parameter policies
+    #     config_resirf_update["policies"] = None
 
-    if 'social' in config_coupling.keys():
-        config_resirf_update['renovation']["rational_behavior"]["social"] = config_coupling["social"]
+    if 'social' in config_coupling['subsidy'].keys():
+        config_resirf_update['renovation']["rational_behavior"]["social"] = config_coupling["subsidy"]["social"]
+
+    if "prices_constant" in config_coupling.keys():  # we remove hypothesis of prices constant
+        config_resirf_update["simple"]["prices_constant"] = config_coupling["prices_constant"]
 
     # # Modification premature replacement
     # config_resirf_update["switch_heater"]["premature_replacement"] = config_coupling["premature_replacement"]
@@ -856,9 +948,6 @@ def modif_config_resirf(config_resirf, config_coupling, calibration=None):
                                           }
             }
             config_resirf_update["policies"].update(policy_noMF)
-
-    if "prices_constant" in config_coupling.keys():  # we remove hypothesis of prices constant
-        config_resirf_update["simple"]["prices_constant"] = config_coupling["prices_constant"]
 
     return config_resirf_update
 
