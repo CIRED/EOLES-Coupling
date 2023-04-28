@@ -14,7 +14,7 @@ from eoles.utils import get_pandas, process_RTE_demand, calculate_annuities_cape
     extract_use_elec, extract_renovation_rates, extract_heat_gene, calculate_LCOE_gene_tec, calculate_LCOE_conv_tec, \
     extract_charging_capacity, extract_annualized_costs_investment_new_capa, extract_CH4_to_power, extract_power_to_CH4, \
     extract_power_to_H2, extract_peak_load, extract_peak_heat_load, extract_annualized_costs_investment_new_capa_nofOM, \
-    extract_functionment_cost
+    extract_functionment_cost, extract_carbon_value
 from pyomo.environ import (
     ConcreteModel,
     RangeSet,
@@ -679,6 +679,7 @@ class ModelEOLES():
         self.peak_electricity_load_info = extract_peak_load(self.hourly_generation, self.conversion_efficiency)
         self.peak_heat_load_info = extract_peak_heat_load(self.hourly_generation)
         self.spot_price = extract_spot_price(self.model, self.last_hour)
+        self.carbon_value = extract_carbon_value(self.model, self.carbon_constraint, self.anticipated_scc)
         self.capacities = extract_capacities(self.model)
         self.energy_capacity = extract_energy_capacity(self.model)
         self.charging_capacity = extract_charging_capacity(self.model)
