@@ -946,7 +946,7 @@ def modif_config_coupling(design, config_coupling, max_iter_single_iteration=50,
             'insulation': {
                 'target': None,
                 'proportional': "MWh_cumac",
-                'cap': cap_tCO2
+                'cap': cap_MWh
             }
         }
     return config_coupling_update
@@ -984,7 +984,7 @@ def modif_config_eoles(config_eoles, config_coupling):
         config_eoles_update["maximum_capacity_evolution_scenario"] = "Opt"
 
     if "biomass_potential_scenario" in config_coupling["eoles"].keys():
-        assert config_coupling["eoles"]["biomass_potential_scenario"] in ["S3", "S2"], "Biomass potential scenario is not specified correctly in config_coupling."
+        assert config_coupling["eoles"]["biomass_potential_scenario"] in ["S3", "S2", "S2p"], "Biomass potential scenario is not specified correctly in config_coupling."
         config_eoles_update["biomass_potential_scenario"] = config_coupling["eoles"]["biomass_potential_scenario"]
 
     if "worst_case" in config_coupling["eoles"].keys():  # definition of worst case scenario for EOLES

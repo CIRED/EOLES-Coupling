@@ -131,13 +131,13 @@ def resirf_eoles_coupling_static(subsidy, subsidy_policy, subsidy_proportional_h
     energy_prices, taxes, cost_heater, cost_insulation, demolition_rate = deepcopy(inputs_dynamics['energy_prices']), deepcopy(inputs_dynamics['taxes']), deepcopy(inputs_dynamics['cost_heater']), deepcopy(inputs_dynamics['cost_insulation']), deepcopy(inputs_dynamics['demolition_rate'])
     lifetime_heater, lifetime_insulation = deepcopy(inputs_dynamics["lifetime_heater"]), deepcopy(inputs_dynamics["lifetime_insulation"])
     flow_built, post_inputs, policies_heater_copy, policies_insulation_copy = deepcopy(inputs_dynamics['flow_built']), deepcopy(inputs_dynamics['post_inputs']), deepcopy(policies_heater), deepcopy(policies_insulation)
-    technical_progress, financing_cost, premature_replacement = deepcopy(inputs_dynamics['technical_progress']), deepcopy(inputs_dynamics['financing_cost']), deepcopy(inputs_dynamics['premature_replacement'])
+    technical_progress, financing_cost, premature_replacement, carbon_content = deepcopy(inputs_dynamics['technical_progress']), deepcopy(inputs_dynamics['financing_cost']), deepcopy(inputs_dynamics['premature_replacement']), deepcopy(inputs_dynamics['post_inputs']['carbon_emission'])
 
     # simulation between start and end - flow output represents annual values for year "end"
     sub_heater, sub_insulation = create_sub_resirf(start_year_resirf, endyear_resirf, sub_heater_value, sub_insulation_value,
                                                    subsidy_policy, subsidy_proportional_heater, subsidy_proportional_insulation,
                                                    subsidy_proportional_uniform, subsidy_target, subsidy_cap_heater, subsidy_cap_insulation)
-    print(sub_heater['value'])
+    # print(sub_heater['value'])
 
     output, stock, heating_consumption = simu_res_irf(buildings=buildings_copy, start=start_year_resirf, end=endyear_resirf, energy_prices=energy_prices,
                                                       taxes=taxes, cost_heater=cost_heater, cost_insulation=cost_insulation,
@@ -148,7 +148,7 @@ def resirf_eoles_coupling_static(subsidy, subsidy_policy, subsidy_proportional_h
                                                       climate=2006, smooth=False, efficiency_hour=True,
                                                       demolition_rate=demolition_rate, output_consumption=True,
                                                       technical_progress=technical_progress,  premature_replacement=premature_replacement,
-                                                      output_details='cost_benefit'
+                                                      output_details='cost_benefit', carbon_content=carbon_content
                                                       )
 
     # heating_consumption = output[endyear_resirf - 1]['Consumption (kWh/h)']
@@ -170,8 +170,10 @@ def resirf_eoles_coupling_static(subsidy, subsidy_policy, subsidy_proportional_h
 
     # TODO: attention, certains coûts sont peut-être déjà la somme de coûts annuels !!
 
-    annuity_investment_cost = calculate_annuities_resirf(investment_heater_cost, lifetime=lifetime_heater_annuity, discount_rate=discount_rate) + \
-                              calculate_annuities_resirf(investment_insulation_cost, lifetime=lifetime_insulation_annuity, discount_rate=discount_rate)
+    annuity_investment_heater = calculate_annuities_resirf(investment_heater_cost, lifetime=lifetime_heater_annuity, discount_rate=discount_rate)
+    annuity_investment_insulation = calculate_annuities_resirf(investment_insulation_cost, lifetime=lifetime_insulation_annuity, discount_rate=discount_rate)
+    annuity_investment_cost = annuity_investment_heater + annuity_investment_insulation
+
     if health:
         annuity_health_cost = health_cost
     else:
@@ -203,7 +205,7 @@ def resirf_eoles_coupling_static(subsidy, subsidy_policy, subsidy_proportional_h
         # TODO: attention, à changer si on considère plusieurs années météo dans EOLES
         objective += annuity_health_cost
         objective += annuity_investment_cost
-        # print(m_eoles.objective, annuity_health_cost, annuity_investment_cost)
+        print(m_eoles.objective, annuity_health_cost, annuity_investment_heater, annuity_investment_insulation)
         if cofp:  # we add the opportunity cost of subsidies
             current_state_budget = output.loc['Balance state (Billion euro)'].mean()
             if current_state_budget <= initial_state_budget:  # we only add a COFP if the difference of budget is positive
@@ -420,7 +422,7 @@ def resirf_eoles_coupling_greenfield(buildings, inputs_dynamics, policies_heater
 
     weighted_average_elec_price, weighted_average_CH4_price, weighted_average_H2_price = [], [], []
     list_lcoe_elec, list_lcoe_elec_volume, list_lcoe_elec_value, list_lcoe_CH4_value, list_lcoe_CH4_volume, list_lcoe_CH4_volume_noSCC = [], [], [], [], [], []
-    list_emissions = []
+    list_emissions, list_carbon_value = [], []
     list_electricity_price_ht, list_transport_distribution_lcoe = [], []
     list_elec_annualized, list_transport_distrib_annualized, list_insulation_annualized, list_heater_annualized, list_healthcost_annualized = [], [], [], [], []
 
@@ -462,7 +464,7 @@ def resirf_eoles_coupling_greenfield(buildings, inputs_dynamics, policies_heater
                                                               output_consumption=True,
                                                               technical_progress=inputs_dynamics['technical_progress'],
                                                               premature_replacement=inputs_dynamics['premature_replacement'],
-                                                              output_details='full')
+                                                              output_details='full', carbon_content=inputs_dynamics['post_inputs']['carbon_emission'])
     initial_state_budget = output_opt.loc["Balance state (Billion euro)"][2024]  # we get final state budget
 
     # we add initial values to observe what happens
@@ -579,7 +581,7 @@ def resirf_eoles_coupling_greenfield(buildings, inputs_dynamics, policies_heater
                                                               output_consumption=True,
                                                               technical_progress=inputs_dynamics['technical_progress'],
                                                               premature_replacement=inputs_dynamics['premature_replacement'],
-                                                              output_details='full')
+                                                              output_details='full', carbon_content=inputs_dynamics['post_inputs']['carbon_emission'])
 
     output_global_ResIRF = pd.concat([output_global_ResIRF, output_opt], axis=1)
     stock_global_ResIRF = pd.concat([stock_global_ResIRF, stock_opt], axis=1)
@@ -695,7 +697,8 @@ def resirf_eoles_coupling_greenfield(buildings, inputs_dynamics, policies_heater
     peak_heat_load["year"] = anticipated_year_eoles
     peak_heat_load_df = pd.concat([peak_heat_load_df, peak_heat_load], axis=0)
 
-    list_emissions.append(m_eoles.emissions.sum())  # TODO: à verifier
+    list_emissions.append(m_eoles.emissions.sum())
+    list_carbon_value.append(m_eoles.carbon_value)  # TODO: à verifier
 
     if anticipated_year_eoles == 2050:
         hourly_generation_2050 = m_eoles.hourly_generation
@@ -843,6 +846,7 @@ def resirf_eoles_coupling_greenfield(buildings, inputs_dynamics, policies_heater
         "System functionment (1e9€/yr)": functionment_costs_df,
         "Prices (€/MWh)": price_df,
         "Emissions (MtCO2)": pd.DataFrame({"Emissions": list_emissions}, index=list_anticipated_year),
+        "Carbon value (€/tCO2)": pd.DataFrame({"Carbon value": list_carbon_value}, index=list_anticipated_year),
         "Peak electricity load": peak_electricity_load_df,
         "Peak heat load": peak_heat_load_df,
         "Subsidies (%)": resirf_subsidies_df,
@@ -944,7 +948,7 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
     weighted_average_elec_price, weighted_average_CH4_price, weighted_average_H2_price = [], [], []
     list_lcoe_elec, list_lcoe_elec_volume, list_lcoe_elec_value, list_lcoe_CH4, list_lcoe_CH4_volume, list_lcoe_CH4_value, list_lcoe_CH4_noSCC, list_lcoe_CH4_volume_noSCC = [], [], [], [], [], [], [], []
     list_lcoe_H2, list_lcoe_H2_volume, list_lcoe_H2_value = [], [], []
-    list_emissions = []
+    list_emissions, list_carbon_value = [], []
     list_electricity_price_ht, list_transport_distribution_lcoe = [], []
     list_elec_annualized, list_transport_distrib_annualized, list_insulation_annualized, list_heater_annualized, list_healthcost_annualized = [], [], [], [], []
 
@@ -986,7 +990,7 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
                                                               output_consumption=True,
                                                               technical_progress=inputs_dynamics['technical_progress'],
                                                               premature_replacement=inputs_dynamics['premature_replacement'],
-                                                              output_details='full')
+                                                              output_details='full', carbon_content=inputs_dynamics['post_inputs']['carbon_emission'])
     initial_state_budget = output_opt.loc["Balance state (Billion euro)"][2024]  # we get final state budget
 
     # we add initial values to observe what happens
@@ -1203,7 +1207,7 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
                                                                       'technical_progress'],
                                                                   premature_replacement=inputs_dynamics[
                                                                       'premature_replacement'],
-                                                                  output_details='full')
+                                                                  output_details='full', carbon_content=inputs_dynamics['post_inputs']['carbon_emission'])
 
         output_global_ResIRF = pd.concat([output_global_ResIRF, output_opt], axis=1)
         stock_global_ResIRF = pd.concat([stock_global_ResIRF, stock_opt], axis=1)
@@ -1361,7 +1365,8 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
         peak_heat_load["year"] = anticipated_year_eoles
         peak_heat_load_df = pd.concat([peak_heat_load_df, peak_heat_load], axis=0)
 
-        list_emissions.append(m_eoles.emissions.sum())  # TODO: à verifier
+        list_emissions.append(m_eoles.emissions.sum())
+        list_carbon_value.append(m_eoles.carbon_value)
 
         if anticipated_year_eoles == 2050:
             hourly_generation_2050 = m_eoles.hourly_generation
@@ -1491,6 +1496,7 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
         "System functionment (1e9€/yr)": functionment_costs_df,
         "Prices (€/MWh)": price_df,
         "Emissions (MtCO2)": pd.DataFrame({"Emissions": list_emissions}, index=list_anticipated_year),
+        "Carbon value (€/tCO2)": pd.DataFrame({"Carbon value": list_carbon_value}, index=list_anticipated_year),
         "Peak electricity load": peak_electricity_load_df,
         "Peak heat load": peak_heat_load_df,
         "Subsidies (%)": resirf_subsidies_df,
@@ -1584,6 +1590,8 @@ def electricity_gas_price_ht(elec_lcoe, elec_transport_distrib, gas_furniture_co
         Calibration parameter based on 2019 SNBC data
     :param year: int
         Year of interest
+    :param endogenous_distribution: bool
+        Whether or not to use expectation of distribution and transport network costs (or use estimation from SNBC)
     :return:
     """
     electricity_prices_snbc = get_pandas("eoles/inputs/electricity_price_snbc.csv", lambda x: pd.read_csv(x, index_col=0).squeeze("columns"))
@@ -1634,7 +1642,7 @@ def update_energy_prices(energy_prices, price_elec_ht, price_gas_ht, energy_taxe
     return energy_prices
 
 
-def calibration_price(config_eoles, scc=100):
+def calibration_price(config_eoles, scc=40):
     """Returns calibration factor based on the SNBC LCOE."""
     # Initialization needed for calibration
     config_eoles_copy = deepcopy(config_eoles)

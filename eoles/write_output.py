@@ -210,6 +210,9 @@ def comparison_simulations(dict_output: dict, ref, greenfield=False, health=Fals
                 consumption_savings = consumption_savings.rename(
                     columns={"Consumption saving heater (TWh)": "Consumption saving heater (TWh/year)",
                              "Consumption saving insulation (TWh)": "Consumption saving insulation (TWh/year)"})
+            consumption = output["Output global ResIRF ()"].loc[["Consumption Electricity (TWh)", "Consumption Natural gas (TWh)",
+                                                                 "Consumption Oil fuel (TWh)", "Consumption Wood fuel (TWh)"]]
+            consumption_ini = consumption.sum(axis=0).iloc[0]
             consumption_savings_tot = consumption_savings.sum(axis=0).to_frame().rename(columns={0: name_config})
             consumption_savings_tot_df = pd.concat([consumption_savings_tot_df, consumption_savings_tot], axis=1)
 
