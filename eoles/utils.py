@@ -1029,9 +1029,9 @@ def modif_config_resirf(config_resirf, config_coupling, calibration=None):
     # Modification rational behavior
     config_resirf_update["renovation"] = config_reference["renovation"]
     config_resirf_update["renovation"]["rational_behavior"]["activated"] = config_coupling["subsidy"]["rational_behavior"]
-    # # TODO: a enlever ?
-    # if config_coupling["rational_behavior"]:  # in this case, we have to modify parameter policies
-    #     config_resirf_update["policies"] = None
+
+    if 'lifetime_insulation' in config_coupling.keys():
+        config_resirf_update["renovation"]["lifetime_insulation"] = config_coupling["lifetime_insulation"]
 
     if 'social' in config_coupling['subsidy'].keys():
         config_resirf_update['renovation']["rational_behavior"]["social"] = config_coupling["subsidy"]["social"]
@@ -1072,6 +1072,27 @@ def modif_config_resirf(config_resirf, config_coupling, calibration=None):
             config_resirf_update["policies"].update(policy_noMF)
 
     return config_resirf_update
+
+
+def create_configs_coupling(list_design, name_design, config_coupling, cap_MWh, cap_tCO2, greenfield, prices_constant=True,
+                            biomass_potential_scenario='S3', aggregated_potential=True, N1=True, max_iter=100,
+                            lifetime_insulation=5, dict_configs=None):
+    """Creates a list of configs to test from different specified parameters."""
+    config_coupling_update = deepcopy(config_coupling)
+    config_coupling_update['prices_constant'] = prices_constant
+    config_coupling_update['greenfield'] = greenfield
+    config_coupling_update['max_iter'] = max_iter
+    config_coupling_update['lifetime_insulation'] = lifetime_insulation
+    config_coupling_update['eoles']['biomass_potential_scenario'] = biomass_potential_scenario
+    config_coupling_update['eoles']['aggregated_potential'] = aggregated_potential
+    config_coupling_update['eoles']['N1'] = N1
+
+    if dict_configs is None:
+        dict_configs = {}
+    for design in list_design:
+        name_config = f"{design}_{name_design}"
+        dict_configs[name_config] = modif_config_coupling(design, config_coupling_update, cap_MWh=cap_MWh, cap_tCO2=cap_tCO2)
+    return dict_configs
 
 
 def config_resirf_exogenous(sensitivity, config_resirf):

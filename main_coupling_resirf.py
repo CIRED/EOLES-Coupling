@@ -17,7 +17,7 @@ from project.model import get_inputs, social_planner
 from project.model import create_logger, get_config, get_inputs
 from eoles.model_resirf_coupling import ModelEOLES
 from eoles.utils import get_config, get_pandas, calculate_annuities_resirf, modif_config_resirf, \
-    config_resirf_exogenous, create_multiple_coupling_configs, create_multiple_coupling_configs2, modif_config_eoles, modif_config_coupling
+    config_resirf_exogenous, create_multiple_coupling_configs, create_multiple_coupling_configs2, modif_config_eoles, modif_config_coupling, create_configs_coupling
 from eoles.write_output import plot_simulation, plot_blackbox_optimization, save_summary_pdf, comparison_simulations
 import eoles.utils
 from eoles.coupling_resirf_eoles import resirf_eoles_coupling_dynamic, optimize_blackbox_resirf_eoles_coupling, \
@@ -29,7 +29,7 @@ from matplotlib import pyplot as plt
 
 LOG_FORMATTER = '%(asctime)s : %(name)s  : %(funcName)s : %(levelname)s : %(message)s'
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.INFO)  # replace NOTSET with INFO
 # consoler handler
 console_handler = logging.StreamHandler()
 console_handler.setFormatter(logging.Formatter(LOG_FORMATTER))
@@ -442,6 +442,9 @@ if __name__ == '__main__':
     for design in list_design:
         name_config = f"{design}_{initial_name}"
         DICT_CONFIGS_S3_N1[name_config] = modif_config_coupling(design, config_coupling, cap_MWh=1000, cap_tCO2=2000)
+    DICT_CONFIGS_S3_N1 = create_configs_coupling(list_design, name_design='S3_N1', config_coupling=config_coupling, cap_MWh=1000,
+                                                 cap_tCO2=2000, greenfield=False, prices_constant=True, biomass_potential_scenario="S3",
+                                                 aggregated_potential=True, N1=True, max_iter=100)
 
     config_coupling['eoles']['biomass_potential_scenario'] = 'S2p'
     DICT_CONFIGS_S2p_N1 = {}
@@ -472,52 +475,74 @@ if __name__ == '__main__':
         DICT_CONFIGS_S3_N1_prices[name_config] = modif_config_coupling(design, config_coupling, cap_MWh=1000, cap_tCO2=2000)
 
     # SCENARIOS WITH GREENFIELD AND N1
-    config_coupling['greenfield'] = True
-    config_coupling['eoles']['N1'] = True
-    config_coupling['eoles']['biomass_potential_scenario'] = 'S3'
+    config_coupling = {
+        'prices_constant': True,
+        'eoles': {
+            "biomass_potential_scenario": "S3",
+            'aggregated_potential': True,
+            "N1": True,
+        },
+        "subsidy": {
+            'rational_behavior': False,
+            'policy': 'subsidy_ad_valorem',
+            'proportional_uniform': None,
+            'heater': {
+                'proportional': None,
+                'cap': None
+            },
+            'insulation': {
+                'target': None,
+                'proportional': None,
+                'cap': None
+            }
+        },
+        'max_iter': 100,
+        "health": True,  # on inclut les coûts de santé
+        "discount_rate": 0.032,
+        "carbon_constraint": True,
+        'one_shot_setting': False,
+        'fix_sub_heater': False,
+        'fix_sub_insulation': False,
+        'list_year': [2025, 2030, 2035, 2040, 2045],
+        'list_trajectory_scc': [250, 350, 500, 650, 775],
+        'acquisition_jitter': 0.03,
+        'scenario_cost_eoles': {
+            'fix_capacities': {
+                "uiom": 0,
+                "CTES": 0
+            }
+        }
+    }
+    DICT_CONFIGS_greenfield_S3_N1 = create_configs_coupling(list_design=['MWh_tCO2'], name_design='greenfield_S3_N1', config_coupling=config_coupling, cap_MWh=1000,
+                                                 cap_tCO2=2000, greenfield=True, prices_constant=True, biomass_potential_scenario="S3",
+                                                 aggregated_potential=True, N1=True, max_iter=70, lifetime_insulation=1)
 
-    DICT_CONFIGS_greenfield_S3_N1 = {}
-    initial_name = "greenfield_S3_N1"
-    for design in list_design:
-        name_config = f"{design}_{initial_name}"
-        DICT_CONFIGS_greenfield_S3_N1[name_config] = modif_config_coupling(design, config_coupling, cap_MWh=1000, cap_tCO2=2000)
+    DICT_CONFIGS_greenfield_S2p_N1 = create_configs_coupling(list_design, name_design='greenfield_S2p_N1', config_coupling=config_coupling, cap_MWh=1000,
+                                                 cap_tCO2=2000, greenfield=True, prices_constant=True, biomass_potential_scenario="S2p",
+                                                 aggregated_potential=True, N1=True, max_iter=70, lifetime_insulation=1)
 
-    config_coupling['eoles']['biomass_potential_scenario'] = 'S2p'
-    config_coupling['eoles']['N1'] = True
-    DICT_CONFIGS_greenfield_S2p_N1 = {}
-    initial_name = "greenfield_S2p_N1"
-    for design in list_design:
-        name_config = f"{design}_{initial_name}"
-        DICT_CONFIGS_greenfield_S2p_N1[name_config] = modif_config_coupling(design, config_coupling, cap_MWh=1000, cap_tCO2=2000)
+    DICT_CONFIGS_greenfield_S2_N1 = create_configs_coupling(list_design, name_design='greenfield_S2_N1', config_coupling=config_coupling, cap_MWh=1000,
+                                                 cap_tCO2=2000, greenfield=True, prices_constant=True, biomass_potential_scenario="S2",
+                                                 aggregated_potential=True, N1=True, max_iter=70, lifetime_insulation=1)
 
-    config_coupling['eoles']['biomass_potential_scenario'] = 'S2'
-    config_coupling['eoles']['N1'] = True
-    DICT_CONFIGS_greenfield_S2_N1 = {}
-    initial_name = "greenfield_S2p_N1"
-    for design in list_design:
-        name_config = f"{design}_{initial_name}"
-        DICT_CONFIGS_greenfield_S2_N1[name_config] = modif_config_coupling(design, config_coupling, cap_MWh=1000,
-                                                                            cap_tCO2=2000)
+    DICT_CONFIGS_greenfield_S3_N1_lifetime5 = create_configs_coupling(list_design=['MWh_tCO2'], name_design='greenfield_S3_N1_lifetime5',
+                                                                      config_coupling=config_coupling, cap_MWh=1000,
+                                                                      cap_tCO2=2000, greenfield=True, prices_constant=True, biomass_potential_scenario="S3",
+                                                                      aggregated_potential=True, N1=True, max_iter=70, lifetime_insulation=5)
 
-    DICT_CONFIGS_greenfield_S2p_N1.update(DICT_CONFIGS_greenfield_S2_N1)
+    DICT_CONFIGS_greenfield_S2p_N1.update(DICT_CONFIGS_greenfield_S3_N1)
+    DICT_CONFIGS_greenfield_S2p_N1.update(DICT_CONFIGS_greenfield_S3_N1_lifetime5)
 
     # SCENARIOS: COMPLEMENT WITH tCO2
-    list_design = ["MWh_tCO2", "tCO2_uni"]
-    config_coupling['greenfield'] = True
-    config_coupling['eoles']['biomass_potential_scenario'] = 'S3'
-    config_coupling['eoles']['N1'] = False
+    DICT_CONFIGS_greenfield_additional = create_configs_coupling(list_design=["MWh_tCO2", "tCO2_uni"], name_design='greenfield',
+                                                                 config_coupling=config_coupling, cap_MWh=1000,
+                                                                 cap_tCO2=2000, greenfield=True, prices_constant=True, biomass_potential_scenario="S3",
+                                                                 aggregated_potential=True, N1=False, max_iter=100)
 
-    DICT_CONFIGS_greenfield_additional = {}
-    initial_name = "greenfield"
-    for design in list_design:
-        name_config = f"{design}_{initial_name}"
-        DICT_CONFIGS_greenfield_additional[name_config] = modif_config_coupling(design, config_coupling, cap_MWh=1000, cap_tCO2=2000)
-
-    config_coupling['eoles']['biomass_potential_scenario'] = 'S2'
-    initial_name = "greenfield_S2"
-    for design in list_design:
-        name_config = f"{design}_{initial_name}"
-        DICT_CONFIGS_greenfield_additional[name_config] = modif_config_coupling(design, config_coupling, cap_MWh=1000, cap_tCO2=2000)
+    DICT_CONFIGS_greenfield_additional = create_configs_coupling(list_design=["MWh_tCO2", "tCO2_uni"], name_design='greenfield_S2',
+                                                                 config_coupling=config_coupling, cap_MWh=1000,
+                                                                 cap_tCO2=2000, greenfield=True, prices_constant=True, biomass_potential_scenario="S2",
+                                                                 aggregated_potential=True, N1=False, max_iter=100, dict_configs=DICT_CONFIGS_greenfield_additional)
 
     DICT_CONFIGS_greenfield_S2p_N1.update(DICT_CONFIGS_greenfield_additional)
 
@@ -613,37 +638,6 @@ if __name__ == '__main__':
 
     DICT_CONFIGS_greenfield_sep.update(DICT_CONFIGS_greenfield_sep_S2)
 
-    # DICT_CONFIGS_GREENFIELD_S3_prices["uniform_prices"] = {
-    #         'prices_constant': False,
-    #         "eoles": {
-    #             "biomass_potential_scenario": "S3",
-    #             "N1": False,
-    #         },
-    #         "subsidy": {
-    #             'rational_behavior': False,
-    #             'policy': 'subsidy_ad_valorem',
-    #             'target': None,
-    #             'proportional': None,
-    #             'cap': None
-    #         },
-    #         'max_iter': 130,
-    #         "health": True,  # on inclut les coûts de santé
-    #         "discount_rate": 0.032,
-    #         "carbon_constraint": True,
-    #         'one_shot_setting': False,
-    #         'fix_sub_heater': False,
-    #         'fix_sub_insulation': False,
-    #         'list_year': [2025, 2030, 2035, 2040, 2045],
-    #         'list_trajectory_scc': [250, 350, 500, 650, 775],
-    #         'acquisition_jitter': 0.03,
-    #         'scenario_cost_eoles': {
-    #             'fix_capacities': {
-    #                 "uiom": 0,
-    #                 "CTES": 0
-    #             }
-    #         }
-    #     }
-
     config_coupling_test = {
         'no_subsidies': True,
         'greenfield': True,
@@ -688,7 +682,7 @@ if __name__ == '__main__':
     DICT_NEW_CONFIGS = {}
     DICT_NEW_CONFIGS["tCO2_uni"] = modif_config_coupling(design="tCO2_uni", config_coupling=config_coupling_test, cap_tCO2=1000, cap_MWh=500)
 
-    results = run_multiple_configs(DICT_NEW_CONFIGS, cpu=cpu, exogenous=False, reference=None, greenfield=True,
+    results = run_multiple_configs(DICT_CONFIGS_greenfield_S3_N1, cpu=cpu, exogenous=False, reference=None, greenfield=True,
                                    health=True, carbon_constraint=True)
 
     ########## Test exogenous configurations

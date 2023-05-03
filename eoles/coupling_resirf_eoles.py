@@ -21,7 +21,7 @@ import eoles.utils
 
 LOG_FORMATTER = '%(asctime)s : %(name)s  : %(funcName)s : %(levelname)s : %(message)s'
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.INFO)  # replace NOTSET with INFO
 # consoler handler
 console_handler = logging.StreamHandler()
 console_handler.setFormatter(logging.Formatter(LOG_FORMATTER))
