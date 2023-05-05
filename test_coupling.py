@@ -17,7 +17,7 @@ from project.model import create_logger, get_config, get_inputs
 from eoles.model_resirf_coupling import ModelEOLES
 from eoles.utils import get_config, get_pandas, calculate_annuities_resirf, modif_config_resirf, \
     config_resirf_exogenous, create_multiple_coupling_configs, modif_config_eoles
-from eoles.write_output import plot_simulation
+from eoles.write_output import plot_simulation, comparison_simulations
 from eoles.coupling_resirf_eoles import resirf_eoles_coupling_dynamic, optimize_blackbox_resirf_eoles_coupling, \
     calibration_price, get_energy_prices_and_taxes, resirf_eoles_coupling_greenfield, gradient_descent
 import logging
@@ -190,14 +190,15 @@ if __name__ == '__main__':
         'scenario_cost_eoles': {}
         }
 
-    config_resirf_path = DICT_CONFIG_RESIRF["classic_simple"]
-    with open(config_resirf_path) as file:  # load config_resirf
-        config_resirf = json.load(file).get('Reference')
-    config_resirf = modif_config_resirf(config_resirf, config_coupling, calibration=config_coupling[
-        "calibration"])  # modif of this configuration file to consider coupling options
-
-    config_eoles = get_config(spec="eoles_coupling")
-    config_eoles = modif_config_eoles(config_eoles, config_coupling)
+    # TODO: a changer avec nouveau framework !
+    # config_resirf_path = DICT_CONFIG_RESIRF["classic_simple"]
+    # with open(config_resirf_path) as file:  # load config_resirf
+    #     config_resirf = json.load(file).get('Reference')
+    # config_resirf = modif_config_resirf(config_resirf, config_coupling, calibration=config_coupling[
+    #     "calibration"])  # modif of this configuration file to consider coupling options
+    #
+    # config_eoles = get_config(spec="eoles_coupling")
+    # config_eoles = modif_config_eoles(config_eoles, config_coupling)
 
     # ########## Test exogenous configurations
     # sensitivity = {
@@ -210,16 +211,16 @@ if __name__ == '__main__':
     # dict_config_resirf = config_resirf_exogenous(sensitivity=sensitivity, config_resirf=config_resirf)
     # dict_config_coupling = create_multiple_coupling_configs(dict_config_resirf=dict_config_resirf, config_coupling=config_coupling)
 
-    # initialization ResIRF
-    buildings, inputs_dynamics, policies_heater, policies_insulation = ini_res_irf(
-        path=os.path.join('eoles', 'outputs', 'ResIRF'),
-        config=config_resirf)
-
-    # TEST for a given time step
-    timestep = 2
-    year = 2020
-    output, stock, heating_consumption = run_resirf_alone(year, timestep, config_coupling, buildings, inputs_dynamics,
-                                                          policies_heater, policies_insulation, sub_heater=None, sub_insulation=None)
+    # # initialization ResIRF
+    # buildings, inputs_dynamics, policies_heater, policies_insulation = ini_res_irf(
+    #     path=os.path.join('eoles', 'outputs', 'ResIRF'),
+    #     config=config_resirf)
+    #
+    # # TEST for a given time step
+    # timestep = 2
+    # year = 2020
+    # output, stock, heating_consumption = run_resirf_alone(year, timestep, config_coupling, buildings, inputs_dynamics,
+    #                                                       policies_heater, policies_insulation, sub_heater=None, sub_insulation=None)
 
     #
     # elec_consumption = heating_consumption.T["Electricity"]
@@ -389,23 +390,33 @@ if __name__ == '__main__':
     # plot_scenario(output, stock, buildings)
     # grouped_output(result={"Reference": output}, folder=os.path.join("eoles/outputs/test_plots"))
 
-    #
-    from GPyOpt.plotting.plots_bo import plot_acquisition
+    dict_output = {"Uniform": os.path.join(
+        "eoles/outputs/0503_greenfield_S3_N1_prices/0503_065749_uniform_greenfield_S3_N1_prices"),
+                   "Global renovation": os.path.join(
+                       "eoles/outputs/0503_greenfield_S3_N1_prices/0503_070606_GR_greenfield_S3_N1_prices"),
+                   "Centralized": os.path.join(
+                       "eoles/outputs/0503_greenfield_S3_N1_prices/0503_031312_centralized_greenfield_S3_N1_prices"),
+                   "tCO2_cumac": os.path.join(
+                       "eoles/outputs/0503_greenfield_S3_N1_prices/0503_024719_tCO2_uni_greenfield_S3_N1_prices"),
+                   "MWh_tCO2": os.path.join(
+                       "eoles/outputs/0503_greenfield_S3_N1_prices/0503_072622_MWh_tCO2_greenfield_S3_N1_prices"),
+                   }
 
-    # #
-    # # sns.set_theme()
-    # plot_acquisition([(0, 1), (0, 0.2)],
-    #                  optimizer.model.model.X.shape[1],
-    #                  optimizer.model.model,
-    #                  optimizer.model.model.X,
-    #                  optimizer.model.model.Y,
-    #                  optimizer.acquisition.acquisition_function,
-    #                  optimizer.suggest_next_locations())
-    #
-    # output, optimizer = test_convergence_2030()
-    # optimizer.plot_acquisition()
-    # plot_acquisition([(0.5, 1), (0, 0.5)], 2, optimizer.model.model, optimizer.model.model.X, optimizer.model.model.Y,
-    #                  optimizer.acquisition.acquisition_function, optimizer.suggest_next_locations(),
-    #                  filename=None, label_x=None, label_y=None, color_by_step=True)
+    results_resirf = {}
+    for path, name_config in zip(dict_output.values(), [n for n in dict_output.keys()]):
+        with open(os.path.join(path, 'coupling_results.pkl'), "rb") as file:
+            output = load(file)
+            results_resirf[name_config] = output["Output global ResIRF ()"]
+
+    folder_comparison = os.path.join("eoles/outputs/comparison")
+    date = datetime.datetime.now().strftime("%m%d_%H%M%S")
+    folder = os.path.join(folder_comparison, f'{date}_greenfield_S3_N1_prices')
+    if not os.path.isdir(folder):
+        os.mkdir(folder)
+
+    # Plots coupling
+    total_system_costs_df, consumption_savings_tot_df, complete_system_costs_2050_df = comparison_simulations(
+        dict_output, ref="Uniform", greenfield=True, health=True, save_path=folder, carbon_constraint=True)
+
 
 

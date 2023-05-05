@@ -538,7 +538,7 @@ class ModelEOLES():
             )
 
         def carbon_budget_constraint_rule(model):
-            """Constraint on carbon budget."""
+            """Constraint on carbon budget in MtCO2."""
             return sum(model.gene["natural_gas", h] for h in model.h) * 0.2295 / 1000 + \
                    self.oil_consumption * 0.271 / 1000 <= self.carbon_budget
 

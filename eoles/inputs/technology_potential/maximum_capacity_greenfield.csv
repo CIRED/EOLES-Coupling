@@ -13,3 +13,10 @@ N1,pv_g,95.8
 N1,pv_c,65.8
 N1,phs,2.5
 N1,nuclear,13.5
+N1nuc,offshore_f,30.1
+N1nuc,offshore_g,15.3
+N1nuc,onshore,58
+N1nuc,pv_g,95.8
+N1nuc,pv_c,65.8
+N1nuc,phs,2.5
+N1nuc,nuclear,6.75

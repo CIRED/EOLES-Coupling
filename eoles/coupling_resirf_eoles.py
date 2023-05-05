@@ -106,7 +106,7 @@ def resirf_eoles_coupling_static(subsidy, subsidy_policy, subsidy_proportional_h
                                  existing_annualized_costs_CH4_naturalgas, existing_annualized_costs_CH4_biogas,
                                  existing_annualized_costs_H2, lifetime_insulation_annuity=50, lifetime_heater_annuity=20,
                                  discount_rate=0.045, health=True, carbon_constraint=False,
-                                 bayesian_optim=True, initial_state_budget=0, cofp=False):
+                                 bayesian_optim=True, initial_state_budget=0, cofp=False, optim_eoles=True):
     """
 
     :param subvention: 2 dimensional numpy array
@@ -159,6 +159,12 @@ def resirf_eoles_coupling_static(subsidy, subsidy_policy, subsidy_proportional_h
     hourly_heat_elec = hourly_heat_elec.reset_index().drop(columns=["index"]).squeeze()
     hourly_heat_gas = hourly_heat_gas.reset_index().drop(columns=["index"]).squeeze()
     hourly_heat_gas = hourly_heat_gas + hourly_gas_exogeneous  # we add exogeneous gas demand
+    hourly_heat_district = heating_consumption.loc['Heating'] * 1e-6  # GWh
+    if hourly_heat_district.sum() == 0:
+        # print('debug')
+        hourly_heat_district = None
+    else:
+        hourly_heat_district = hourly_heat_district.reset_index().drop(columns=["index"]).squeeze()
 
     oil_consumption = heating_consumption.sum(axis=1)["Oil fuel"] * 1e-6  # GWh
     wood_consumption = heating_consumption.sum(axis=1)["Wood fuel"] * 1e-6  # GWh
@@ -166,9 +172,7 @@ def resirf_eoles_coupling_static(subsidy, subsidy_policy, subsidy_proportional_h
 
     investment_heater_cost = output.loc["Investment heater WT (Billion euro)"].sum()  # 1e9 €
     investment_insulation_cost = output.loc["Investment insulation WT (Billion euro)"].sum()  # 1e9 €
-    health_cost = output.loc["Health cost (Billion euro)"][endyear_resirf-1]  # 1e9 €  # TODO: a verifier. On ne prend que la dernière valeur pour avoir seulement le flux de coût de santé
-
-    # TODO: attention, certains coûts sont peut-être déjà la somme de coûts annuels !!
+    health_cost = output.loc["Health cost (Billion euro)"][endyear_resirf-1]  # 1e9 €
 
     annuity_investment_heater = calculate_annuities_resirf(investment_heater_cost, lifetime=lifetime_heater_annuity, discount_rate=discount_rate)
     annuity_investment_insulation = calculate_annuities_resirf(investment_insulation_cost, lifetime=lifetime_insulation_annuity, discount_rate=discount_rate)
@@ -180,36 +184,45 @@ def resirf_eoles_coupling_static(subsidy, subsidy_policy, subsidy_proportional_h
         annuity_health_cost = 0
     # print(annuity_health_cost, annuity_investment_cost)
 
-    m_eoles = ModelEOLES(name="trajectory", config=config_eoles, path="eoles/outputs", logger=logger, nb_years=1,
-                         hourly_heat_elec=hourly_heat_elec, hourly_heat_gas=hourly_heat_gas, wood_consumption=wood_consumption,
-                         oil_consumption=oil_consumption,
-                         existing_capacity=existing_capacity, existing_charging_capacity=existing_charging_capacity,
-                         existing_energy_capacity=existing_energy_capacity, maximum_capacity=maximum_capacity,
-                         method_hourly_profile=method_hourly_profile,
-                         anticipated_social_cost_of_carbon=scc, year=year_eoles, anticipated_year=anticipated_year_eoles,
-                         scenario_cost=scenario_cost, existing_annualized_costs_elec=existing_annualized_costs_elec,
-                         existing_annualized_costs_CH4=existing_annualized_costs_CH4, existing_annualized_costs_CH4_naturalgas=existing_annualized_costs_CH4_naturalgas,
-                         existing_annualized_costs_CH4_biogas=existing_annualized_costs_CH4_biogas,
-                         existing_annualized_costs_H2=existing_annualized_costs_H2, carbon_constraint=carbon_constraint,
-                         discount_rate=discount_rate)
-    m_eoles.build_model()
-    solver_results, status, termination_condition = m_eoles.solve(solver_name="gurobi")
+    if optim_eoles:
+        m_eoles = ModelEOLES(name="trajectory", config=config_eoles, path="eoles/outputs", logger=logger, nb_years=1,
+                             hourly_heat_elec=hourly_heat_elec, hourly_heat_gas=hourly_heat_gas, hourly_heat_district=hourly_heat_district,
+                             wood_consumption=wood_consumption, oil_consumption=oil_consumption,
+                             existing_capacity=existing_capacity, existing_charging_capacity=existing_charging_capacity,
+                             existing_energy_capacity=existing_energy_capacity, maximum_capacity=maximum_capacity,
+                             method_hourly_profile=method_hourly_profile,
+                             anticipated_social_cost_of_carbon=scc, year=year_eoles, anticipated_year=anticipated_year_eoles,
+                             scenario_cost=scenario_cost, existing_annualized_costs_elec=existing_annualized_costs_elec,
+                             existing_annualized_costs_CH4=existing_annualized_costs_CH4, existing_annualized_costs_CH4_naturalgas=existing_annualized_costs_CH4_naturalgas,
+                             existing_annualized_costs_CH4_biogas=existing_annualized_costs_CH4_biogas,
+                             existing_annualized_costs_H2=existing_annualized_costs_H2, carbon_constraint=carbon_constraint,
+                             discount_rate=discount_rate)
+        m_eoles.build_model()
+        solver_results, status, termination_condition = m_eoles.solve(solver_name="gurobi")
 
-    if termination_condition == "infeasibleOrUnbounded":
-        logger.info("Infeasible problem")
-        objective = m_eoles.objective  # in this case, we want the value to be always the same, corresponding to the infeasible value
-    else:
-        objective = m_eoles.objective
-        # print(objective)
+        if termination_condition == "infeasibleOrUnbounded":
+            logger.info("Infeasible problem")
+            objective = m_eoles.objective  # in this case, we want the value to be always the same, corresponding to the infeasible value
+        else:
+            objective = m_eoles.objective
+            # print(objective)
 
-        # TODO: attention, à changer si on considère plusieurs années météo dans EOLES
-        objective += annuity_health_cost
-        objective += annuity_investment_cost
-        print(m_eoles.objective, annuity_health_cost, annuity_investment_heater, annuity_investment_insulation)
-        if cofp:  # we add the opportunity cost of subsidies
-            current_state_budget = output.loc['Balance state (Billion euro)'].mean()
-            if current_state_budget <= initial_state_budget:  # we only add a COFP if the difference of budget is positive
-                objective += 0.3*(initial_state_budget - current_state_budget)
+            # TODO: attention, à changer si on considère plusieurs années météo dans EOLES
+            objective += annuity_health_cost
+            objective += annuity_investment_cost
+            # print(m_eoles.objective, annuity_health_cost, annuity_investment_heater, annuity_investment_insulation)
+    else:  # we do not optimize EOLES, we focus on ResIRF only
+        objective = annuity_health_cost + annuity_investment_cost
+        emissions = output.loc["Emission (MtCO2)"][endyear_resirf-1]  # TODO: valeur a verifier
+        carbon_budget_timesteps = get_pandas(config_eoles["carbon_budget_resirf"], lambda x: pd.read_csv(x, index_col=0).squeeze())
+        carbon_budget = carbon_budget_timesteps[anticipated_year_eoles]
+        if emissions > carbon_budget:  # check if carbon constraint is respected
+            objective = 1000
+
+    if cofp:  # we add the opportunity cost of subsidies
+        current_state_budget = output.loc['Balance state (Billion euro)'].mean()
+        if current_state_budget <= initial_state_budget:  # we only add a COFP if the difference of budget is positive
+            objective += 0.3*(initial_state_budget - current_state_budget)
     return np.array([objective])  # return an array
 
 
@@ -229,7 +242,7 @@ def optimize_blackbox_resirf_eoles_coupling(subsidy_policy, subsidy_proportional
                                             normalize_Y=True, plot=False,
                                             fix_sub_heater=False, fix_sub_insulation=False,
                                             health=True, carbon_constraint=False,
-                                            initial_state_budget=0, cofp=False, x_opt=None):
+                                            initial_state_budget=0, cofp=False, optim_eoles=True, x_opt=None):
 
     """
     Finds optimal subsidies by a blackbox optimization process, relying on bayesian optimization and gaussian processes.
@@ -327,7 +340,7 @@ def optimize_blackbox_resirf_eoles_coupling(subsidy_policy, subsidy_proportional
                                                  lifetime_insulation_annuity=lifetime_insulation_annuity, lifetime_heater_annuity=lifetime_heater_annuity,
                                                  discount_rate=discount_rate, health=health, carbon_constraint=carbon_constraint,
                                                  initial_state_budget=initial_state_budget,
-                                                 cofp=cofp),
+                                                 cofp=cofp, optim_eoles=optim_eoles),
         domain=bounds2d,
         model_type='GP',  # gaussian process
         # kernel=kernel,
@@ -393,7 +406,7 @@ def resirf_eoles_coupling_greenfield(buildings, inputs_dynamics, policies_heater
                                      add_CH4_demand=False, lifetime_insulation_annuity=50, lifetime_heater_annuity=20,
                                      optimization=True, list_sub_heater=None, list_sub_insulation=None,
                                      acquisition_jitter=0.01, grid_initialize=False, normalize_Y=True,
-                                     cofp=False):
+                                     cofp=False, optim_eoles=True):
     # importing evolution of historical capacity and expected evolution of demand
     existing_capacity_historical, existing_charging_capacity_historical, existing_energy_capacity_historical, \
     maximum_capacity_evolution, heating_gas_demand_RTE_timesteps, ECS_gas_demand_RTE_timesteps, capex_annuity_fOM_historical, \
@@ -549,7 +562,7 @@ def resirf_eoles_coupling_greenfield(buildings, inputs_dynamics, policies_heater
                                                     health=config_coupling["health"],
                                                     carbon_constraint=config_coupling["carbon_constraint"],
                                                     initial_state_budget=initial_state_budget,
-                                                    cofp=cofp)
+                                                    cofp=cofp, optim_eoles=optim_eoles)
         dict_optimizer.update({year_eoles: optimizer})
         opt_sub_heater_value, opt_sub_insulation_value = opt_sub[0], opt_sub[1]
         list_sub_heater.append(opt_sub_heater_value)
@@ -594,6 +607,11 @@ def resirf_eoles_coupling_greenfield(buildings, inputs_dynamics, policies_heater
     hourly_heat_elec = hourly_heat_elec.reset_index().drop(columns=["index"]).squeeze()
     hourly_heat_gas = hourly_heat_gas.reset_index().drop(columns=["index"]).squeeze()
     hourly_heat_gas = hourly_heat_gas + hourly_exogeneous_CH4  # we add exogeneous gas demand
+    try:  # we consider district heating demand
+        hourly_heat_district = heating_consumption.loc['Heating'] * 1e-6  # GWh
+        hourly_heat_district = hourly_heat_district.reset_index().drop(columns=["index"]).squeeze()
+    except:
+        hourly_heat_district = None
 
     electricity_consumption = heating_consumption.sum(axis=1)["Electricity"] * 1e-9  # TWh
     gas_consumption = heating_consumption.sum(axis=1)["Natural gas"] * 1e-9  # TWh
@@ -652,6 +670,7 @@ def resirf_eoles_coupling_greenfield(buildings, inputs_dynamics, policies_heater
     # Rerun EOLES with optimal parameters
     m_eoles = ModelEOLES(name="trajectory", config=config_eoles, path="eoles/outputs", logger=logger, nb_years=1,
                          hourly_heat_elec=hourly_heat_elec, hourly_heat_gas=hourly_heat_gas,
+                         hourly_heat_district=hourly_heat_district,
                          wood_consumption=wood_consumption * 1e3,  # GWh
                          oil_consumption=oil_consumption * 1e3,
                          existing_capacity=existing_capacity, existing_charging_capacity=existing_charging_capacity,
@@ -666,11 +685,235 @@ def resirf_eoles_coupling_greenfield(buildings, inputs_dynamics, policies_heater
                          discount_rate=config_coupling["discount_rate"])
 
     m_eoles.build_model()
-    solver_results, status, termination_condition = m_eoles.solve(solver_name="gurobi")
 
-    if termination_condition == "infeasibleOrUnbounded":
-        logger.info("Carbon budget is violated.")
+    if optim_eoles:  # we solve the model
+        solver_results, status, termination_condition = m_eoles.solve(solver_name="gurobi")
+
+        if termination_condition == "infeasibleOrUnbounded":
+            logger.info("Carbon budget is violated.")
+            new_investments = pd.DataFrame(index=["investment_heater", "investment_insulation"],
+                         data={'annualized_costs': [annuity_investment_heater_cost, annuity_investment_insulation_cost]})
+            annualized_new_investment_df = pd.concat([annualized_new_investment_df,
+                                                      new_investments.rename(columns={"annualized_costs": anticipated_year_eoles})], axis=1)
+            functionment_cost = pd.DataFrame(index=["health_costs"], data={'functionment_cost': [annuity_health_cost]})
+            functionment_costs_df = pd.concat([functionment_costs_df, functionment_cost.rename(
+                columns={"functionment_cost": anticipated_year_eoles})], axis=1)
+            output = {
+                "Annualized new investments (1e9€/yr)": annualized_new_investment_df,
+                "Annualized costs new energy capacity (1e9€/yr)": annualized_new_energy_capacity_df,
+                "System functionment (1e9€/yr)": functionment_costs_df,
+                "ResIRF costs (Billion euro)": resirf_costs_df.T,
+                "ResIRF costs eff (euro/kWh)": investment_cost_eff_df.T,
+                "ResIRF consumption yearly (TWh)": resirf_consumption_yearly_df.T,
+                "ResIRF consumption savings (TWh)": resirf_consumption_saving_df.T,
+                "ResIRF replacement heater (Thousand)": replacement_heater_df.T,
+                "ResIRF stock heater (Thousand)": stock_heater_df,
+                "Output global ResIRF ()": output_global_ResIRF,
+                "Stock global ResIRF ()": stock_global_ResIRF,
+                "Energy prices (€/kWh)": inputs_dynamics['energy_prices']
+            }
+            return output, buildings, dict_optimizer
+
+        ### Spot price
+        spot_price = m_eoles.spot_price.rename(
+            columns={"elec_spot_price": f"elec_spot_price_{anticipated_year_eoles}",
+                     "CH4_spot_price": f"CH4_spot_price_{anticipated_year_eoles}"})
+        spot_price_df = pd.concat([spot_price_df, spot_price], axis=1)
+
+        peak_electricity_load = m_eoles.peak_electricity_load_info
+        peak_electricity_load["year"] = anticipated_year_eoles
+        peak_electricity_load_df = pd.concat([peak_electricity_load_df, peak_electricity_load], axis=0)
+
+        peak_heat_load = m_eoles.peak_heat_load_info
+        peak_heat_load["year"] = anticipated_year_eoles
+        peak_heat_load_df = pd.concat([peak_heat_load_df, peak_heat_load], axis=0)
+
+        list_emissions.append(m_eoles.emissions.sum())
+        list_carbon_value.append(m_eoles.carbon_value)  # TODO: à verifier
+
+        if anticipated_year_eoles == 2050:
+            hourly_generation_2050 = m_eoles.hourly_generation
+
+        #### Get annuity and functionment cost corresponding to each technology
+        new_capacity_annualized_costs_nofOM = m_eoles.new_capacity_annualized_costs_nofOM / 1000  # 1e9 € / yr
+        new_capacity_annualized_costs_nofOM = pd.concat([new_capacity_annualized_costs_nofOM,
+                                                         pd.DataFrame(
+                                                             index=["investment_heater", "investment_insulation"],
+                                                             data={'annualized_costs': [
+                                                                 annuity_investment_heater_cost,
+                                                                 annuity_investment_insulation_cost]})], axis=0)
+        annualized_new_investment_df = pd.concat([annualized_new_investment_df,
+                                                  new_capacity_annualized_costs_nofOM.rename(
+                                                      columns={"annualized_costs": anticipated_year_eoles})],
+                                                 axis=1)
+
+        new_energy_capacity_annualized_costs_nofOM = m_eoles.new_energy_capacity_annualized_costs_nofOM / 1000
+        annualized_new_energy_capacity_df = pd.concat([annualized_new_energy_capacity_df,
+                                                       new_energy_capacity_annualized_costs_nofOM.rename(
+                                                           columns={"annualized_costs": anticipated_year_eoles})],
+                                                      axis=1)
+
+        functionment_cost = m_eoles.functionment_cost / 1000  # 1e9 € / yr
+        functionment_cost = pd.concat([functionment_cost,
+                                       pd.DataFrame(index=["health_costs"],
+                                                    data={'functionment_cost': [annuity_health_cost]})], axis=0)
+        functionment_costs_df = pd.concat([functionment_costs_df, functionment_cost.rename(
+            columns={"functionment_cost": anticipated_year_eoles})], axis=1)
+
+        # Historical annuity cost
+        annualized_costs_capacity_nofOM_historical = annualized_costs_capacity_nofOM_historical / 1000  # 1e9 € / yr
+        annualized_costs_energy_capacity_historical = annualized_costs_energy_capacity_historical / 1000  # 1e9 € / yr
+        annualized_historical_capacity_df = pd.concat([annualized_historical_capacity_df,
+                                                       annualized_costs_capacity_nofOM_historical.rename(
+                                                           columns={'annualized_costs': anticipated_year_eoles})],
+                                                      axis=1)
+        annualized_historical_energy_capacity_df = pd.concat([annualized_historical_energy_capacity_df,
+                                                              annualized_costs_energy_capacity_historical.rename(
+                                                                  columns={
+                                                                      'annualized_costs': anticipated_year_eoles})],
+                                                             axis=1)
+
+        #### Update total capacities and new capacities
+        new_capacity = m_eoles.capacities - existing_capacity  # we get the newly installed capacities at year y
+        new_charging_capacity = m_eoles.charging_capacity - existing_charging_capacity
+        new_energy_capacity = m_eoles.energy_capacity - existing_energy_capacity
+        gene_per_tec = pd.Series(m_eoles.generation_per_technology)
+
+        # update annualized costs from new capacity built until time t included
+        annualized_costs_new_capacity = pd.concat([annualized_costs_new_capacity[["annualized_costs"]],
+                                                   m_eoles.new_capacity_annualized_costs[
+                                                       ["annualized_costs"]].rename(
+                                                       columns={'annualized_costs': 'new_annualized_costs'})],
+                                                  axis=1)
+        annualized_costs_new_capacity["annualized_costs"] = annualized_costs_new_capacity["annualized_costs"] + \
+                                                            annualized_costs_new_capacity['new_annualized_costs']
+
+        annualized_costs_new_energy_capacity = pd.concat(
+            [annualized_costs_new_energy_capacity[["annualized_costs"]],
+             m_eoles.new_energy_capacity_annualized_costs[
+                 ["annualized_costs"]].rename(
+                 columns={'annualized_costs': 'new_annualized_costs'})],
+            axis=1)
+        annualized_costs_new_energy_capacity["annualized_costs"] = annualized_costs_new_energy_capacity[
+                                                                       "annualized_costs"] + \
+                                                                   annualized_costs_new_energy_capacity[
+                                                                       'new_annualized_costs']
+
+        capacity_df = pd.concat(
+            [capacity_df, m_eoles.capacities.to_frame().rename(columns={0: anticipated_year_eoles})], axis=1)
+        charging_capacity_df = pd.concat(
+            [charging_capacity_df,
+             m_eoles.charging_capacity.to_frame().rename(columns={0: anticipated_year_eoles})], axis=1)
+        generation_df = pd.concat(
+            [generation_df, gene_per_tec.to_frame().rename(columns={0: anticipated_year_eoles})], axis=1)
+        energy_capacity_df = pd.concat(
+            [energy_capacity_df, m_eoles.energy_capacity.to_frame().rename(columns={0: anticipated_year_eoles})],
+            axis=1)
+        new_capacity_df = pd.concat(
+            [new_capacity_df, new_capacity.to_frame().rename(columns={0: anticipated_year_eoles})], axis=1)
+        primary_generation_df = pd.concat([primary_generation_df,
+                                           m_eoles.primary_generation.reindex(
+                                               reindex_primary_prod).to_frame().rename(
+                                               columns={0: anticipated_year_eoles})], axis=1)
+        conversion_generation = pd.concat([m_eoles.CH4_to_power_generation.to_frame(),
+                                           m_eoles.power_to_CH4_generation.to_frame(),
+                                           m_eoles.power_to_H2_generation.to_frame()], axis=0)
+        conversion_generation_df = pd.concat(
+            [conversion_generation_df, conversion_generation.rename(columns={0: anticipated_year_eoles})], axis=1)
+
+        list_elec_annualized.append(m_eoles.objective)
+        list_transport_distrib_annualized.append(m_eoles.transport_distribution_cost)
+        total_annualized_costs = annuity_investment_heater_cost + annuity_investment_insulation_cost + annuity_health_cost + m_eoles.objective
+        list_global_annualized_costs.append(total_annualized_costs)
+
+        weighted_average_elec_price.append(m_eoles.summary["weighted_elec_price_demand"])
+        weighted_average_CH4_price.append(m_eoles.summary["weighted_CH4_price_demand"])
+        weighted_average_H2_price.append(m_eoles.summary["weighted_H2_price_demand"])
+
+        list_lcoe_elec.append(m_eoles.summary["lcoe_elec"])
+        list_lcoe_elec_volume.append(m_eoles.summary["lcoe_elec_volume"])
+        list_lcoe_elec_value.append(m_eoles.summary["lcoe_elec_value"])
+        list_lcoe_CH4_value.append(m_eoles.summary["lcoe_CH4_value"])
+        list_lcoe_CH4_volume.append(m_eoles.summary["lcoe_CH4_volume"])
+        list_lcoe_CH4_volume_noSCC.append(m_eoles.summary["lcoe_CH4_volume_noSCC"])
+
+        price_df = pd.DataFrame(
+            {'Average electricity price': weighted_average_elec_price, 'Average CH4 price': weighted_average_CH4_price,
+             'Average H2 price': weighted_average_H2_price,
+             'LCOE electricity': list_lcoe_elec, 'LCOE electricity value': list_lcoe_elec_value,
+             'LCOE electricity volume': list_lcoe_elec_volume,
+             'LCOE CH4 value': list_lcoe_CH4_value, 'LCOE CH4 volume': list_lcoe_CH4_volume,
+             'LCOE CH4 volume noSCC': list_lcoe_CH4_volume_noSCC},
+            index=list_anticipated_year)
+
+        annualized_system_costs_df = pd.DataFrame(
+            {'Annualized electricity system costs': list_elec_annualized,
+             'Annualized investment heater costs': list_heater_annualized,
+             'Annualized investment insulation costs': list_insulation_annualized,
+             'Annualized health costs': list_healthcost_annualized,
+             "Annualized total costs": list_global_annualized_costs},
+            index=list_anticipated_year
+        )
+
+        resirf_subsidies_df = pd.DataFrame({'Heater': list_sub_heater, 'Insulation': list_sub_insulation},
+                                           index=list_anticipated_year)  # we keep list_year, as the subsidies are applied from y to y+5
+
+        resirf_consumption_df = pd.DataFrame(
+            {'Electricity': list_electricity_consumption, "Natural gas": list_gas_consumption,
+             'Oil fuel': list_oil_consumption, 'Wood fuel': list_wood_consumption}, index=list_anticipated_year)
+
         output = {
+            "Capacities (GW)": capacity_df,
+            "New capacities (GW)": new_capacity_df,
+            "Generation (TWh)": generation_df,
+            "Primary generation (TWh)": primary_generation_df,
+            "Conversion generation (TWh)": conversion_generation_df,
+            "Charging capacity (GW)": charging_capacity_df,
+            "Energy capacity (GW)": energy_capacity_df,
+            "Annualized new investments (1e9€/yr)": annualized_new_investment_df,
+            "Annualized costs new energy capacity (1e9€/yr)": annualized_new_energy_capacity_df,
+            "Annualized costs historical capacity (1e9€/yr)": annualized_historical_capacity_df,
+            "Annualized costs historical energy capacity (1e9€/yr)": annualized_historical_energy_capacity_df,
+            "System functionment (1e9€/yr)": functionment_costs_df,
+            "Prices (€/MWh)": price_df,
+            "Emissions (MtCO2)": pd.DataFrame({"Emissions": list_emissions}, index=list_anticipated_year),
+            "Carbon value (€/tCO2)": pd.DataFrame({"Carbon value": list_carbon_value}, index=list_anticipated_year),
+            "Peak electricity load": peak_electricity_load_df,
+            "Peak heat load": peak_heat_load_df,
+            "Subsidies (%)": resirf_subsidies_df,
+            "ResIRF costs (Billion euro)": resirf_costs_df.T,
+            "ResIRF costs eff (euro/kWh)": investment_cost_eff_df.T,
+            "ResIRF consumption (TWh)": resirf_consumption_df,
+            "ResIRF consumption yearly (TWh)": resirf_consumption_yearly_df.T,
+            "ResIRF consumption savings (TWh)": resirf_consumption_saving_df.T,
+            "ResIRF replacement heater (Thousand)": replacement_heater_df.T,
+            "ResIRF stock heater (Thousand)": stock_heater_df,
+            "Annualized system costs (Billion euro / year)": annualized_system_costs_df,
+            'Transport and distribution costs (Billion euro / year)': pd.DataFrame(
+                {"Transport and distribution": list_transport_distrib_annualized}, index=list_anticipated_year),
+            "Output global ResIRF ()": output_global_ResIRF,
+            "Stock global ResIRF ()": stock_global_ResIRF,
+            "Spot price EOLES (€ / MWh)": spot_price_df,
+            "Hourly generation 2050 (GWh)": hourly_generation_2050,
+            "Energy prices (€/kWh)": inputs_dynamics['energy_prices']
+        }
+    else:  # we do not solve the model
+        annualized_new_investments = pd.DataFrame(index=["investment_heater", "investment_insulation"],
+                                       data={'annualized_costs': [annuity_investment_heater_cost,
+                                                                  annuity_investment_insulation_cost]})
+        annualized_new_investment_df = pd.concat([annualized_new_investment_df,
+                                                  annualized_new_investments.rename(
+                                                      columns={"annualized_costs": anticipated_year_eoles})], axis=1)
+        # TODO: attention, ici je me place sous l'hypothèse qu'on travaille sous contrainte carbone pour le calcul des vOM.
+        # TODO: à modifier pour gérer le DH éventuellement (dans la conso bois)
+        oil_functionment_cost, wood_functionment_cost = oil_consumption * m_eoles.vOM["oil"], wood_consumption * m_eoles.vOM["wood"]
+        functionment_cost = pd.DataFrame(index=["health_costs", "oil", "wood"], data={'functionment_cost': [annuity_health_cost, oil_functionment_cost, wood_functionment_cost]})
+        functionment_costs_df = pd.concat([functionment_costs_df, functionment_cost.rename(
+            columns={"functionment_cost": anticipated_year_eoles})], axis=1)
+        output = {
+            "Annualized new investments (1e9€/yr)": annualized_new_investment_df,
+            "Annualized costs new energy capacity (1e9€/yr)": annualized_new_energy_capacity_df,
+            "System functionment (1e9€/yr)": functionment_costs_df,
             "ResIRF costs (Billion euro)": resirf_costs_df.T,
             "ResIRF costs eff (euro/kWh)": investment_cost_eff_df.T,
             "ResIRF consumption yearly (TWh)": resirf_consumption_yearly_df.T,
@@ -681,191 +924,6 @@ def resirf_eoles_coupling_greenfield(buildings, inputs_dynamics, policies_heater
             "Stock global ResIRF ()": stock_global_ResIRF,
             "Energy prices (€/kWh)": inputs_dynamics['energy_prices']
         }
-        return output, buildings, dict_optimizer
-
-    ### Spot price
-    spot_price = m_eoles.spot_price.rename(
-        columns={"elec_spot_price": f"elec_spot_price_{anticipated_year_eoles}",
-                 "CH4_spot_price": f"CH4_spot_price_{anticipated_year_eoles}"})
-    spot_price_df = pd.concat([spot_price_df, spot_price], axis=1)
-
-    peak_electricity_load = m_eoles.peak_electricity_load_info
-    peak_electricity_load["year"] = anticipated_year_eoles
-    peak_electricity_load_df = pd.concat([peak_electricity_load_df, peak_electricity_load], axis=0)
-
-    peak_heat_load = m_eoles.peak_heat_load_info
-    peak_heat_load["year"] = anticipated_year_eoles
-    peak_heat_load_df = pd.concat([peak_heat_load_df, peak_heat_load], axis=0)
-
-    list_emissions.append(m_eoles.emissions.sum())
-    list_carbon_value.append(m_eoles.carbon_value)  # TODO: à verifier
-
-    if anticipated_year_eoles == 2050:
-        hourly_generation_2050 = m_eoles.hourly_generation
-
-    #### Get annuity and functionment cost corresponding to each technology
-    new_capacity_annualized_costs_nofOM = m_eoles.new_capacity_annualized_costs_nofOM / 1000  # 1e9 € / yr
-    new_capacity_annualized_costs_nofOM = pd.concat([new_capacity_annualized_costs_nofOM,
-                                                     pd.DataFrame(
-                                                         index=["investment_heater", "investment_insulation"],
-                                                         data={'annualized_costs': [
-                                                             annuity_investment_heater_cost,
-                                                             annuity_investment_insulation_cost]})], axis=0)
-    annualized_new_investment_df = pd.concat([annualized_new_investment_df,
-                                              new_capacity_annualized_costs_nofOM.rename(
-                                                  columns={"annualized_costs": anticipated_year_eoles})],
-                                             axis=1)
-
-    new_energy_capacity_annualized_costs_nofOM = m_eoles.new_energy_capacity_annualized_costs_nofOM / 1000
-    annualized_new_energy_capacity_df = pd.concat([annualized_new_energy_capacity_df,
-                                                   new_energy_capacity_annualized_costs_nofOM.rename(
-                                                       columns={"annualized_costs": anticipated_year_eoles})],
-                                                  axis=1)
-
-    functionment_cost = m_eoles.functionment_cost / 1000  # 1e9 € / yr
-    functionment_cost = pd.concat([functionment_cost,
-                                   pd.DataFrame(index=["health_costs"],
-                                                data={'functionment_cost': [annuity_health_cost]})], axis=0)
-    functionment_costs_df = pd.concat([functionment_costs_df, functionment_cost.rename(
-        columns={"functionment_cost": anticipated_year_eoles})], axis=1)
-
-    # Historical annuity cost
-    annualized_costs_capacity_nofOM_historical = annualized_costs_capacity_nofOM_historical / 1000  # 1e9 € / yr
-    annualized_costs_energy_capacity_historical = annualized_costs_energy_capacity_historical / 1000  # 1e9 € / yr
-    annualized_historical_capacity_df = pd.concat([annualized_historical_capacity_df,
-                                                   annualized_costs_capacity_nofOM_historical.rename(
-                                                       columns={'annualized_costs': anticipated_year_eoles})],
-                                                  axis=1)
-    annualized_historical_energy_capacity_df = pd.concat([annualized_historical_energy_capacity_df,
-                                                          annualized_costs_energy_capacity_historical.rename(
-                                                              columns={
-                                                                  'annualized_costs': anticipated_year_eoles})],
-                                                         axis=1)
-
-    #### Update total capacities and new capacities
-    new_capacity = m_eoles.capacities - existing_capacity  # we get the newly installed capacities at year y
-    new_charging_capacity = m_eoles.charging_capacity - existing_charging_capacity
-    new_energy_capacity = m_eoles.energy_capacity - existing_energy_capacity
-    gene_per_tec = pd.Series(m_eoles.generation_per_technology)
-
-    # update annualized costs from new capacity built until time t included
-    annualized_costs_new_capacity = pd.concat([annualized_costs_new_capacity[["annualized_costs"]],
-                                               m_eoles.new_capacity_annualized_costs[
-                                                   ["annualized_costs"]].rename(
-                                                   columns={'annualized_costs': 'new_annualized_costs'})],
-                                              axis=1)
-    annualized_costs_new_capacity["annualized_costs"] = annualized_costs_new_capacity["annualized_costs"] + \
-                                                        annualized_costs_new_capacity['new_annualized_costs']
-
-    annualized_costs_new_energy_capacity = pd.concat(
-        [annualized_costs_new_energy_capacity[["annualized_costs"]],
-         m_eoles.new_energy_capacity_annualized_costs[
-             ["annualized_costs"]].rename(
-             columns={'annualized_costs': 'new_annualized_costs'})],
-        axis=1)
-    annualized_costs_new_energy_capacity["annualized_costs"] = annualized_costs_new_energy_capacity[
-                                                                   "annualized_costs"] + \
-                                                               annualized_costs_new_energy_capacity[
-                                                                   'new_annualized_costs']
-
-    capacity_df = pd.concat(
-        [capacity_df, m_eoles.capacities.to_frame().rename(columns={0: anticipated_year_eoles})], axis=1)
-    charging_capacity_df = pd.concat(
-        [charging_capacity_df,
-         m_eoles.charging_capacity.to_frame().rename(columns={0: anticipated_year_eoles})], axis=1)
-    generation_df = pd.concat(
-        [generation_df, gene_per_tec.to_frame().rename(columns={0: anticipated_year_eoles})], axis=1)
-    energy_capacity_df = pd.concat(
-        [energy_capacity_df, m_eoles.energy_capacity.to_frame().rename(columns={0: anticipated_year_eoles})],
-        axis=1)
-    new_capacity_df = pd.concat(
-        [new_capacity_df, new_capacity.to_frame().rename(columns={0: anticipated_year_eoles})], axis=1)
-    primary_generation_df = pd.concat([primary_generation_df,
-                                       m_eoles.primary_generation.reindex(
-                                           reindex_primary_prod).to_frame().rename(
-                                           columns={0: anticipated_year_eoles})], axis=1)
-    conversion_generation = pd.concat([m_eoles.CH4_to_power_generation.to_frame(),
-                                       m_eoles.power_to_CH4_generation.to_frame(),
-                                       m_eoles.power_to_H2_generation.to_frame()], axis=0)
-    conversion_generation_df = pd.concat(
-        [conversion_generation_df, conversion_generation.rename(columns={0: anticipated_year_eoles})], axis=1)
-
-    list_elec_annualized.append(m_eoles.objective)
-    list_transport_distrib_annualized.append(m_eoles.transport_distribution_cost)
-    total_annualized_costs = annuity_investment_heater_cost + annuity_investment_insulation_cost + annuity_health_cost + m_eoles.objective
-    list_global_annualized_costs.append(total_annualized_costs)
-
-    weighted_average_elec_price.append(m_eoles.summary["weighted_elec_price_demand"])
-    weighted_average_CH4_price.append(m_eoles.summary["weighted_CH4_price_demand"])
-    weighted_average_H2_price.append(m_eoles.summary["weighted_H2_price_demand"])
-
-    list_lcoe_elec.append(m_eoles.summary["lcoe_elec"])
-    list_lcoe_elec_volume.append(m_eoles.summary["lcoe_elec_volume"])
-    list_lcoe_elec_value.append(m_eoles.summary["lcoe_elec_value"])
-    list_lcoe_CH4_value.append(m_eoles.summary["lcoe_CH4_value"])
-    list_lcoe_CH4_volume.append(m_eoles.summary["lcoe_CH4_volume"])
-    list_lcoe_CH4_volume_noSCC.append(m_eoles.summary["lcoe_CH4_volume_noSCC"])
-
-    price_df = pd.DataFrame(
-        {'Average electricity price': weighted_average_elec_price, 'Average CH4 price': weighted_average_CH4_price,
-         'Average H2 price': weighted_average_H2_price,
-         'LCOE electricity': list_lcoe_elec, 'LCOE electricity value': list_lcoe_elec_value,
-         'LCOE electricity volume': list_lcoe_elec_volume,
-         'LCOE CH4 value': list_lcoe_CH4_value, 'LCOE CH4 volume': list_lcoe_CH4_volume,
-         'LCOE CH4 volume noSCC': list_lcoe_CH4_volume_noSCC},
-        index=list_anticipated_year)
-
-    annualized_system_costs_df = pd.DataFrame(
-        {'Annualized electricity system costs': list_elec_annualized,
-         'Annualized investment heater costs': list_heater_annualized,
-         'Annualized investment insulation costs': list_insulation_annualized,
-         'Annualized health costs': list_healthcost_annualized,
-         "Annualized total costs": list_global_annualized_costs},
-        index=list_anticipated_year
-    )
-
-    resirf_subsidies_df = pd.DataFrame({'Heater': list_sub_heater, 'Insulation': list_sub_insulation},
-                                       index=list_anticipated_year)  # we keep list_year, as the subsidies are applied from y to y+5
-
-    resirf_consumption_df = pd.DataFrame(
-        {'Electricity': list_electricity_consumption, "Natural gas": list_gas_consumption,
-         'Oil fuel': list_oil_consumption, 'Wood fuel': list_wood_consumption}, index=list_anticipated_year)
-
-    output = {
-        "Capacities (GW)": capacity_df,
-        "New capacities (GW)": new_capacity_df,
-        "Generation (TWh)": generation_df,
-        "Primary generation (TWh)": primary_generation_df,
-        "Conversion generation (TWh)": conversion_generation_df,
-        "Charging capacity (GW)": charging_capacity_df,
-        "Energy capacity (GW)": energy_capacity_df,
-        "Annualized new investments (1e9€/yr)": annualized_new_investment_df,
-        "Annualized costs new energy capacity (1e9€/yr)": annualized_new_energy_capacity_df,
-        "Annualized costs historical capacity (1e9€/yr)": annualized_historical_capacity_df,
-        "Annualized costs historical energy capacity (1e9€/yr)": annualized_historical_energy_capacity_df,
-        "System functionment (1e9€/yr)": functionment_costs_df,
-        "Prices (€/MWh)": price_df,
-        "Emissions (MtCO2)": pd.DataFrame({"Emissions": list_emissions}, index=list_anticipated_year),
-        "Carbon value (€/tCO2)": pd.DataFrame({"Carbon value": list_carbon_value}, index=list_anticipated_year),
-        "Peak electricity load": peak_electricity_load_df,
-        "Peak heat load": peak_heat_load_df,
-        "Subsidies (%)": resirf_subsidies_df,
-        "ResIRF costs (Billion euro)": resirf_costs_df.T,
-        "ResIRF costs eff (euro/kWh)": investment_cost_eff_df.T,
-        "ResIRF consumption (TWh)": resirf_consumption_df,
-        "ResIRF consumption yearly (TWh)": resirf_consumption_yearly_df.T,
-        "ResIRF consumption savings (TWh)": resirf_consumption_saving_df.T,
-        "ResIRF replacement heater (Thousand)": replacement_heater_df.T,
-        "ResIRF stock heater (Thousand)": stock_heater_df,
-        "Annualized system costs (Billion euro / year)": annualized_system_costs_df,
-        'Transport and distribution costs (Billion euro / year)': pd.DataFrame(
-            {"Transport and distribution": list_transport_distrib_annualized}, index=list_anticipated_year),
-        "Output global ResIRF ()": output_global_ResIRF,
-        "Stock global ResIRF ()": stock_global_ResIRF,
-        "Spot price EOLES (€ / MWh)": spot_price_df,
-        "Hourly generation 2050 (GWh)": hourly_generation_2050,
-        "Energy prices (€/kWh)": inputs_dynamics['energy_prices']
-    }
 
     return output, buildings, dict_optimizer
 
@@ -876,7 +934,7 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
                                   anticipated_scc=False, anticipated_demand_t10=False, optimization=True,
                                   list_sub_heater=None, list_sub_insulation=None, price_feedback=False,
                                   energy_taxes=None, energy_vta=None, acquisition_jitter=0.01, grid_initialize=False, normalize_Y=True,
-                                  grad_descent=False, aggregated_potential=False, cofp=False, two_stage_optim=False):
+                                  grad_descent=False, aggregated_potential=False, cofp=False, two_stage_optim=False, optim_eoles=True):
     """Performs multistep optimization of capacities and subsidies.
     :param config_coupling: dict
         Includes a number of parametrization for configuration of the coupling
@@ -1116,7 +1174,7 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
                                                         fix_sub_heater=config_coupling["fix_sub_heater"], fix_sub_insulation=config_coupling["fix_sub_insulation"],
                                                         health=config_coupling["health"], carbon_constraint=config_coupling["carbon_constraint"],
                                                         initial_state_budget=initial_state_budget,
-                                                        cofp=cofp)
+                                                        cofp=cofp, optim_eoles=optim_eoles)
             if two_stage_optim:
                 optimizer_refined, opt_sub_refined = \
                     optimize_blackbox_resirf_eoles_coupling(config_coupling["subsidy"]["policy"], config_coupling["subsidy"]["heater"]["proportional"],
@@ -1152,7 +1210,7 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
                                                             health=config_coupling["health"],
                                                             carbon_constraint=config_coupling["carbon_constraint"],
                                                             initial_state_budget=initial_state_budget,
-                                                            cofp=cofp, x_opt=opt_sub)
+                                                            cofp=cofp, optim_eoles=optim_eoles, x_opt=opt_sub)
                 dict_optimizer.update({y: {"first_stage": optimizer, "second_stage": optimizer_refined}})
                 opt_sub_heater_value, opt_sub_insulation_value = opt_sub_refined[0], opt_sub_refined[1]
             else:
@@ -1219,6 +1277,11 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
         hourly_heat_elec = hourly_heat_elec.reset_index().drop(columns=["index"]).squeeze()
         hourly_heat_gas = hourly_heat_gas.reset_index().drop(columns=["index"]).squeeze()
         hourly_heat_gas = hourly_heat_gas + hourly_exogeneous_CH4  # we add exogeneous gas demand
+        try:  # we consider district heating demand
+            hourly_heat_district = heating_consumption.loc['Heating'] * 1e-6  # GWh
+            hourly_heat_district = hourly_heat_district.reset_index().drop(columns=["index"]).squeeze()
+        except:
+            hourly_heat_district = None
 
         electricity_consumption = heating_consumption.sum(axis=1)["Electricity"] * 1e-9  # TWh
         gas_consumption = heating_consumption.sum(axis=1)["Natural gas"] * 1e-9  # TWh
@@ -1272,7 +1335,7 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
 
         # Rerun EOLES with optimal parameters
         m_eoles = ModelEOLES(name="trajectory", config=config_eoles, path="eoles/outputs", logger=logger, nb_years=1,
-                             hourly_heat_elec=hourly_heat_elec, hourly_heat_gas=hourly_heat_gas,
+                             hourly_heat_elec=hourly_heat_elec, hourly_heat_gas=hourly_heat_gas, hourly_heat_district=hourly_heat_district,
                              wood_consumption=wood_consumption * 1e3,  # GWh
                              oil_consumption=oil_consumption * 1e3,
                              existing_capacity=existing_capacity, existing_charging_capacity=existing_charging_capacity,
@@ -1286,244 +1349,275 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
                              discount_rate=config_coupling["discount_rate"])
 
         m_eoles.build_model()
-        solver_results, status, termination_condition = m_eoles.solve(solver_name="gurobi")
-        # if config_coupling["health"]:
-        #     print(m_eoles.objective, annuity_health_cost, annuity_investment_heater_cost, annuity_investment_insulation_cost,
-        #           m_eoles.objective+ annuity_health_cost + annuity_investment_heater_cost + annuity_investment_insulation_cost)
-        # else:
-        #     print(m_eoles.objective, annuity_investment_heater_cost, annuity_investment_insulation_cost,
-        #           m_eoles.objective + annuity_investment_heater_cost + annuity_investment_insulation_cost)
+        if optim_eoles:
+            solver_results, status, termination_condition = m_eoles.solve(solver_name="gurobi")
 
-        if termination_condition == "infeasibleOrUnbounded":
-            logger.info("Carbon budget is violated.")
-            if optimization:
-                resirf_subsidies_df = pd.DataFrame({'Heater': list_sub_heater, 'Insulation': list_sub_insulation},
-                                                   index=list_year[:t+1])
-            else:
-                resirf_subsidies_df = pd.DataFrame({'Heater': list_sub_heater[:t+1], 'Insulation': list_sub_insulation[:t+1]},
-                                                   index=list_year[:t+1])
-            output = {
-                "Capacities (GW)": capacity_df,
-                 "New capacities (GW)": new_capacity_df,
-                 "Generation (TWh)": generation_df,
-                 "Primary generation (TWh)": primary_generation_df,
-                 "Conversion generation (TWh)": conversion_generation_df,
-                 "Charging capacity (GW)": charging_capacity_df,
-                 "Energy capacity (GW)": energy_capacity_df,
-                 "Annualized new investments (1e9€/yr)": annualized_new_investment_df,
-                 "Annualized costs new energy capacity (1e9€/yr)": annualized_new_energy_capacity_df,
-                "Annualized costs historical capacity (1e9€/yr)": annualized_historical_capacity_df,
-                "Annualized costs historical energy capacity (1e9€/yr)": annualized_historical_energy_capacity_df,
-                 "System functionment (1e9€/yr)": functionment_costs_df,
-                 # "Emissions (MtCO2)": pd.DataFrame({"Emissions": list_emissions}, index=list_anticipated_year[:t + 1]),
-                 "Peak electricity load": peak_electricity_load_df,
-                 "Peak heat load": peak_heat_load_df,
-                 "Subsidies (%)": resirf_subsidies_df,
-                 "ResIRF costs (Billion euro)": resirf_costs_df.T,
-                 "ResIRF costs eff (euro/kWh)": investment_cost_eff_df.T,
-                 "ResIRF consumption yearly (TWh)": resirf_consumption_yearly_df.T,
-                 "ResIRF consumption savings (TWh/year)": resirf_consumption_saving_df.T,
-                 "ResIRF replacement heater (Thousand)": replacement_heater_df.T,
-                 "ResIRF stock heater (Thousand)": stock_heater_df,
-                 "Output global ResIRF ()": output_global_ResIRF,
-                "Stock global ResIRF ()": stock_global_ResIRF,
-                 "Spot price EOLES (€ / MWh)": spot_price_df
-             }
-            return output, buildings, dict_optimizer
+            if termination_condition == "infeasibleOrUnbounded":
+                logger.info("Carbon budget is violated.")
+                if optimization:
+                    resirf_subsidies_df = pd.DataFrame({'Heater': list_sub_heater, 'Insulation': list_sub_insulation},
+                                                       index=list_year[:t+1])
+                else:
+                    resirf_subsidies_df = pd.DataFrame({'Heater': list_sub_heater[:t+1], 'Insulation': list_sub_insulation[:t+1]},
+                                                       index=list_year[:t+1])
+                output = {
+                    "Capacities (GW)": capacity_df,
+                     "New capacities (GW)": new_capacity_df,
+                     "Generation (TWh)": generation_df,
+                     "Primary generation (TWh)": primary_generation_df,
+                     "Conversion generation (TWh)": conversion_generation_df,
+                     "Charging capacity (GW)": charging_capacity_df,
+                     "Energy capacity (GW)": energy_capacity_df,
+                     "Annualized new investments (1e9€/yr)": annualized_new_investment_df,
+                     "Annualized costs new energy capacity (1e9€/yr)": annualized_new_energy_capacity_df,
+                    "Annualized costs historical capacity (1e9€/yr)": annualized_historical_capacity_df,
+                    "Annualized costs historical energy capacity (1e9€/yr)": annualized_historical_energy_capacity_df,
+                     "System functionment (1e9€/yr)": functionment_costs_df,
+                     # "Emissions (MtCO2)": pd.DataFrame({"Emissions": list_emissions}, index=list_anticipated_year[:t + 1]),
+                     "Peak electricity load": peak_electricity_load_df,
+                     "Peak heat load": peak_heat_load_df,
+                     "Subsidies (%)": resirf_subsidies_df,
+                     "ResIRF costs (Billion euro)": resirf_costs_df.T,
+                     "ResIRF costs eff (euro/kWh)": investment_cost_eff_df.T,
+                     "ResIRF consumption yearly (TWh)": resirf_consumption_yearly_df.T,
+                     "ResIRF consumption savings (TWh/year)": resirf_consumption_saving_df.T,
+                     "ResIRF replacement heater (Thousand)": replacement_heater_df.T,
+                     "ResIRF stock heater (Thousand)": stock_heater_df,
+                     "Output global ResIRF ()": output_global_ResIRF,
+                    "Stock global ResIRF ()": stock_global_ResIRF,
+                     "Spot price EOLES (€ / MWh)": spot_price_df
+                 }
+                return output, buildings, dict_optimizer
 
-        if anticipated_demand_t10:  # here, we modify the value of anticipated_year_eoles for saving dataframes
-            anticipated_year_eoles = anticipated_year_eoles - 5
+            if anticipated_demand_t10:  # here, we modify the value of anticipated_year_eoles for saving dataframes
+                anticipated_year_eoles = anticipated_year_eoles - 5
 
-        if price_feedback:  # we use EOLES LCOE to estimate future energy prices for period [t+1;t+2[
-            lcoe_elec = m_eoles.summary["lcoe_elec"]
-            transport_and_distribution_lcoe = m_eoles.summary["transport_and_distrib_lcoe"]
-            gas_furniture_cost = m_eoles.summary["lcoe_CH4_noSCC"]
-            naturalgas_furniture_cost = m_eoles.summary["lcoe_CH4_naturalgas_noSCC"]
-            biogas_furniture_cost = m_eoles.summary["lcoe_CH4_biogas_noSCC"]
-            elec_price_ht, gas_price_ht = electricity_gas_price_ht(lcoe_elec, transport_and_distribution_lcoe, gas_furniture_cost,
-                                                                   naturalgas_furniture_cost, biogas_furniture_cost,
-                                                                   calib_elec_lcoe=config_coupling["calibration_elec_lcoe"],
-                                                                   calib_elec_transport_distrib=config_coupling["calibration_elec_transport_distrib"],
-                                                                   calib_naturalgas=config_coupling["calibration_naturalgas_lcoe"],
-                                                                   calib_biogas=config_coupling["calibration_biogas_lcoe"],
-                                                                   year=anticipated_year_eoles, endogenous_distribution=True)
-            list_electricity_price_ht.append(elec_price_ht)
-            list_transport_distribution_lcoe.append(transport_and_distribution_lcoe)
-            # energy_prices = new_projection_prices(energy_prices, elec_price_ht, energy_taxes, start=anticipated_year_eoles, end=anticipated_year_eoles+5)
-            inputs_dynamics['energy_prices'] = update_energy_prices(inputs_dynamics['energy_prices'], elec_price_ht, gas_price_ht, energy_taxes,
-                                                           vta=energy_vta, start=anticipated_year_eoles, end=anticipated_year_eoles+5)  # we update energy prices beliefs for the coming years
-        ### Spot price
-        spot_price = m_eoles.spot_price.rename(columns={"elec_spot_price": f"elec_spot_price_{anticipated_year_eoles}",
-                                                        "CH4_spot_price": f"CH4_spot_price_{anticipated_year_eoles}"})
-        spot_price_df = pd.concat([spot_price_df, spot_price], axis=1)
+            if price_feedback:  # we use EOLES LCOE to estimate future energy prices for period [t+1;t+2[
+                lcoe_elec = m_eoles.summary["lcoe_elec"]
+                transport_and_distribution_lcoe = m_eoles.summary["transport_and_distrib_lcoe"]
+                gas_furniture_cost = m_eoles.summary["lcoe_CH4_noSCC"]
+                naturalgas_furniture_cost = m_eoles.summary["lcoe_CH4_naturalgas_noSCC"]
+                biogas_furniture_cost = m_eoles.summary["lcoe_CH4_biogas_noSCC"]
+                elec_price_ht, gas_price_ht = electricity_gas_price_ht(lcoe_elec, transport_and_distribution_lcoe, gas_furniture_cost,
+                                                                       naturalgas_furniture_cost, biogas_furniture_cost,
+                                                                       calib_elec_lcoe=config_coupling["calibration_elec_lcoe"],
+                                                                       calib_elec_transport_distrib=config_coupling["calibration_elec_transport_distrib"],
+                                                                       calib_naturalgas=config_coupling["calibration_naturalgas_lcoe"],
+                                                                       calib_biogas=config_coupling["calibration_biogas_lcoe"],
+                                                                       year=anticipated_year_eoles, endogenous_distribution=True)
+                list_electricity_price_ht.append(elec_price_ht)
+                list_transport_distribution_lcoe.append(transport_and_distribution_lcoe)
+                # energy_prices = new_projection_prices(energy_prices, elec_price_ht, energy_taxes, start=anticipated_year_eoles, end=anticipated_year_eoles+5)
+                inputs_dynamics['energy_prices'] = update_energy_prices(inputs_dynamics['energy_prices'], elec_price_ht, gas_price_ht, energy_taxes,
+                                                               vta=energy_vta, start=anticipated_year_eoles, end=anticipated_year_eoles+5)  # we update energy prices beliefs for the coming years
+            ### Spot price
+            spot_price = m_eoles.spot_price.rename(columns={"elec_spot_price": f"elec_spot_price_{anticipated_year_eoles}",
+                                                            "CH4_spot_price": f"CH4_spot_price_{anticipated_year_eoles}"})
+            spot_price_df = pd.concat([spot_price_df, spot_price], axis=1)
 
-        peak_electricity_load = m_eoles.peak_electricity_load_info
-        peak_electricity_load["year"] = anticipated_year_eoles
-        peak_electricity_load_df = pd.concat([peak_electricity_load_df, peak_electricity_load], axis=0)
+            peak_electricity_load = m_eoles.peak_electricity_load_info
+            peak_electricity_load["year"] = anticipated_year_eoles
+            peak_electricity_load_df = pd.concat([peak_electricity_load_df, peak_electricity_load], axis=0)
 
-        peak_heat_load = m_eoles.peak_heat_load_info
-        peak_heat_load["year"] = anticipated_year_eoles
-        peak_heat_load_df = pd.concat([peak_heat_load_df, peak_heat_load], axis=0)
+            peak_heat_load = m_eoles.peak_heat_load_info
+            peak_heat_load["year"] = anticipated_year_eoles
+            peak_heat_load_df = pd.concat([peak_heat_load_df, peak_heat_load], axis=0)
 
-        list_emissions.append(m_eoles.emissions.sum())
-        list_carbon_value.append(m_eoles.carbon_value)
+            list_emissions.append(m_eoles.emissions.sum())
+            list_carbon_value.append(m_eoles.carbon_value)
 
-        if anticipated_year_eoles == 2050:
-            hourly_generation_2050 = m_eoles.hourly_generation
+            if anticipated_year_eoles == 2050:
+                hourly_generation_2050 = m_eoles.hourly_generation
 
-        #### Get annuity and functionment cost corresponding to each technology
-        new_capacity_annualized_costs_nofOM = m_eoles.new_capacity_annualized_costs_nofOM / 1000  # 1e9 € / yr
-        new_capacity_annualized_costs_nofOM = pd.concat([new_capacity_annualized_costs_nofOM,
-                   pd.DataFrame(index=["investment_heater", "investment_insulation"], data={'annualized_costs': [annuity_investment_heater_cost, annuity_investment_insulation_cost]})], axis=0)
-        annualized_new_investment_df = pd.concat([annualized_new_investment_df, new_capacity_annualized_costs_nofOM.rename(columns={"annualized_costs": anticipated_year_eoles})], axis=1)
+            #### Get annuity and functionment cost corresponding to each technology
+            new_capacity_annualized_costs_nofOM = m_eoles.new_capacity_annualized_costs_nofOM / 1000  # 1e9 € / yr
+            new_capacity_annualized_costs_nofOM = pd.concat([new_capacity_annualized_costs_nofOM,
+                       pd.DataFrame(index=["investment_heater", "investment_insulation"], data={'annualized_costs': [annuity_investment_heater_cost, annuity_investment_insulation_cost]})], axis=0)
+            annualized_new_investment_df = pd.concat([annualized_new_investment_df, new_capacity_annualized_costs_nofOM.rename(columns={"annualized_costs": anticipated_year_eoles})], axis=1)
 
-        new_energy_capacity_annualized_costs_nofOM = m_eoles.new_energy_capacity_annualized_costs_nofOM / 1000
-        annualized_new_energy_capacity_df = pd.concat([annualized_new_energy_capacity_df, new_energy_capacity_annualized_costs_nofOM.rename(columns={"annualized_costs": anticipated_year_eoles})], axis=1)
+            new_energy_capacity_annualized_costs_nofOM = m_eoles.new_energy_capacity_annualized_costs_nofOM / 1000
+            annualized_new_energy_capacity_df = pd.concat([annualized_new_energy_capacity_df, new_energy_capacity_annualized_costs_nofOM.rename(columns={"annualized_costs": anticipated_year_eoles})], axis=1)
 
-        functionment_cost = m_eoles.functionment_cost / 1000  # 1e9 € / yr
-        functionment_cost = pd.concat([functionment_cost,
-                   pd.DataFrame(index=["health_costs"], data={'functionment_cost': [annuity_health_cost]})], axis=0)
-        functionment_costs_df = pd.concat([functionment_costs_df, functionment_cost.rename(columns={"functionment_cost": anticipated_year_eoles})], axis=1)
+            functionment_cost = m_eoles.functionment_cost / 1000  # 1e9 € / yr
+            functionment_cost = pd.concat([functionment_cost,
+                       pd.DataFrame(index=["health_costs"], data={'functionment_cost': [annuity_health_cost]})], axis=0)
+            functionment_costs_df = pd.concat([functionment_costs_df, functionment_cost.rename(columns={"functionment_cost": anticipated_year_eoles})], axis=1)
 
-        # Historical annuity cost
-        annualized_costs_capacity_nofOM_historical = annualized_costs_capacity_nofOM_historical / 1000  # 1e9 € / yr
-        annualized_costs_energy_capacity_historical = annualized_costs_energy_capacity_historical / 1000  # 1e9 € / yr
-        annualized_historical_capacity_df = pd.concat([annualized_historical_capacity_df, annualized_costs_capacity_nofOM_historical.rename(columns={'annualized_costs': anticipated_year_eoles})], axis=1)
-        annualized_historical_energy_capacity_df = pd.concat([annualized_historical_energy_capacity_df, annualized_costs_energy_capacity_historical.rename(columns={'annualized_costs': anticipated_year_eoles})], axis=1)
+            # Historical annuity cost
+            annualized_costs_capacity_nofOM_historical = annualized_costs_capacity_nofOM_historical / 1000  # 1e9 € / yr
+            annualized_costs_energy_capacity_historical = annualized_costs_energy_capacity_historical / 1000  # 1e9 € / yr
+            annualized_historical_capacity_df = pd.concat([annualized_historical_capacity_df, annualized_costs_capacity_nofOM_historical.rename(columns={'annualized_costs': anticipated_year_eoles})], axis=1)
+            annualized_historical_energy_capacity_df = pd.concat([annualized_historical_energy_capacity_df, annualized_costs_energy_capacity_historical.rename(columns={'annualized_costs': anticipated_year_eoles})], axis=1)
 
-        #### Update total capacities and new capacities
-        new_capacity = m_eoles.capacities - existing_capacity  # we get the newly installed capacities at year y
-        new_charging_capacity = m_eoles.charging_capacity - existing_charging_capacity
-        new_energy_capacity = m_eoles.energy_capacity - existing_energy_capacity
-        gene_per_tec = pd.Series(m_eoles.generation_per_technology)
+            #### Update total capacities and new capacities
+            new_capacity = m_eoles.capacities - existing_capacity  # we get the newly installed capacities at year y
+            new_charging_capacity = m_eoles.charging_capacity - existing_charging_capacity
+            new_energy_capacity = m_eoles.energy_capacity - existing_energy_capacity
+            gene_per_tec = pd.Series(m_eoles.generation_per_technology)
 
-        new_capacity_tot = new_capacity_tot + new_capacity  # total newly built capacity over the time horizon until t included
-        new_charging_capacity_tot = new_charging_capacity_tot + new_charging_capacity
-        new_energy_capacity_tot = new_energy_capacity_tot + new_energy_capacity
+            new_capacity_tot = new_capacity_tot + new_capacity  # total newly built capacity over the time horizon until t included
+            new_charging_capacity_tot = new_charging_capacity_tot + new_charging_capacity
+            new_energy_capacity_tot = new_energy_capacity_tot + new_energy_capacity
 
-        # update annualized costs from new capacity built until time t included
-        annualized_costs_new_capacity = pd.concat([annualized_costs_new_capacity[["annualized_costs"]],
-                                                   m_eoles.new_capacity_annualized_costs[["annualized_costs"]].rename(
-                                                       columns={'annualized_costs': 'new_annualized_costs'})], axis=1)
-        annualized_costs_new_capacity["annualized_costs"] = annualized_costs_new_capacity["annualized_costs"] + \
-                                                            annualized_costs_new_capacity['new_annualized_costs']
-        annualized_costs_new_capacity = annualized_costs_new_capacity.drop(columns=['new_annualized_costs'])
+            # update annualized costs from new capacity built until time t included
+            annualized_costs_new_capacity = pd.concat([annualized_costs_new_capacity[["annualized_costs"]],
+                                                       m_eoles.new_capacity_annualized_costs[["annualized_costs"]].rename(
+                                                           columns={'annualized_costs': 'new_annualized_costs'})], axis=1)
+            annualized_costs_new_capacity["annualized_costs"] = annualized_costs_new_capacity["annualized_costs"] + \
+                                                                annualized_costs_new_capacity['new_annualized_costs']
+            annualized_costs_new_capacity = annualized_costs_new_capacity.drop(columns=['new_annualized_costs'])
 
-        annualized_costs_new_energy_capacity = pd.concat([annualized_costs_new_energy_capacity[["annualized_costs"]],
-                                                          m_eoles.new_energy_capacity_annualized_costs[
-                                                              ["annualized_costs"]].rename(
-                                                              columns={'annualized_costs': 'new_annualized_costs'})],
-                                                         axis=1)
-        annualized_costs_new_energy_capacity["annualized_costs"] = annualized_costs_new_energy_capacity[
-                                                                       "annualized_costs"] + \
-                                                                   annualized_costs_new_energy_capacity[
-                                                                       'new_annualized_costs']
-        annualized_costs_new_energy_capacity = annualized_costs_new_energy_capacity.drop(
-            columns=['new_annualized_costs'])
+            annualized_costs_new_energy_capacity = pd.concat([annualized_costs_new_energy_capacity[["annualized_costs"]],
+                                                              m_eoles.new_energy_capacity_annualized_costs[
+                                                                  ["annualized_costs"]].rename(
+                                                                  columns={'annualized_costs': 'new_annualized_costs'})],
+                                                             axis=1)
+            annualized_costs_new_energy_capacity["annualized_costs"] = annualized_costs_new_energy_capacity[
+                                                                           "annualized_costs"] + \
+                                                                       annualized_costs_new_energy_capacity[
+                                                                           'new_annualized_costs']
+            annualized_costs_new_energy_capacity = annualized_costs_new_energy_capacity.drop(
+                columns=['new_annualized_costs'])
 
-        capacity_df = pd.concat([capacity_df, m_eoles.capacities.to_frame().rename(columns={0: anticipated_year_eoles})], axis=1)
-        charging_capacity_df = pd.concat(
-            [charging_capacity_df, m_eoles.charging_capacity.to_frame().rename(columns={0: anticipated_year_eoles})], axis=1)
-        generation_df = pd.concat([generation_df, gene_per_tec.to_frame().rename(columns={0: anticipated_year_eoles})], axis=1)
-        energy_capacity_df = pd.concat([energy_capacity_df, m_eoles.energy_capacity.to_frame().rename(columns={0: anticipated_year_eoles})],
-                                       axis=1)
-        new_capacity_df = pd.concat([new_capacity_df, new_capacity.to_frame().rename(columns={0: anticipated_year_eoles})], axis=1)
-        primary_generation_df = pd.concat([primary_generation_df,
-                                           m_eoles.primary_generation.reindex(reindex_primary_prod).to_frame().rename(
-                                               columns={0: anticipated_year_eoles})], axis=1)
-        conversion_generation = pd.concat([m_eoles.CH4_to_power_generation.to_frame(),
-                                           m_eoles.power_to_CH4_generation.to_frame(),
-                                           m_eoles.power_to_H2_generation.to_frame()], axis=0)
-        conversion_generation_df = pd.concat([conversion_generation_df, conversion_generation.rename(columns={0: anticipated_year_eoles})], axis=1)
+            capacity_df = pd.concat([capacity_df, m_eoles.capacities.to_frame().rename(columns={0: anticipated_year_eoles})], axis=1)
+            charging_capacity_df = pd.concat(
+                [charging_capacity_df, m_eoles.charging_capacity.to_frame().rename(columns={0: anticipated_year_eoles})], axis=1)
+            generation_df = pd.concat([generation_df, gene_per_tec.to_frame().rename(columns={0: anticipated_year_eoles})], axis=1)
+            energy_capacity_df = pd.concat([energy_capacity_df, m_eoles.energy_capacity.to_frame().rename(columns={0: anticipated_year_eoles})],
+                                           axis=1)
+            new_capacity_df = pd.concat([new_capacity_df, new_capacity.to_frame().rename(columns={0: anticipated_year_eoles})], axis=1)
+            primary_generation_df = pd.concat([primary_generation_df,
+                                               m_eoles.primary_generation.reindex(reindex_primary_prod).to_frame().rename(
+                                                   columns={0: anticipated_year_eoles})], axis=1)
+            conversion_generation = pd.concat([m_eoles.CH4_to_power_generation.to_frame(),
+                                               m_eoles.power_to_CH4_generation.to_frame(),
+                                               m_eoles.power_to_H2_generation.to_frame()], axis=0)
+            conversion_generation_df = pd.concat([conversion_generation_df, conversion_generation.rename(columns={0: anticipated_year_eoles})], axis=1)
 
-        list_elec_annualized.append(m_eoles.objective)
-        list_transport_distrib_annualized.append(m_eoles.transport_distribution_cost)
-        total_annualized_costs = annuity_investment_heater_cost + annuity_investment_insulation_cost + annuity_health_cost + m_eoles.objective
-        list_global_annualized_costs.append(total_annualized_costs)
+            list_elec_annualized.append(m_eoles.objective)
+            list_transport_distrib_annualized.append(m_eoles.transport_distribution_cost)
+            total_annualized_costs = annuity_investment_heater_cost + annuity_investment_insulation_cost + annuity_health_cost + m_eoles.objective
+            list_global_annualized_costs.append(total_annualized_costs)
 
-        weighted_average_elec_price.append(m_eoles.summary["weighted_elec_price_demand"])
-        weighted_average_CH4_price.append(m_eoles.summary["weighted_CH4_price_demand"])
-        weighted_average_H2_price.append(m_eoles.summary["weighted_H2_price_demand"])
+            weighted_average_elec_price.append(m_eoles.summary["weighted_elec_price_demand"])
+            weighted_average_CH4_price.append(m_eoles.summary["weighted_CH4_price_demand"])
+            weighted_average_H2_price.append(m_eoles.summary["weighted_H2_price_demand"])
 
-        list_lcoe_elec.append(m_eoles.summary["lcoe_elec"])
-        list_lcoe_elec_volume.append(m_eoles.summary["lcoe_elec_volume"])
-        list_lcoe_elec_value.append(m_eoles.summary["lcoe_elec_value"])
-        list_lcoe_CH4.append(m_eoles.summary["lcoe_CH4"])
-        list_lcoe_CH4_value.append(m_eoles.summary["lcoe_CH4_value"])
-        list_lcoe_CH4_volume.append(m_eoles.summary["lcoe_CH4_volume"])
-        list_lcoe_CH4_noSCC.append(m_eoles.summary["lcoe_CH4_noSCC"])
-        list_lcoe_CH4_volume_noSCC.append(m_eoles.summary["lcoe_CH4_volume_noSCC"])
-        list_lcoe_H2.append(m_eoles.summary["lcoe_CH4"])
-        list_lcoe_H2_value.append(m_eoles.summary["lcoe_H2_value"])
-        list_lcoe_H2_volume.append(m_eoles.summary["lcoe_H2_volume"])
+            list_lcoe_elec.append(m_eoles.summary["lcoe_elec"])
+            list_lcoe_elec_volume.append(m_eoles.summary["lcoe_elec_volume"])
+            list_lcoe_elec_value.append(m_eoles.summary["lcoe_elec_value"])
+            list_lcoe_CH4.append(m_eoles.summary["lcoe_CH4"])
+            list_lcoe_CH4_value.append(m_eoles.summary["lcoe_CH4_value"])
+            list_lcoe_CH4_volume.append(m_eoles.summary["lcoe_CH4_volume"])
+            list_lcoe_CH4_noSCC.append(m_eoles.summary["lcoe_CH4_noSCC"])
+            list_lcoe_CH4_volume_noSCC.append(m_eoles.summary["lcoe_CH4_volume_noSCC"])
+            list_lcoe_H2.append(m_eoles.summary["lcoe_CH4"])
+            list_lcoe_H2_value.append(m_eoles.summary["lcoe_H2_value"])
+            list_lcoe_H2_volume.append(m_eoles.summary["lcoe_H2_volume"])
 
-    price_df = pd.DataFrame(
-        {'Average electricity price': weighted_average_elec_price, 'Average CH4 price': weighted_average_CH4_price,
-         'Average H2 price': weighted_average_H2_price,
-         'LCOE electricity': list_lcoe_elec, 'LCOE electricity value': list_lcoe_elec_value, 'LCOE electricity volume': list_lcoe_elec_volume,
-         'LCOE CH4': list_lcoe_CH4, 'LCOE CH4 value': list_lcoe_CH4_value, 'LCOE CH4 volume': list_lcoe_CH4_volume,
-         'LCOE H2': list_lcoe_H2, 'LCOE H2 value': list_lcoe_H2_value, 'LCOE H2 volume': list_lcoe_H2_volume,
-         'LCOE CH4 noSCC': list_lcoe_CH4_noSCC, 'LCOE CH4 volume noSCC': list_lcoe_CH4_volume_noSCC},
-        index=list_anticipated_year)
+        else:  # we do not solve the model
+            annualized_new_investments = pd.DataFrame(index=["investment_heater", "investment_insulation"],
+                                           data={'annualized_costs': [annuity_investment_heater_cost,
+                                                                      annuity_investment_insulation_cost]})
+            annualized_new_investment_df = pd.concat([annualized_new_investment_df,
+                                                      annualized_new_investments.rename(columns={"annualized_costs": anticipated_year_eoles})],
+                                                     axis=1)
+            # TODO: attention, ici je me place sous l'hypothèse qu'on travaille sous contrainte carbone pour le calcul des vOM.
+            # TODO: à modifier pour gérer le DH éventuellement (dans la conso bois)
+            oil_functionment_cost, wood_functionment_cost = oil_consumption * m_eoles.vOM["oil"], wood_consumption * \
+                                                            m_eoles.vOM["wood"]
+            functionment_cost = pd.DataFrame(index=["health_costs", "oil", "wood"], data={
+                'functionment_cost': [annuity_health_cost, oil_functionment_cost, wood_functionment_cost]})
+            functionment_costs_df = pd.concat([functionment_costs_df, functionment_cost.rename(
+                columns={"functionment_cost": anticipated_year_eoles})], axis=1)
 
-    annualized_system_costs_df = pd.DataFrame(
-        {'Annualized electricity system costs': list_elec_annualized,
-         'Annualized investment heater costs': list_heater_annualized,
-         'Annualized investment insulation costs': list_insulation_annualized,
-         'Annualized health costs': list_healthcost_annualized, "Annualized total costs": list_global_annualized_costs},
-        index=list_anticipated_year
-    )
+    if optim_eoles:
+        price_df = pd.DataFrame(
+            {'Average electricity price': weighted_average_elec_price, 'Average CH4 price': weighted_average_CH4_price,
+             'Average H2 price': weighted_average_H2_price,
+             'LCOE electricity': list_lcoe_elec, 'LCOE electricity value': list_lcoe_elec_value,
+             'LCOE electricity volume': list_lcoe_elec_volume,
+             'LCOE CH4': list_lcoe_CH4, 'LCOE CH4 value': list_lcoe_CH4_value, 'LCOE CH4 volume': list_lcoe_CH4_volume,
+             'LCOE H2': list_lcoe_H2, 'LCOE H2 value': list_lcoe_H2_value, 'LCOE H2 volume': list_lcoe_H2_volume,
+             'LCOE CH4 noSCC': list_lcoe_CH4_noSCC, 'LCOE CH4 volume noSCC': list_lcoe_CH4_volume_noSCC},
+            index=list_anticipated_year)
 
-    resirf_subsidies_df = pd.DataFrame({'Heater': list_sub_heater, 'Insulation': list_sub_insulation},
-                                    index=list_year)  # we keep list_year, as the subsidies are applied from y to y+5
+        annualized_system_costs_df = pd.DataFrame(
+            {'Annualized electricity system costs': list_elec_annualized,
+             'Annualized investment heater costs': list_heater_annualized,
+             'Annualized investment insulation costs': list_insulation_annualized,
+             'Annualized health costs': list_healthcost_annualized, "Annualized total costs": list_global_annualized_costs},
+            index=list_anticipated_year
+        )
 
-    resirf_consumption_df = pd.DataFrame(
-        {'Electricity': list_electricity_consumption, "Natural gas": list_gas_consumption,
-         'Oil fuel': list_oil_consumption, 'Wood fuel': list_wood_consumption}, index=list_anticipated_year)
+        resirf_subsidies_df = pd.DataFrame({'Heater': list_sub_heater, 'Insulation': list_sub_insulation},
+                                           index=list_year)  # we keep list_year, as the subsidies are applied from y to y+5
 
-    output = {
-        "Capacities (GW)": capacity_df,
-        "New capacities (GW)": new_capacity_df,
-        "Generation (TWh)": generation_df,
-        "Primary generation (TWh)": primary_generation_df,
-        "Conversion generation (TWh)": conversion_generation_df,
-        "Charging capacity (GW)": charging_capacity_df,
-        "Energy capacity (GW)": energy_capacity_df,
-        "Annualized new investments (1e9€/yr)": annualized_new_investment_df,
-        "Annualized costs new energy capacity (1e9€/yr)": annualized_new_energy_capacity_df,
-        "Annualized costs historical capacity (1e9€/yr)": annualized_historical_capacity_df,
-        "Annualized costs historical energy capacity (1e9€/yr)": annualized_historical_energy_capacity_df,
-        "System functionment (1e9€/yr)": functionment_costs_df,
-        "Prices (€/MWh)": price_df,
-        "Emissions (MtCO2)": pd.DataFrame({"Emissions": list_emissions}, index=list_anticipated_year),
-        "Carbon value (€/tCO2)": pd.DataFrame({"Carbon value": list_carbon_value}, index=list_anticipated_year),
-        "Peak electricity load": peak_electricity_load_df,
-        "Peak heat load": peak_heat_load_df,
-        "Subsidies (%)": resirf_subsidies_df,
-        "ResIRF costs (Billion euro)": resirf_costs_df.T,
-        "ResIRF costs eff (euro/kWh)": investment_cost_eff_df.T,
-        "ResIRF consumption (TWh)": resirf_consumption_df,
-        "ResIRF consumption yearly (TWh)": resirf_consumption_yearly_df.T,
-        "ResIRF consumption savings (TWh)": resirf_consumption_saving_df.T,
-        "ResIRF replacement heater (Thousand)": replacement_heater_df.T,
-        "ResIRF stock heater (Thousand)": stock_heater_df,
-        "Annualized system costs (Billion euro / year)": annualized_system_costs_df,
-        'Transport and distribution costs (Billion euro / year)': pd.DataFrame({"Transport and distribution": list_transport_distrib_annualized}, index=list_anticipated_year),
-        "Output global ResIRF ()": output_global_ResIRF,
-        "Stock global ResIRF ()": stock_global_ResIRF,
-        "Spot price EOLES (€ / MWh)": spot_price_df,
-        "Hourly generation 2050 (GWh)": hourly_generation_2050,
-        "Energy prices (€/kWh)": inputs_dynamics['energy_prices']
-    }
+        resirf_consumption_df = pd.DataFrame(
+            {'Electricity': list_electricity_consumption, "Natural gas": list_gas_consumption,
+             'Oil fuel': list_oil_consumption, 'Wood fuel': list_wood_consumption}, index=list_anticipated_year)
 
-    if price_feedback:
-        output.update({
-            "Electricity price without tax": pd.DataFrame({"Electricity price without tax": list_electricity_price_ht}, index=list_anticipated_year),
-            "Transport and distribution price": pd.DataFrame({"Transport and distribution price": list_transport_distribution_lcoe}, index=list_anticipated_year)
-        })
+        output = {
+            "Capacities (GW)": capacity_df,
+            "New capacities (GW)": new_capacity_df,
+            "Generation (TWh)": generation_df,
+            "Primary generation (TWh)": primary_generation_df,
+            "Conversion generation (TWh)": conversion_generation_df,
+            "Charging capacity (GW)": charging_capacity_df,
+            "Energy capacity (GW)": energy_capacity_df,
+            "Annualized new investments (1e9€/yr)": annualized_new_investment_df,
+            "Annualized costs new energy capacity (1e9€/yr)": annualized_new_energy_capacity_df,
+            "Annualized costs historical capacity (1e9€/yr)": annualized_historical_capacity_df,
+            "Annualized costs historical energy capacity (1e9€/yr)": annualized_historical_energy_capacity_df,
+            "System functionment (1e9€/yr)": functionment_costs_df,
+            "Prices (€/MWh)": price_df,
+            "Emissions (MtCO2)": pd.DataFrame({"Emissions": list_emissions}, index=list_anticipated_year),
+            "Carbon value (€/tCO2)": pd.DataFrame({"Carbon value": list_carbon_value}, index=list_anticipated_year),
+            "Peak electricity load": peak_electricity_load_df,
+            "Peak heat load": peak_heat_load_df,
+            "Subsidies (%)": resirf_subsidies_df,
+            "ResIRF costs (Billion euro)": resirf_costs_df.T,
+            "ResIRF costs eff (euro/kWh)": investment_cost_eff_df.T,
+            "ResIRF consumption (TWh)": resirf_consumption_df,
+            "ResIRF consumption yearly (TWh)": resirf_consumption_yearly_df.T,
+            "ResIRF consumption savings (TWh)": resirf_consumption_saving_df.T,
+            "ResIRF replacement heater (Thousand)": replacement_heater_df.T,
+            "ResIRF stock heater (Thousand)": stock_heater_df,
+            "Annualized system costs (Billion euro / year)": annualized_system_costs_df,
+            'Transport and distribution costs (Billion euro / year)': pd.DataFrame(
+                {"Transport and distribution": list_transport_distrib_annualized}, index=list_anticipated_year),
+            "Output global ResIRF ()": output_global_ResIRF,
+            "Stock global ResIRF ()": stock_global_ResIRF,
+            "Spot price EOLES (€ / MWh)": spot_price_df,
+            "Hourly generation 2050 (GWh)": hourly_generation_2050,
+            "Energy prices (€/kWh)": inputs_dynamics['energy_prices']
+        }
 
-    if grad_descent:
-        return output, buildings, opt_res
+        if price_feedback:
+            output.update({
+                "Electricity price without tax": pd.DataFrame({"Electricity price without tax": list_electricity_price_ht},
+                                                              index=list_anticipated_year),
+                "Transport and distribution price": pd.DataFrame(
+                    {"Transport and distribution price": list_transport_distribution_lcoe}, index=list_anticipated_year)
+            })
+
+        if grad_descent:
+            return output, buildings, opt_res
+    else:
+        output = {
+            "Annualized new investments (1e9€/yr)": annualized_new_investment_df,
+            "Annualized costs new energy capacity (1e9€/yr)": annualized_new_energy_capacity_df,
+            "System functionment (1e9€/yr)": functionment_costs_df,
+            "ResIRF costs (Billion euro)": resirf_costs_df.T,
+            "ResIRF costs eff (euro/kWh)": investment_cost_eff_df.T,
+            "ResIRF consumption yearly (TWh)": resirf_consumption_yearly_df.T,
+            "ResIRF consumption savings (TWh)": resirf_consumption_saving_df.T,
+            "ResIRF replacement heater (Thousand)": replacement_heater_df.T,
+            "ResIRF stock heater (Thousand)": stock_heater_df,
+            "Output global ResIRF ()": output_global_ResIRF,
+            "Stock global ResIRF ()": stock_global_ResIRF,
+            "Energy prices (€/kWh)": inputs_dynamics['energy_prices']
+        }
 
     return output, buildings, dict_optimizer
 
