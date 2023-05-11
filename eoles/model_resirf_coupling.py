@@ -14,7 +14,7 @@ from eoles.utils import get_pandas, process_RTE_demand, calculate_annuities_cape
     extract_use_elec, extract_renovation_rates, extract_heat_gene, calculate_LCOE_gene_tec, calculate_LCOE_conv_tec, \
     extract_charging_capacity, extract_annualized_costs_investment_new_capa, extract_CH4_to_power, extract_power_to_CH4, \
     extract_power_to_H2, extract_peak_load, extract_peak_heat_load, extract_annualized_costs_investment_new_capa_nofOM, \
-    extract_functionment_cost, extract_carbon_value
+    extract_functionment_cost, extract_carbon_value, extract_H2_to_power
 from pyomo.environ import (
     ConcreteModel,
     RangeSet,
@@ -686,6 +686,7 @@ class ModelEOLES():
         self.electricity_generation = extract_supply_elec(self.model, self.nb_years)
         self.primary_generation = extract_primary_gene(self.model, self.nb_years)
         self.CH4_to_power_generation = extract_CH4_to_power(self.model, self.conversion_efficiency, self.nb_years)
+        self.H2_to_power_generation = extract_H2_to_power(self.model, self.conversion_efficiency, self.nb_years)
         self.power_to_CH4_generation = extract_power_to_CH4(self.model, self.conversion_efficiency, self.nb_years)
         self.power_to_H2_generation = extract_power_to_H2(self.model, self.conversion_efficiency, self.nb_years)
 

@@ -17,7 +17,7 @@ from project.model import create_logger, get_config, get_inputs
 from eoles.model_resirf_coupling import ModelEOLES
 from eoles.utils import get_config, get_pandas, calculate_annuities_resirf, modif_config_resirf, \
     config_resirf_exogenous, create_multiple_coupling_configs, modif_config_eoles
-from eoles.write_output import plot_simulation, comparison_simulations
+from eoles.write_output import plot_simulation, comparison_simulations, comparison_simulations_scenarios
 from eoles.coupling_resirf_eoles import resirf_eoles_coupling_dynamic, optimize_blackbox_resirf_eoles_coupling, \
     calibration_price, get_energy_prices_and_taxes, resirf_eoles_coupling_greenfield, gradient_descent
 import logging
@@ -390,33 +390,47 @@ if __name__ == '__main__':
     # plot_scenario(output, stock, buildings)
     # grouped_output(result={"Reference": output}, folder=os.path.join("eoles/outputs/test_plots"))
 
-    dict_output = {"Uniform": os.path.join(
-        "eoles/outputs/0503_greenfield_S3_N1_prices/0503_065749_uniform_greenfield_S3_N1_prices"),
+    dict_output1 = {"Uniform": os.path.join("eoles/outputs/0506_greenfield_S3_N1/0506_151129_uniform_greenfield_S3_N1"),
                    "Global renovation": os.path.join(
-                       "eoles/outputs/0503_greenfield_S3_N1_prices/0503_070606_GR_greenfield_S3_N1_prices"),
+                       "eoles/outputs/0506_greenfield_S3_N1/0506_151216_GR_greenfield_S3_N1"),
+                   "Global renovation FGE": os.path.join(
+                       "eoles/outputs/0506_greenfield_S3_N1/0506_151213_GR_fge_greenfield_S3_N1"),
                    "Centralized": os.path.join(
-                       "eoles/outputs/0503_greenfield_S3_N1_prices/0503_031312_centralized_greenfield_S3_N1_prices"),
-                   "tCO2_cumac": os.path.join(
-                       "eoles/outputs/0503_greenfield_S3_N1_prices/0503_024719_tCO2_uni_greenfield_S3_N1_prices"),
+                       "eoles/outputs/0506_greenfield_S3_N1/0506_064807_centralized_insulation_greenfield_S3_N1"),
                    "MWh_tCO2": os.path.join(
-                       "eoles/outputs/0503_greenfield_S3_N1_prices/0503_072622_MWh_tCO2_greenfield_S3_N1_prices"),
+                       "eoles/outputs/0506_greenfield_S3_N1/0506_151211_MWh_tCO2_greenfield_S3_N1"),
                    }
+    #
+    # dict_output2 = {
+    #     "Uniform": os.path.join("eoles/outputs/0507_greenfield_S2p_N1/0507_230755_uniform_greenfield_S2p_N1"),
+    #     "Global renovation": os.path.join("eoles/outputs/0507_greenfield_S2p_N1/0507_230000_GR_greenfield_S2p_N1"),
+    #     "Global renovation FGE": os.path.join(
+    #         "eoles/outputs/0507_greenfield_S2p_N1/0507_224644_GR_fge_greenfield_S2p_N1"),
+    #     "Centralized": os.path.join(
+    #         "eoles/outputs/0507_greenfield_S2p_N1/0507_175056_centralized_insulation_greenfield_S2p_N1"),
+    #     "tCO2": os.path.join("eoles/outputs/0507_greenfield_S2p_N1/0507_231124_MWh_tCO2_greenfield_S2p_N1")
+    #     }
+    #
+    # comparison_simulations_scenarios(dict_output1, dict_output2, greenfield=False, health=False, x_min=0,
+    #                                  x_max=None, y_min=0, y_max=None,
+    #                                  rotation=90, save_path=None, pdf=False, carbon_constraint=True, percent=False,
+    #                                  eoles=True)
 
     results_resirf = {}
-    for path, name_config in zip(dict_output.values(), [n for n in dict_output.keys()]):
+    for path, name_config in zip(dict_output1.values(), [n for n in dict_output1.keys()]):
         with open(os.path.join(path, 'coupling_results.pkl'), "rb") as file:
             output = load(file)
             results_resirf[name_config] = output["Output global ResIRF ()"]
 
     folder_comparison = os.path.join("eoles/outputs/comparison")
-    date = datetime.datetime.now().strftime("%m%d_%H%M%S")
-    folder = os.path.join(folder_comparison, f'{date}_greenfield_S3_N1_prices')
-    if not os.path.isdir(folder):
-        os.mkdir(folder)
+    # date = datetime.datetime.now().strftime("%m%d_%H%M%S")
+    # folder = os.path.join(folder_comparison, f'{date}_greenfield_S3_N1_prices')
+    # if not os.path.isdir(folder):
+    #     os.mkdir(folder)
 
     # Plots coupling
     total_system_costs_df, consumption_savings_tot_df, complete_system_costs_2050_df = comparison_simulations(
-        dict_output, ref="Uniform", greenfield=True, health=True, save_path=folder, carbon_constraint=True)
+        dict_output1, ref="Uniform", greenfield=True, health=True, save_path=folder_comparison, carbon_constraint=True)
 
 
 

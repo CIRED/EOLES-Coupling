@@ -471,6 +471,16 @@ def extract_CH4_to_power(model, conversion_efficiency, nb_years):
     return gas_to_power_generation
 
 
+def extract_H2_to_power(model, conversion_efficiency, nb_years):
+    """Extracts CH4 generation necessary to produce electricity"""
+    list_tec = list(model.from_H2_to_elec)
+    H2_to_power_generation = pd.Series(index=list_tec, dtype=float)
+
+    for tec in list_tec:
+        H2_to_power_generation[tec] = sum(value(model.gene[tec, hour]) / conversion_efficiency[tec] for hour in model.h) / 1000 / nb_years  # TWh
+    return H2_to_power_generation
+
+
 def extract_power_to_CH4(model, conversion_efficiency, nb_years):
     """Extracts electricity generation necessary to produce CH4"""
     list_tec = list(model.from_elec_to_CH4)
@@ -754,19 +764,25 @@ def plot_generation(df):
     df.plot.pie(ax=ax)
 
 
-def modif_config_coupling(design, config_coupling, max_iter_single_iteration=50, cap_MWh=400, cap_tCO2=1000):
+def modif_config_coupling(design, config_coupling, max_iter_single_iteration=50, cap_MWh=400, cap_tCO2=1000,
+                          subsidies_heater=None, subsidies_insulation=None):
     """Creates a new configuration file based on an initial configuration file, for a given subsidy design."""
     config_coupling_update = deepcopy(config_coupling)
+    if subsidies_heater is not None:
+        config_coupling_update['subsidies_heater'] = subsidies_heater
+    if subsidies_insulation is not None:
+        config_coupling_update['subsidies_insulation'] = subsidies_insulation
     if design == "uniform":
         config_coupling_update["subsidy"] = {
-            'policy': 'subsidy_ad_valorem',
             'proportional_uniform': None,
             'heater': {
+                'policy': 'subsidy_ad_valorem',
                 'rational_behavior': False,
                 'proportional': None,
                 'cap': None
             },
             'insulation': {
+                'policy': 'subsidy_ad_valorem',
                 'rational_behavior': False,
                 'target': None,
                 'proportional': None,
@@ -775,14 +791,15 @@ def modif_config_coupling(design, config_coupling, max_iter_single_iteration=50,
         }
     elif design == "GR":
         config_coupling_update["subsidy"] = {
-            'policy': 'subsidy_ad_valorem',
             'proportional_uniform': None,
             'heater': {
+                'policy': 'subsidy_ad_valorem',
                 'rational_behavior': False,
                 'proportional': None,
                 'cap': None
             },
             'insulation': {
+                'policy': 'subsidy_ad_valorem',
                 'rational_behavior': False,
                 'target': "global_renovation",
                 'proportional': None,
@@ -791,14 +808,15 @@ def modif_config_coupling(design, config_coupling, max_iter_single_iteration=50,
         }
     elif design == "GR_low_income":
         config_coupling_update["subsidy"] = {
-            'policy': 'subsidy_ad_valorem',
             'proportional_uniform': None,
             'heater': {
+                'policy': 'subsidy_ad_valorem',
                 'rational_behavior': False,
                 'proportional': None,
                 'cap': None
             },
             'insulation': {
+                'policy': 'subsidy_ad_valorem',
                 'rational_behavior': False,
                 'target': "global_renovation_low_income",
                 'proportional': None,
@@ -807,14 +825,15 @@ def modif_config_coupling(design, config_coupling, max_iter_single_iteration=50,
         }
     elif design == "GR_fg":
         config_coupling_update["subsidy"] = {
-            'policy': 'subsidy_ad_valorem',
             'proportional_uniform': None,
             'heater': {
+                'policy': 'subsidy_ad_valorem',
                 'rational_behavior': False,
                 'proportional': None,
                 'cap': None
             },
             'insulation': {
+                'policy': 'subsidy_ad_valorem',
                 'rational_behavior': False,
                 'target': "global_renovation_fg",
                 'proportional': None,
@@ -823,14 +842,15 @@ def modif_config_coupling(design, config_coupling, max_iter_single_iteration=50,
         }
     elif design == "GR_fge":
         config_coupling_update["subsidy"] = {
-            'policy': 'subsidy_ad_valorem',
             'proportional_uniform': None,
             'heater': {
+                'policy': 'subsidy_ad_valorem',
                 'rational_behavior': False,
                 'proportional': None,
                 'cap': None
             },
             'insulation': {
+                'policy': 'subsidy_ad_valorem',
                 'rational_behavior': False,
                 'target': "global_renovation_fge",
                 'proportional': None,
@@ -839,14 +859,15 @@ def modif_config_coupling(design, config_coupling, max_iter_single_iteration=50,
         }
     elif design == "out_worst":
         config_coupling_update["subsidy"] = {
-            'policy': 'subsidy_ad_valorem',
             'proportional_uniform': None,
             'heater': {
+                'policy': 'subsidy_ad_valorem',
                 'rational_behavior': False,
                 'proportional': None,
                 'cap': None
             },
             'insulation': {
+                'policy': 'subsidy_ad_valorem',
                 'rational_behavior': False,
                 'target': "out_worst",
                 'proportional': None,
@@ -855,14 +876,15 @@ def modif_config_coupling(design, config_coupling, max_iter_single_iteration=50,
         }
     elif design == "centralized_insulation":
         config_coupling_update["subsidy"] = {
-            'policy': 'subsidy_ad_valorem',
             'proportional_uniform': None,
             'heater': {
+                'policy': 'subsidy_ad_valorem',
                 'rational_behavior': False,
                 'proportional': None,
                 'cap': None
             },
             'insulation': {
+                'policy': 'subsidy_ad_valorem',
                 'rational_behavior': True,
                 'target': None,
                 'proportional': None,
@@ -871,14 +893,15 @@ def modif_config_coupling(design, config_coupling, max_iter_single_iteration=50,
         }
     elif design == "centralized_insulation_social":
         config_coupling_update["subsidy"] = {
-            'policy': 'subsidy_ad_valorem',
             'proportional_uniform': None,
             'heater': {
+                'policy': 'subsidy_ad_valorem',
                 'rational_behavior': False,
                 'proportional': None,
                 'cap': None
             },
             'insulation': {
+                'policy': 'subsidy_ad_valorem',
                 'rational_behavior': True,
                 'social': True,
                 'target': None,
@@ -888,14 +911,15 @@ def modif_config_coupling(design, config_coupling, max_iter_single_iteration=50,
         }
     elif design == "centralized_insulation_heater":
         config_coupling_update["subsidy"] = {
-            'policy': 'subsidy_ad_valorem',
             'proportional_uniform': None,
             'heater': {
+                'policy': 'subsidy_ad_valorem',
                 'rational_behavior': True,
                 'proportional': None,
                 'cap': None
             },
             'insulation': {
+                'policy': 'subsidy_ad_valorem',
                 'rational_behavior': True,
                 'target': None,
                 'proportional': None,
@@ -906,14 +930,15 @@ def modif_config_coupling(design, config_coupling, max_iter_single_iteration=50,
         config_coupling_update["fix_sub_heater"] = True
         config_coupling_update["max_iter"] = max_iter_single_iteration
         config_coupling_update["subsidy"] = {
-            'policy': 'subsidy_ad_valorem',
             'proportional_uniform': None,
             'heater': {
+                'policy': 'subsidy_ad_valorem',
                 'rational_behavior': False,
                 'proportional': None,
                 'cap': None
             },
             'insulation': {
+                'policy': 'subsidy_ad_valorem',
                 'rational_behavior': False,
                 'target': None,
                 'proportional': None,
@@ -924,14 +949,15 @@ def modif_config_coupling(design, config_coupling, max_iter_single_iteration=50,
         config_coupling_update["fix_sub_insulation"] = True
         config_coupling_update["max_iter"] = max_iter_single_iteration
         config_coupling_update["subsidy"] = {
-            'policy': 'subsidy_ad_valorem',
             'proportional_uniform': None,
             'heater': {
+                'policy': 'subsidy_ad_valorem',
                 'rational_behavior': False,
                 'proportional': None,
                 'cap': None
             },
             'insulation': {
+                'policy': 'subsidy_ad_valorem',
                 'rational_behavior': False,
                 'target': None,
                 'proportional': None,
@@ -942,14 +968,15 @@ def modif_config_coupling(design, config_coupling, max_iter_single_iteration=50,
         config_coupling_update["fix_sub_heater"] = True
         config_coupling_update["max_iter"] = max_iter_single_iteration
         config_coupling_update["subsidy"] = {
-            'policy': 'subsidy_ad_valorem',
             'proportional_uniform': None,
             'heater': {
+                'policy': 'subsidy_ad_valorem',
                 'rational_behavior': False,
                 'proportional': None,
                 'cap': None
             },
             'insulation': {
+                'policy': 'subsidy_ad_valorem',
                 'rational_behavior': True,
                 'target': None,
                 'proportional': None,
@@ -960,14 +987,32 @@ def modif_config_coupling(design, config_coupling, max_iter_single_iteration=50,
         config_coupling_update["fix_sub_heater"] = True  # pour l'instant, c'est juste pour forcer à simuler une seule valeur de subvention, qui sera la même pour insulation et heater.
         config_coupling_update["max_iter"] = max_iter_single_iteration
         config_coupling_update["subsidy"] = {
-            'policy': 'subsidy_proportional',
             'proportional_uniform': True,
             'heater': {
+                'policy': 'subsidy_proportional',
                 'rational_behavior': False,
                 'proportional': "MWh_cumac",
                 'cap': cap_MWh
             },
             'insulation': {
+                'policy': 'subsidy_proportional',
+                'rational_behavior': False,
+                'target': None,
+                'proportional': "MWh_cumac",
+                'cap': cap_MWh
+            }
+        }
+    elif design == "MWh_insulation":
+        config_coupling_update["subsidy"] = {
+            'proportional_uniform': False,
+            'heater': {
+                'policy': 'subsidy_ad_valorem',
+                'rational_behavior': False,
+                'proportional': None,
+                'cap': None
+            },
+            'insulation': {
+                'policy': 'subsidy_proportional',
                 'rational_behavior': False,
                 'target': None,
                 'proportional': "MWh_cumac",
@@ -976,14 +1021,15 @@ def modif_config_coupling(design, config_coupling, max_iter_single_iteration=50,
         }
     elif design == "MWh_sep":
         config_coupling_update["subsidy"] = {
-            'policy': 'subsidy_proportional',
             'proportional_uniform': False,
             'heater': {
+                'policy': 'subsidy_proportional',
                 'rational_behavior': False,
                 'proportional': "MWh_cumac",
                 'cap': cap_MWh
             },
             'insulation': {
+                'policy': 'subsidy_proportional',
                 'rational_behavior': False,
                 'target': None,
                 'proportional': "MWh_cumac",
@@ -994,14 +1040,15 @@ def modif_config_coupling(design, config_coupling, max_iter_single_iteration=50,
         config_coupling_update["fix_sub_heater"] = True  # pour l'instant, c'est juste pour forcer à simuler une seule valeur de subvention, qui sera la même pour insulation et heater.
         config_coupling_update["max_iter"] = max_iter_single_iteration
         config_coupling_update["subsidy"] = {
-            'policy': 'subsidy_proportional',
             'proportional_uniform': True,
             'heater': {
+                'policy': 'subsidy_proportional',
                 'rational_behavior': False,
                 'proportional': "tCO2_cumac",
                 'cap': cap_tCO2
             },
             'insulation': {
+                'policy': 'subsidy_proportional',
                 'rational_behavior': False,
                 'target': None,
                 'proportional': "tCO2_cumac",
@@ -1010,14 +1057,15 @@ def modif_config_coupling(design, config_coupling, max_iter_single_iteration=50,
         }
     elif design == "tCO2_sep":
         config_coupling_update["subsidy"] = {
-            'policy': 'subsidy_proportional',
             'proportional_uniform': False,
             'heater': {
+                'policy': 'subsidy_proportional',
                 'rational_behavior': False,
                 'proportional': "tCO2_cumac",
                 'cap': cap_tCO2
             },
             'insulation': {
+                'policy': 'subsidy_proportional',
                 'rational_behavior': False,
                 'target': None,
                 'proportional': "tCO2_cumac",
@@ -1027,14 +1075,15 @@ def modif_config_coupling(design, config_coupling, max_iter_single_iteration=50,
     else:  # 'MWh_tCO2'
         assert design == 'MWh_tCO2', "Design not correctly specified"
         config_coupling_update["subsidy"] = {
-            'policy': 'subsidy_proportional',
             'proportional_uniform': False,
             'heater': {
+                'policy': 'subsidy_proportional',
                 'rational_behavior': False,
                 'proportional': "tCO2_cumac",
                 'cap': cap_tCO2
             },
             'insulation': {
+                'policy': 'subsidy_proportional',
                 'rational_behavior': False,
                 'target': None,
                 'proportional': "MWh_cumac",
@@ -1112,6 +1161,11 @@ def modif_config_resirf(config_resirf, config_coupling, calibration=None):
     if 'end' in config_coupling.keys():
         config_resirf_update["end"] = config_coupling["end"]
 
+    if 'carbon_emissions_resirf' in config_coupling.keys():
+        config_resirf_update['technical'] = config_reference['technical']
+        assert config_coupling['carbon_emissions_resirf'] in ['project/input/technical/carbon_emission.csv', 'project/input/technical/carbon_emission_s2.csv', 'project/input/technical/carbon_emission_s3.csv', 'project/input/technical/carbon_emission_s4.csv'], 'Carbon emissions are not correctly specified.'
+        config_resirf_update['technical']['carbon_emission'] = config_coupling['carbon_emissions_resirf']
+
     # Modification rational behavior insulation
     config_resirf_update["renovation"] = config_reference["renovation"]
     config_resirf_update["renovation"]["rational_behavior"]["activated"] = config_coupling["subsidy"]['insulation']["rational_behavior"]
@@ -1173,7 +1227,7 @@ def modif_config_resirf(config_resirf, config_coupling, calibration=None):
 
 def create_configs_coupling(list_design, name_design, config_coupling, cap_MWh, cap_tCO2, greenfield, prices_constant=True,
                             biomass_potential_scenario='S3', aggregated_potential=True, maximum_capacity_scenario='N1', max_iter=100,
-                            lifetime_insulation=5, dict_configs=None):
+                            lifetime_insulation=5, dict_configs=None, subsidies_heater=None, subsidies_insulation=None):
     """Creates a list of configs to test from different specified parameters."""
     config_coupling_update = deepcopy(config_coupling)
     if greenfield:  # we add specification of greenfield parameter
@@ -1189,7 +1243,17 @@ def create_configs_coupling(list_design, name_design, config_coupling, cap_MWh, 
         dict_configs = {}
     for design in list_design:
         name_config = f"{design}_{name_design}"
-        dict_configs[name_config] = modif_config_coupling(design, config_coupling_update, cap_MWh=cap_MWh, cap_tCO2=cap_tCO2)
+        if subsidies_heater is not None:
+            sub_heater = subsidies_heater[design]
+        else:
+            sub_heater = None
+        if subsidies_insulation is not None:
+            sub_insulation = subsidies_insulation[design]
+        else:
+            sub_insulation = None
+        dict_configs[name_config] = modif_config_coupling(design, config_coupling_update, cap_MWh=cap_MWh, cap_tCO2=cap_tCO2,
+                                                          subsidies_heater=sub_heater,
+                                                          subsidies_insulation=sub_insulation)
     return dict_configs
 
 

@@ -62,11 +62,11 @@ def load_building(filename: Path):
     return building
 
 
-def create_sub_resirf(start, end, sub_heater_value, sub_insulation_value, policy, proportional_heater, proportional_insulation,
+def create_sub_resirf(start, end, sub_heater_value, sub_insulation_value, policy_heater, policy_insulation, proportional_heater, proportional_insulation,
                       proportional_uniform, target, cap_heater, cap_insulation):
     """Create subsidies following ResIRF framework.
     Important remark: when policy = 'subsidy_proportional', we take sub_heater_value = sub_insulation_value, so that the subsidy is the same."""
-    if policy == 'subsidy_proportional':
+    if policy_insulation == 'subsidy_proportional':
         if proportional_uniform:  # we make the heater subsidy (initially zero) equal to insulation subsidy when the two subsidies are equal
             sub_heater_value = sub_insulation_value
     if cap_heater is not None:  # in the case of proportional subsidy, the value is proportional to a cap
@@ -77,7 +77,7 @@ def create_sub_resirf(start, end, sub_heater_value, sub_insulation_value, policy
                   'start': start,
                   'end': end,
                   'value': sub_heater_value,
-                  'policy': policy,
+                  'policy': policy_heater,
                   'gest': 'heater',
                   'columns': 'project/input/policies/target/target_heat_pump.csv',
                   'proportional': proportional_heater
@@ -86,7 +86,7 @@ def create_sub_resirf(start, end, sub_heater_value, sub_insulation_value, policy
                       'start': start,
                       'end': end,
                       'value': sub_insulation_value,
-                      'policy': policy,
+                      'policy': policy_insulation,
                       'gest': 'insulation',
                       'target': target,
                       'proportional': proportional_insulation
@@ -94,7 +94,7 @@ def create_sub_resirf(start, end, sub_heater_value, sub_insulation_value, policy
     return sub_heater, sub_insulation
 
 
-def resirf_eoles_coupling_static(subsidy, subsidy_policy, subsidy_proportional_heater, subsidy_proportional_insulation,
+def resirf_eoles_coupling_static(subsidy, subsidy_policy_heater, subsidy_policy_insulation, subsidy_proportional_heater, subsidy_proportional_insulation,
                                  subsidy_proportional_uniform, subsidy_target, subsidy_cap_heater, subsidy_cap_insulation,
                                  buildings, inputs_dynamics,
                                  policies_heater, policies_insulation,
@@ -135,7 +135,7 @@ def resirf_eoles_coupling_static(subsidy, subsidy_policy, subsidy_proportional_h
 
     # simulation between start and end - flow output represents annual values for year "end"
     sub_heater, sub_insulation = create_sub_resirf(start_year_resirf, endyear_resirf, sub_heater_value, sub_insulation_value,
-                                                   subsidy_policy, subsidy_proportional_heater, subsidy_proportional_insulation,
+                                                   subsidy_policy_heater, subsidy_policy_insulation, subsidy_proportional_heater, subsidy_proportional_insulation,
                                                    subsidy_proportional_uniform, subsidy_target, subsidy_cap_heater, subsidy_cap_insulation)
     # print(sub_heater['value'])
 
@@ -213,11 +213,12 @@ def resirf_eoles_coupling_static(subsidy, subsidy_policy, subsidy_proportional_h
             # print(m_eoles.objective, annuity_health_cost, annuity_investment_heater, annuity_investment_insulation)
     else:  # we do not optimize EOLES, we focus on ResIRF only
         objective = annuity_health_cost + annuity_investment_cost
-        emissions = output.loc["Emission (MtCO2)"][endyear_resirf-1]  # TODO: valeur a verifier
+        emissions = output.loc["Emission (MtCO2)"][endyear_resirf-1]
         carbon_budget_timesteps = get_pandas(config_eoles["carbon_budget_resirf"], lambda x: pd.read_csv(x, index_col=0).squeeze())
         carbon_budget = carbon_budget_timesteps[anticipated_year_eoles]
         if emissions > carbon_budget:  # check if carbon constraint is respected
             objective = 1000
+            logger.info("Infeasible problem")
 
     if cofp:  # we add the opportunity cost of subsidies
         current_state_budget = output.loc['Balance state (Billion euro)'].mean()
@@ -226,7 +227,7 @@ def resirf_eoles_coupling_static(subsidy, subsidy_policy, subsidy_proportional_h
     return np.array([objective])  # return an array
 
 
-def optimize_blackbox_resirf_eoles_coupling(subsidy_policy, subsidy_proportional_heater, subsidy_proportional_insulation,
+def optimize_blackbox_resirf_eoles_coupling(subsidy_policy_heater, subsidy_policy_insulation, subsidy_proportional_heater, subsidy_proportional_insulation,
                                             subsidy_proportional_uniform, subsidy_target, subsidy_cap_heater, subsidy_cap_insulation,
                                             buildings, inputs_dynamics,
                                             policies_heater, policies_insulation,
@@ -316,7 +317,8 @@ def optimize_blackbox_resirf_eoles_coupling(subsidy_policy, subsidy_proportional
         X_init = None
 
     optimizer = BayesianOptimization(
-        f=lambda x: resirf_eoles_coupling_static(x, subsidy_policy=subsidy_policy, subsidy_proportional_heater=subsidy_proportional_heater,
+        f=lambda x: resirf_eoles_coupling_static(x, subsidy_policy_heater=subsidy_policy_heater, subsidy_policy_insulation=subsidy_policy_insulation,
+                                                 subsidy_proportional_heater=subsidy_proportional_heater,
                                                  subsidy_proportional_insulation=subsidy_proportional_insulation,
                                                  subsidy_proportional_uniform=subsidy_proportional_uniform, subsidy_target=subsidy_target,
                                                  subsidy_cap_heater=subsidy_cap_heater, subsidy_cap_insulation=subsidy_cap_insulation,
@@ -532,7 +534,8 @@ def resirf_eoles_coupling_greenfield(buildings, inputs_dynamics, policies_heater
     if optimization:
         # Find optimal subsidy
         optimizer, opt_sub = \
-            optimize_blackbox_resirf_eoles_coupling(config_coupling["subsidy"]["policy"], config_coupling["subsidy"]["heater"]["proportional"],
+            optimize_blackbox_resirf_eoles_coupling(config_coupling["subsidy"]["heater"]["policy"], config_coupling["subsidy"]["insulation"]["policy"],
+                                                    config_coupling["subsidy"]["heater"]["proportional"],
                                                     config_coupling["subsidy"]["insulation"]["proportional"], config_coupling["subsidy"]["proportional_uniform"],
                                                     config_coupling["subsidy"]["insulation"]["target"], config_coupling["subsidy"]["heater"]["cap"],
                                                     config_coupling["subsidy"]["insulation"]["cap"],
@@ -573,7 +576,8 @@ def resirf_eoles_coupling_greenfield(buildings, inputs_dynamics, policies_heater
     # Rerun ResIRF with optimal subvention parameters
     endyear_resirf = start_year_resirf + timestep_resirf
     opt_sub_heater, opt_sub_insulation = create_sub_resirf(start_year_resirf, endyear_resirf, opt_sub_heater_value, opt_sub_insulation_value,
-                                                           config_coupling["subsidy"]["policy"], config_coupling["subsidy"]["heater"]["proportional"],
+                                                           config_coupling["subsidy"]["heater"]["policy"], config_coupling["subsidy"]["insulation"]["policy"],
+                                                           config_coupling["subsidy"]["heater"]["proportional"],
                                                            config_coupling["subsidy"]["insulation"]["proportional"],
                                                            config_coupling["subsidy"]["proportional_uniform"], config_coupling["subsidy"]["insulation"]["target"],
                                                            config_coupling["subsidy"]["heater"]["cap"], config_coupling["subsidy"]["insulation"]["cap"])
@@ -816,6 +820,7 @@ def resirf_eoles_coupling_greenfield(buildings, inputs_dynamics, policies_heater
                                                reindex_primary_prod).to_frame().rename(
                                                columns={0: anticipated_year_eoles})], axis=1)
         conversion_generation = pd.concat([m_eoles.CH4_to_power_generation.to_frame(),
+                                           m_eoles.H2_to_power_generation.to_frame(),
                                            m_eoles.power_to_CH4_generation.to_frame(),
                                            m_eoles.power_to_H2_generation.to_frame()], axis=0)
         conversion_generation_df = pd.concat(
@@ -910,10 +915,17 @@ def resirf_eoles_coupling_greenfield(buildings, inputs_dynamics, policies_heater
         functionment_cost = pd.DataFrame(index=["health_costs", "oil", "wood"], data={'functionment_cost': [annuity_health_cost, oil_functionment_cost, wood_functionment_cost]})
         functionment_costs_df = pd.concat([functionment_costs_df, functionment_cost.rename(
             columns={"functionment_cost": anticipated_year_eoles})], axis=1)
+
+        resirf_subsidies_df = pd.DataFrame({'Heater': list_sub_heater, 'Insulation': list_sub_insulation},
+                                           index=list_anticipated_year)  # we keep list_year, as the subsidies are applied from y to y+5
+        emissions = output_opt.loc["Emission (MtCO2)"][endyear_resirf - 1]
+        list_emissions.append(emissions)
         output = {
             "Annualized new investments (1e9€/yr)": annualized_new_investment_df,
             "Annualized costs new energy capacity (1e9€/yr)": annualized_new_energy_capacity_df,
             "System functionment (1e9€/yr)": functionment_costs_df,
+            "Emissions (MtCO2)": pd.DataFrame({"Emissions": list_emissions}, index=list_anticipated_year),
+            "Subsidies (%)": resirf_subsidies_df,
             "ResIRF costs (Billion euro)": resirf_costs_df.T,
             "ResIRF costs eff (euro/kWh)": investment_cost_eff_df.T,
             "ResIRF consumption yearly (TWh)": resirf_consumption_yearly_df.T,
@@ -1148,7 +1160,8 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
         if optimization:
             # Find optimal subsidy
             optimizer, opt_sub = \
-                optimize_blackbox_resirf_eoles_coupling(config_coupling["subsidy"]["policy"], config_coupling["subsidy"]["heater"]["proportional"],
+                optimize_blackbox_resirf_eoles_coupling(config_coupling["subsidy"]["heater"]["policy"], config_coupling["subsidy"]["insulation"]["policy"],
+                                                        config_coupling["subsidy"]["heater"]["proportional"],
                                                         config_coupling["subsidy"]["insulation"]["proportional"], config_coupling["subsidy"]["proportional_uniform"],
                                                         config_coupling["subsidy"]["insulation"]["target"], config_coupling["subsidy"]["heater"]["cap"],
                                                         config_coupling["subsidy"]["insulation"]["cap"],
@@ -1177,7 +1190,8 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
                                                         cofp=cofp, optim_eoles=optim_eoles)
             if two_stage_optim:
                 optimizer_refined, opt_sub_refined = \
-                    optimize_blackbox_resirf_eoles_coupling(config_coupling["subsidy"]["policy"], config_coupling["subsidy"]["heater"]["proportional"],
+                    optimize_blackbox_resirf_eoles_coupling(config_coupling["subsidy"]["heater"]["policy"], config_coupling["subsidy"]["insulation"]["policy"],
+                                                            config_coupling["subsidy"]["heater"]["proportional"],
                                                             config_coupling["subsidy"]["insulation"]["proportional"], config_coupling["subsidy"]["proportional_uniform"],
                                                             config_coupling["subsidy"]["insulation"]["target"], config_coupling["subsidy"]["heater"]["cap"],
                                                             config_coupling["subsidy"]["insulation"]["cap"],
@@ -1237,7 +1251,7 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
         endyear_resirf = start_year_resirf + timestep_resirf
         opt_sub_heater, opt_sub_insulation = create_sub_resirf(start_year_resirf, endyear_resirf, opt_sub_heater_value,
                                                                opt_sub_insulation_value,
-                                                               config_coupling["subsidy"]["policy"],
+                                                               config_coupling["subsidy"]["heater"]["policy"], config_coupling["subsidy"]["insulation"]["policy"],
                                                                config_coupling["subsidy"]["heater"]["proportional"],
                                                                config_coupling["subsidy"]["insulation"]["proportional"],
                                                                config_coupling["subsidy"]["proportional_uniform"],
@@ -1490,6 +1504,7 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
                                                m_eoles.primary_generation.reindex(reindex_primary_prod).to_frame().rename(
                                                    columns={0: anticipated_year_eoles})], axis=1)
             conversion_generation = pd.concat([m_eoles.CH4_to_power_generation.to_frame(),
+                                               m_eoles.H2_to_power_generation.to_frame(),
                                                m_eoles.power_to_CH4_generation.to_frame(),
                                                m_eoles.power_to_H2_generation.to_frame()], axis=0)
             conversion_generation_df = pd.concat([conversion_generation_df, conversion_generation.rename(columns={0: anticipated_year_eoles})], axis=1)
@@ -1530,6 +1545,8 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
                 'functionment_cost': [annuity_health_cost, oil_functionment_cost, wood_functionment_cost]})
             functionment_costs_df = pd.concat([functionment_costs_df, functionment_cost.rename(
                 columns={"functionment_cost": anticipated_year_eoles})], axis=1)
+            emissions = output_opt.loc["Emission (MtCO2)"][endyear_resirf - 1]
+            list_emissions.append(emissions)
 
     if optim_eoles:
         price_df = pd.DataFrame(
@@ -1604,10 +1621,14 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
         if grad_descent:
             return output, buildings, opt_res
     else:
+        resirf_subsidies_df = pd.DataFrame({'Heater': list_sub_heater, 'Insulation': list_sub_insulation},
+                                           index=list_anticipated_year)
         output = {
             "Annualized new investments (1e9€/yr)": annualized_new_investment_df,
             "Annualized costs new energy capacity (1e9€/yr)": annualized_new_energy_capacity_df,
             "System functionment (1e9€/yr)": functionment_costs_df,
+            "Emissions (MtCO2)": pd.DataFrame({"Emissions": list_emissions}, index=list_anticipated_year),
+            "Subsidies (%)": resirf_subsidies_df,
             "ResIRF costs (Billion euro)": resirf_costs_df.T,
             "ResIRF costs eff (euro/kWh)": investment_cost_eff_df.T,
             "ResIRF consumption yearly (TWh)": resirf_consumption_yearly_df.T,
