@@ -106,7 +106,8 @@ def resirf_eoles_coupling_static(subsidy, subsidy_policy_heater, subsidy_policy_
                                  existing_annualized_costs_CH4_naturalgas, existing_annualized_costs_CH4_biogas,
                                  existing_annualized_costs_H2, lifetime_insulation_annuity=50, lifetime_heater_annuity=20,
                                  discount_rate=0.045, health=True, carbon_constraint=False,
-                                 bayesian_optim=True, initial_state_budget=0, cofp=False, optim_eoles=True):
+                                 bayesian_optim=True, initial_state_budget=0, cofp=False, optim_eoles=True,
+                                 electricity_constant=False):
     """
 
     :param subvention: 2 dimensional numpy array
@@ -174,8 +175,8 @@ def resirf_eoles_coupling_static(subsidy, subsidy_policy_heater, subsidy_policy_
     investment_insulation_cost = output.loc["Investment insulation WT (Billion euro)"].sum()  # 1e9 €
     health_cost = output.loc["Health cost (Billion euro)"][endyear_resirf-1]  # 1e9 €
 
-    annuity_investment_heater = calculate_annuities_resirf(investment_heater_cost, lifetime=lifetime_heater_annuity, discount_rate=discount_rate)
-    annuity_investment_insulation = calculate_annuities_resirf(investment_insulation_cost, lifetime=lifetime_insulation_annuity, discount_rate=discount_rate)
+    annuity_investment_heater = calculate_annuities_resirf(investment_heater_cost, lifetime=lifetime_heater_annuity, discount_rate=discount_rate)  # 1e9€/y
+    annuity_investment_insulation = calculate_annuities_resirf(investment_insulation_cost, lifetime=lifetime_insulation_annuity, discount_rate=discount_rate)  # 1e9€/y
     annuity_investment_cost = annuity_investment_heater + annuity_investment_insulation
 
     if health:
@@ -183,21 +184,24 @@ def resirf_eoles_coupling_static(subsidy, subsidy_policy_heater, subsidy_policy_
     else:
         annuity_health_cost = 0
     # print(annuity_health_cost, annuity_investment_cost)
+    m_eoles = ModelEOLES(name="trajectory", config=config_eoles, path="eoles/outputs", logger=logger, nb_years=1,
+                         hourly_heat_elec=hourly_heat_elec, hourly_heat_gas=hourly_heat_gas,
+                         hourly_heat_district=hourly_heat_district,
+                         wood_consumption=wood_consumption, oil_consumption=oil_consumption,
+                         existing_capacity=existing_capacity, existing_charging_capacity=existing_charging_capacity,
+                         existing_energy_capacity=existing_energy_capacity, maximum_capacity=maximum_capacity,
+                         method_hourly_profile=method_hourly_profile,
+                         anticipated_social_cost_of_carbon=scc, year=year_eoles,
+                         anticipated_year=anticipated_year_eoles,
+                         scenario_cost=scenario_cost, existing_annualized_costs_elec=existing_annualized_costs_elec,
+                         existing_annualized_costs_CH4=existing_annualized_costs_CH4,
+                         existing_annualized_costs_CH4_naturalgas=existing_annualized_costs_CH4_naturalgas,
+                         existing_annualized_costs_CH4_biogas=existing_annualized_costs_CH4_biogas,
+                         existing_annualized_costs_H2=existing_annualized_costs_H2, carbon_constraint=carbon_constraint,
+                         discount_rate=discount_rate)
+    m_eoles.build_model()
 
     if optim_eoles:
-        m_eoles = ModelEOLES(name="trajectory", config=config_eoles, path="eoles/outputs", logger=logger, nb_years=1,
-                             hourly_heat_elec=hourly_heat_elec, hourly_heat_gas=hourly_heat_gas, hourly_heat_district=hourly_heat_district,
-                             wood_consumption=wood_consumption, oil_consumption=oil_consumption,
-                             existing_capacity=existing_capacity, existing_charging_capacity=existing_charging_capacity,
-                             existing_energy_capacity=existing_energy_capacity, maximum_capacity=maximum_capacity,
-                             method_hourly_profile=method_hourly_profile,
-                             anticipated_social_cost_of_carbon=scc, year=year_eoles, anticipated_year=anticipated_year_eoles,
-                             scenario_cost=scenario_cost, existing_annualized_costs_elec=existing_annualized_costs_elec,
-                             existing_annualized_costs_CH4=existing_annualized_costs_CH4, existing_annualized_costs_CH4_naturalgas=existing_annualized_costs_CH4_naturalgas,
-                             existing_annualized_costs_CH4_biogas=existing_annualized_costs_CH4_biogas,
-                             existing_annualized_costs_H2=existing_annualized_costs_H2, carbon_constraint=carbon_constraint,
-                             discount_rate=discount_rate)
-        m_eoles.build_model()
         solver_results, status, termination_condition = m_eoles.solve(solver_name="gurobi")
 
         if termination_condition == "infeasibleOrUnbounded":
@@ -212,7 +216,18 @@ def resirf_eoles_coupling_static(subsidy, subsidy_policy_heater, subsidy_policy_
             objective += annuity_investment_cost
             # print(m_eoles.objective, annuity_health_cost, annuity_investment_heater, annuity_investment_insulation)
     else:  # we do not optimize EOLES, we focus on ResIRF only
-        objective = annuity_health_cost + annuity_investment_cost
+        electricity_consumption = heating_consumption.sum(axis=1)["Electricity"] * 1e-6  # GWh
+        natural_gas_consumption = heating_consumption.sum(axis=1)["Natural gas"] * 1e-6  # GWh
+        if not electricity_constant:
+            functionment_costs = oil_consumption * m_eoles.vOM["oil"] + wood_consumption * m_eoles.vOM["wood"] + \
+                                 electricity_consumption * m_eoles.energy_prices["electricity"] * 1e-3 + natural_gas_consumption * m_eoles.vOM["natural_gas"]
+        else:
+            functionment_costs = oil_consumption * m_eoles.vOM["oil"] + wood_consumption * m_eoles.vOM["wood"] + \
+                                 electricity_consumption * m_eoles.energy_prices["electricity_constant"] * 1e-3 + natural_gas_consumption * m_eoles.vOM["natural_gas"]
+        functionment_costs = functionment_costs / 1000  # 1e9€/y
+        # Remarque: pour l'élec, on ne calcule pas le vom dans EOLES, donc il faut le recalculer ici comme fait dans EOLES pour les autres vecteurs.
+        objective = annuity_health_cost + annuity_investment_cost + functionment_costs
+
         emissions = output.loc["Emission (MtCO2)"][endyear_resirf-1]
         carbon_budget_timesteps = get_pandas(config_eoles["carbon_budget_resirf"], lambda x: pd.read_csv(x, index_col=0).squeeze())
         carbon_budget = carbon_budget_timesteps[anticipated_year_eoles]
@@ -243,7 +258,8 @@ def optimize_blackbox_resirf_eoles_coupling(subsidy_policy_heater, subsidy_polic
                                             normalize_Y=True, plot=False,
                                             fix_sub_heater=False, fix_sub_insulation=False,
                                             health=True, carbon_constraint=False,
-                                            initial_state_budget=0, cofp=False, optim_eoles=True, x_opt=None):
+                                            initial_state_budget=0, cofp=False, optim_eoles=True, electricity_constant=False,
+                                            x_opt=None):
 
     """
     Finds optimal subsidies by a blackbox optimization process, relying on bayesian optimization and gaussian processes.
@@ -342,7 +358,7 @@ def optimize_blackbox_resirf_eoles_coupling(subsidy_policy_heater, subsidy_polic
                                                  lifetime_insulation_annuity=lifetime_insulation_annuity, lifetime_heater_annuity=lifetime_heater_annuity,
                                                  discount_rate=discount_rate, health=health, carbon_constraint=carbon_constraint,
                                                  initial_state_budget=initial_state_budget,
-                                                 cofp=cofp, optim_eoles=optim_eoles),
+                                                 cofp=cofp, optim_eoles=optim_eoles, electricity_constant=electricity_constant),
         domain=bounds2d,
         model_type='GP',  # gaussian process
         # kernel=kernel,
@@ -408,7 +424,7 @@ def resirf_eoles_coupling_greenfield(buildings, inputs_dynamics, policies_heater
                                      add_CH4_demand=False, lifetime_insulation_annuity=50, lifetime_heater_annuity=20,
                                      optimization=True, list_sub_heater=None, list_sub_insulation=None,
                                      acquisition_jitter=0.01, grid_initialize=False, normalize_Y=True,
-                                     cofp=False, optim_eoles=True):
+                                     cofp=False, optim_eoles=True, electricity_constant=False):
     # importing evolution of historical capacity and expected evolution of demand
     existing_capacity_historical, existing_charging_capacity_historical, existing_energy_capacity_historical, \
     maximum_capacity_evolution, heating_gas_demand_RTE_timesteps, ECS_gas_demand_RTE_timesteps, capex_annuity_fOM_historical, \
@@ -565,7 +581,7 @@ def resirf_eoles_coupling_greenfield(buildings, inputs_dynamics, policies_heater
                                                     health=config_coupling["health"],
                                                     carbon_constraint=config_coupling["carbon_constraint"],
                                                     initial_state_budget=initial_state_budget,
-                                                    cofp=cofp, optim_eoles=optim_eoles)
+                                                    cofp=cofp, optim_eoles=optim_eoles, electricity_constant=electricity_constant)
         dict_optimizer.update({year_eoles: optimizer})
         opt_sub_heater_value, opt_sub_insulation_value = opt_sub[0], opt_sub[1]
         list_sub_heater.append(opt_sub_heater_value)
@@ -911,8 +927,13 @@ def resirf_eoles_coupling_greenfield(buildings, inputs_dynamics, policies_heater
                                                       columns={"annualized_costs": anticipated_year_eoles})], axis=1)
         # TODO: attention, ici je me place sous l'hypothèse qu'on travaille sous contrainte carbone pour le calcul des vOM.
         # TODO: à modifier pour gérer le DH éventuellement (dans la conso bois)
-        oil_functionment_cost, wood_functionment_cost = oil_consumption * m_eoles.vOM["oil"], wood_consumption * m_eoles.vOM["wood"]
-        functionment_cost = pd.DataFrame(index=["health_costs", "oil", "wood"], data={'functionment_cost': [annuity_health_cost, oil_functionment_cost, wood_functionment_cost]})
+        oil_functionment_cost, wood_functionment_cost = oil_consumption * m_eoles.vOM["oil"], wood_consumption * m_eoles.vOM["wood"]  # 1e9€
+        if not electricity_constant:
+            gas_functionment_cost, electricity_functionment_cost = gas_consumption * m_eoles.vOM['natural_gas'], electricity_consumption * 1e-3 * m_eoles.energy_prices['electricity']  # 1e9€
+        else:
+            gas_functionment_cost, electricity_functionment_cost = gas_consumption * m_eoles.vOM['natural_gas'], electricity_consumption * 1e-3 * m_eoles.energy_prices['electricity_constant']  # 1e9€
+        functionment_cost = pd.DataFrame(index=["health_costs", "oil", "wood", "gas", "electricity"],
+                                         data={'functionment_cost': [annuity_health_cost, oil_functionment_cost, wood_functionment_cost, gas_functionment_cost, electricity_functionment_cost]})
         functionment_costs_df = pd.concat([functionment_costs_df, functionment_cost.rename(
             columns={"functionment_cost": anticipated_year_eoles})], axis=1)
 
@@ -946,7 +967,8 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
                                   anticipated_scc=False, anticipated_demand_t10=False, optimization=True,
                                   list_sub_heater=None, list_sub_insulation=None, price_feedback=False,
                                   energy_taxes=None, energy_vta=None, acquisition_jitter=0.01, grid_initialize=False, normalize_Y=True,
-                                  grad_descent=False, aggregated_potential=False, cofp=False, two_stage_optim=False, optim_eoles=True):
+                                  grad_descent=False, aggregated_potential=False, cofp=False, two_stage_optim=False, optim_eoles=True,
+                                  electricity_constant=False):
     """Performs multistep optimization of capacities and subsidies.
     :param config_coupling: dict
         Includes a number of parametrization for configuration of the coupling
@@ -1187,7 +1209,7 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
                                                         fix_sub_heater=config_coupling["fix_sub_heater"], fix_sub_insulation=config_coupling["fix_sub_insulation"],
                                                         health=config_coupling["health"], carbon_constraint=config_coupling["carbon_constraint"],
                                                         initial_state_budget=initial_state_budget,
-                                                        cofp=cofp, optim_eoles=optim_eoles)
+                                                        cofp=cofp, optim_eoles=optim_eoles, electricity_constant=electricity_constant)
             if two_stage_optim:
                 optimizer_refined, opt_sub_refined = \
                     optimize_blackbox_resirf_eoles_coupling(config_coupling["subsidy"]["heater"]["policy"], config_coupling["subsidy"]["insulation"]["policy"],
@@ -1224,7 +1246,8 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
                                                             health=config_coupling["health"],
                                                             carbon_constraint=config_coupling["carbon_constraint"],
                                                             initial_state_budget=initial_state_budget,
-                                                            cofp=cofp, optim_eoles=optim_eoles, x_opt=opt_sub)
+                                                            cofp=cofp, optim_eoles=optim_eoles, electricity_constant=electricity_constant,
+                                                            x_opt=opt_sub)
                 dict_optimizer.update({y: {"first_stage": optimizer, "second_stage": optimizer_refined}})
                 opt_sub_heater_value, opt_sub_insulation_value = opt_sub_refined[0], opt_sub_refined[1]
             else:
@@ -1539,12 +1562,16 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
                                                      axis=1)
             # TODO: attention, ici je me place sous l'hypothèse qu'on travaille sous contrainte carbone pour le calcul des vOM.
             # TODO: à modifier pour gérer le DH éventuellement (dans la conso bois)
-            oil_functionment_cost, wood_functionment_cost = oil_consumption * m_eoles.vOM["oil"], wood_consumption * \
-                                                            m_eoles.vOM["wood"]
-            functionment_cost = pd.DataFrame(index=["health_costs", "oil", "wood"], data={
-                'functionment_cost': [annuity_health_cost, oil_functionment_cost, wood_functionment_cost]})
+            oil_functionment_cost, wood_functionment_cost = oil_consumption * m_eoles.vOM["oil"], wood_consumption * m_eoles.vOM["wood"]
+            if not electricity_constant:
+                gas_functionment_cost, electricity_functionment_cost = gas_consumption * m_eoles.vOM['natural_gas'], electricity_consumption * 1e-3 * m_eoles.energy_prices['electricity']
+            else:
+                gas_functionment_cost, electricity_functionment_cost = gas_consumption * m_eoles.vOM['natural_gas'], electricity_consumption * 1e-3 * m_eoles.energy_prices['electricity_constant']
+            functionment_cost = pd.DataFrame(index=["health_costs", "oil", "wood", "gas", "electricity"],
+                                             data={'functionment_cost': [annuity_health_cost, oil_functionment_cost, wood_functionment_cost, gas_functionment_cost, electricity_functionment_cost]})
             functionment_costs_df = pd.concat([functionment_costs_df, functionment_cost.rename(
                 columns={"functionment_cost": anticipated_year_eoles})], axis=1)
+
             emissions = output_opt.loc["Emission (MtCO2)"][endyear_resirf - 1]
             list_emissions.append(emissions)
 

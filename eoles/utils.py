@@ -1122,6 +1122,14 @@ def modif_config_eoles(config_eoles, config_coupling):
         assert config_coupling["eoles"]["biomass_potential_scenario"] in ["S3", "S2", "S2p"], "Biomass potential scenario is not specified correctly in config_coupling."
         config_eoles_update["biomass_potential_scenario"] = config_coupling["eoles"]["biomass_potential_scenario"]
 
+    if 'carbon_budget' in config_coupling['eoles'].keys():
+        carbon_budget_spec = config_coupling["eoles"]['carbon_budget']
+        config_eoles_update["carbon_budget"] = f"eoles/inputs/{carbon_budget_spec}.csv"
+
+    if 'carbon_budget_resirf' in config_coupling['eoles'].keys():
+        carbon_budget_resirf_spec = config_coupling["eoles"]['carbon_budget_resirf']
+        config_eoles_update["carbon_budget_resirf"] = f"eoles/inputs/{carbon_budget_resirf_spec}.csv"
+
     if "worst_case" in config_coupling["eoles"].keys():  # definition of worst case scenario for EOLES
         if config_coupling["eoles"]["worst_case"]:
             config_eoles_update["capex"] = "eoles/inputs/technology_characteristics/overnight_capex_evolution_high.csv"
@@ -1227,7 +1235,9 @@ def modif_config_resirf(config_resirf, config_coupling, calibration=None):
 
 def create_configs_coupling(list_design, name_design, config_coupling, cap_MWh, cap_tCO2, greenfield, prices_constant=True,
                             biomass_potential_scenario='S3', aggregated_potential=True, maximum_capacity_scenario='N1', max_iter=100,
-                            lifetime_insulation=5, dict_configs=None, subsidies_heater=None, subsidies_insulation=None):
+                            lifetime_insulation=5, dict_configs=None, subsidies_heater=None, subsidies_insulation=None,
+                            optim_eoles=True, carbon_emissions_resirf=None, electricity_constant=False, carbon_budget=None,
+                            carbon_budget_resirf=None, district_heating=False):
     """Creates a list of configs to test from different specified parameters."""
     config_coupling_update = deepcopy(config_coupling)
     if greenfield:  # we add specification of greenfield parameter
@@ -1238,6 +1248,17 @@ def create_configs_coupling(list_design, name_design, config_coupling, cap_MWh, 
     config_coupling_update['eoles']['biomass_potential_scenario'] = biomass_potential_scenario
     config_coupling_update['eoles']['aggregated_potential'] = aggregated_potential
     config_coupling_update['eoles']['maximum_capacity_scenario'] = maximum_capacity_scenario
+    if not optim_eoles:
+        config_coupling_update['optim_eoles'] = optim_eoles
+    if carbon_emissions_resirf is not None:
+        config_coupling_update['carbon_emissions_resirf'] = f'project/input/technical/{carbon_emissions_resirf}.csv'
+    config_coupling_update['electricity_constant'] = electricity_constant
+    if carbon_budget is not None:
+        config_coupling_update['eoles']['carbon_budget'] = carbon_budget
+    if carbon_budget_resirf is not None:
+        config_coupling_update['eoles']['carbon_budget_resirf'] = carbon_budget_resirf
+    if district_heating:
+        config_coupling_update['district_heating'] = True
 
     if dict_configs is None:
         dict_configs = {}

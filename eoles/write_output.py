@@ -1,3 +1,5 @@
+import json
+
 import pandas as pd
 import matplotlib.pyplot as plt
 import os
@@ -24,14 +26,14 @@ DICT_TRANSFORM_LEGEND = {
     "Annualized health costs": "health costs",
     "Annualized total costs HC excluded": "total costs",
     "Annualized total costs": "total costs",
-    "Investment electricity costs": "Investment power mix",
+    "Investment electricity costs": "Investment energy mix",
     "Functionment costs": "Energy operational costs",
     "Investment heater costs": "Investment heater switch",
     "Investment insulation costs": "Investment insulation",
     "Carbon cost": "Carbon cost",
     "Health costs": "Health costs",
     "Total costs HC excluded": "Total system costs",
-    "Total costs": "Total system costs",
+    "Total costs": "Total system costs (Billion EUR)",
     "Consumption saving insulation (TWh/year)": "insulation",
     "Consumption saving heater (TWh/year)": "heater",
     "Consumption saving insulation (TWh)": "insulation",
@@ -117,7 +119,7 @@ def plot_comparison(output1, output2, name1, name2):
 
 
 def plot_comparison_savings_move(df1, df2, x, y, col_for_size, smallest_size=100, biggest_size=300, fontsize=10, y_min=0,
-                                 y_max=None, x_min=0, x_max=None, unit='TWh', save=None, coordinates = None):
+                                 y_max=None, x_min=0, x_max=None, unit='TWh', save=None, coordinates = None, df3=None):
     """Same as next graph, but includes two different scenario"""
     if save is None:
         fig, ax = plt.subplots(1, 1)
@@ -134,11 +136,20 @@ def plot_comparison_savings_move(df1, df2, x, y, col_for_size, smallest_size=100
     size1 = [smallest_size + (biggest_size - smallest_size)/(s_max - s_min) * (s - s_min) for s in relative_size1]
     size2 = [smallest_size + (biggest_size - smallest_size) / (s_max - s_min) * (s - s_min) for s in relative_size2]
 
+    if df3 is not None:
+        relative_size3 = list(df3[col_for_size])
+        s_min3, s_max3 = min(relative_size3), max(relative_size3)
+        s_max = max(s_max3, s_max)
+        s_min = min(s_min3, s_min)
+        size3 = [smallest_size + (biggest_size - smallest_size) / (s_max - s_min) * (s - s_min) for s in relative_size3]
+
     # colors = dict(zip(df1.index, sns.color_palette(n_colors=len(df1.index))))
     # colors.update({'Historic': (0, 0, 0)})
-
+    # TODO: ajouter une couleur fixe par scénario
     scatter1 = ax.scatter(x=df1[x], y=df1[y], s=size1, c=sns.color_palette(n_colors=len(df1.index)))
     scatter2 = ax.scatter(x=df2[x], y=df2[y], s=size2, c=sns.color_palette(n_colors=len(df1.index)), hatch='/////')
+    if df3 is not None:
+        scatter3 = ax.scatter(x=df3[x], y=df3[y], s=size3, c=sns.color_palette(n_colors=len(df1.index)), hatch='....')
     if coordinates is None:
         for scenario, v in df1.iterrows():
             ax.annotate(scenario, xy=(v[x], v[y]), xytext=(-20, -25), textcoords="offset points", fontsize=fontsize)
@@ -192,11 +203,16 @@ def plot_comparison_savings_move(df1, df2, x, y, col_for_size, smallest_size=100
         title = col_for_size
     legend2 = ax.legend(*scatter1.legend_elements(**kw), title=title, loc='upper left', bbox_to_anchor=(1, 0.5), frameon=False)
 
+    # legend_style = plt.legend(dummy_lines_style, labels_style, loc='upper left', bbox_to_anchor=(1, 0.5), frameon=False)
+    # legend_color = plt.legend(dummy_lines_color, labels_color, loc='lower left', bbox_to_anchor=(1, 0.5), frameon=False)
+    # ax.add_artist(legend_style)
+    # ax.add_artist(legend_color)
+
     save_fig(fig, save=save)
 
 
 def plot_comparison_savings(df, x, y, save, col_for_size, smallest_size=100, biggest_size=300, fontsize=10, y_min=0, y_max=None, x_min=0, x_max=None,
-                            unit="TWh"):
+                            unit="TWh", coordinates=None):
     """
 
     :param unit: string
@@ -213,9 +229,20 @@ def plot_comparison_savings(df, x, y, save, col_for_size, smallest_size=100, big
     s_min, s_max = min(relative_size), max(relative_size)
     size = [smallest_size + (biggest_size - smallest_size)/(s_max - s_min) * (s - s_min) for s in relative_size]
 
-    scatter = ax.scatter(x=df[x], y=df[y], s=size)
-    for scenario, v in df.iterrows():
-        ax.annotate(scenario, xy=(v[x], v[y]), xytext=(20, -5), textcoords="offset points", fontsize=fontsize)
+    scatter = ax.scatter(x=df[x], y=df[y], s=size, c=sns.color_palette(n_colors=len(df.index)))
+    # for scenario, v in df.iterrows():
+    #     ax.annotate(scenario, xy=(v[x], v[y]), xytext=(20, -5), textcoords="offset points", fontsize=fontsize)
+
+    if coordinates is None:
+        for scenario, v in df.iterrows():
+            ax.annotate(scenario, xy=(v[x], v[y]), xytext=(20, -5), textcoords="offset points", fontsize=fontsize)
+    else:
+        for scenario, v in df.iterrows():
+            if scenario in coordinates.keys():
+                ax.annotate(scenario, xy=(v[x], v[y]), xytext=coordinates[scenario], textcoords="offset points", fontsize=fontsize)
+            else:
+                ax.annotate(scenario, xy=(v[x], v[y]), xytext=(20, -5), textcoords="offset points",
+                            fontsize=fontsize)
 
     if y == "Stock Heat pump (Million)":
         title = "Stock Heat pump (Million) \n"
@@ -234,7 +261,7 @@ def plot_comparison_savings(df, x, y, save, col_for_size, smallest_size=100, big
     box = ax.get_position()
     ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
 
-    kw = dict(prop="sizes", num=4, func=lambda s: s_min + (s - smallest_size) * (s_max - s_min) / (biggest_size - smallest_size))
+    kw = dict(prop="sizes", num=2, func=lambda s: s_min + (s - smallest_size) * (s_max - s_min) / (biggest_size - smallest_size))
     # handles, labels = scatter.legend_elements(prop="sizes")
     # legend2 = ax.legend(handles, labels, loc="upper right", title="Sizes")
     if col_for_size == "Total costs":
@@ -248,14 +275,14 @@ def plot_comparison_savings(df, x, y, save, col_for_size, smallest_size=100, big
 
 def comparison_simulations_scenarios(dict_output1, dict_output2, x_min=-5, x_max=None, y_min=-5, y_max=None,
                                      save_path=None, pdf=False, carbon_constraint=True, percent=False, eoles=True,
-                                     coordinates=None):
+                                     coordinates=None, dict_output3=None):
     if pdf:
         extension = "pdf"
     else:
         extension = "png"
     # annualized_system_costs_df = pd.DataFrame(dtype=float)
-    total_system_costs_df1, total_system_costs_df2 = pd.DataFrame(dtype=float), pd.DataFrame(dtype=float)
-    consumption_savings_tot_df1, consumption_savings_tot_df2 = pd.DataFrame(dtype=float), pd.DataFrame(dtype=float)
+    total_system_costs_df1, total_system_costs_df2, total_system_costs_df3 = pd.DataFrame(dtype=float), pd.DataFrame(dtype=float), pd.DataFrame(dtype=float)
+    consumption_savings_tot_df1, consumption_savings_tot_df2, consumption_savings_tot_df3 = pd.DataFrame(dtype=float), pd.DataFrame(dtype=float), pd.DataFrame(dtype=float)
 
     if save_path is not None:
         if not os.path.isdir(save_path):  # create directory
@@ -315,6 +342,37 @@ def comparison_simulations_scenarios(dict_output1, dict_output2, x_min=-5, x_max
                 consumption_savings_tot = consumption_savings_tot / consumption_ini * 100
             consumption_savings_tot_df2 = pd.concat([consumption_savings_tot_df2, consumption_savings_tot], axis=1)
 
+    if dict_output3 is not None:
+        for path, name_config in zip(dict_output3.values(), [n for n in dict_output3.keys()]):
+            with open(os.path.join(path, 'coupling_results.pkl'), "rb") as file:
+                output = load(file)
+
+                annualized_new_investment_df = output["Annualized new investments (1e9€/yr)"]
+                annualized_new_energy_capacity_df = output["Annualized costs new energy capacity (1e9€/yr)"]
+                functionment_costs_df = output["System functionment (1e9€/yr)"]
+                total_system_costs = process_total_costs(annualized_new_investment_df,
+                                                         annualized_new_energy_capacity_df,
+                                                         functionment_costs_df, carbon_constraint=carbon_constraint,
+                                                         eoles=eoles)
+                total_system_costs = total_system_costs.to_frame().rename(columns={0: name_config})
+                total_system_costs_df3 = pd.concat([total_system_costs_df3, total_system_costs], axis=1)
+
+                try:
+                    consumption_savings = output["ResIRF consumption savings (TWh/year)"]
+                except:
+                    consumption_savings = output["ResIRF consumption savings (TWh)"]
+                    consumption_savings = consumption_savings.rename(
+                        columns={"Consumption saving heater (TWh)": "Consumption saving heater (TWh/year)",
+                                 "Consumption saving insulation (TWh)": "Consumption saving insulation (TWh/year)"})
+                consumption = output["Output global ResIRF ()"].loc[
+                    ["Consumption Electricity (TWh)", "Consumption Natural gas (TWh)",
+                     "Consumption Oil fuel (TWh)", "Consumption Wood fuel (TWh)"]]
+                consumption_ini = consumption.sum(axis=0).iloc[0]
+                consumption_savings_tot = consumption_savings.sum(axis=0).to_frame().rename(columns={0: name_config})
+                if percent:
+                    consumption_savings_tot = consumption_savings_tot / consumption_ini * 100
+                consumption_savings_tot_df3 = pd.concat([consumption_savings_tot_df3, consumption_savings_tot], axis=1)
+
     if percent:
         unit = "(%)"
     else:
@@ -324,6 +382,11 @@ def comparison_simulations_scenarios(dict_output1, dict_output2, x_min=-5, x_max
     savings_and_costs_df1 = savings_and_costs_df1.T
     savings_and_costs_df2 = pd.concat([consumption_savings_tot_df2, total_system_costs_df2], axis=0)
     savings_and_costs_df2 = savings_and_costs_df2.T
+
+    savings_and_costs_df3 = None
+    if dict_output3 is not None:
+        savings_and_costs_df3 = pd.concat([consumption_savings_tot_df3, total_system_costs_df3], axis=0)
+        savings_and_costs_df3 = savings_and_costs_df3.T
 
     if save_path is None:
         save_path_plot = None
@@ -335,11 +398,12 @@ def comparison_simulations_scenarios(dict_output1, dict_output2, x_min=-5, x_max
                                  col_for_size="Total costs", smallest_size=100, biggest_size=400, fontsize=18,
                                  y_min=y_min, y_max=y_max, x_min=x_min, x_max=x_max, unit=unit,
                                  save=os.path.join(save_path, f"savings_and_costs.{extension}"),
-                                 coordinates=coordinates)
+                                 coordinates=coordinates, df3=savings_and_costs_df3)
 
 
 def comparison_simulations(dict_output: dict, ref, greenfield=False, health=False, x_min=0, x_max=None, y_min=0, y_max=None,
-                           rotation=90, save_path=None, pdf=False, carbon_constraint=True, percent=False, eoles=True):
+                           rotation=90, save_path=None, pdf=False, carbon_constraint=True, percent=False, eoles=True,
+                           coordinates=None, secondary_y=None, secondary_axis_spec=None):
     if pdf:
         extension = "pdf"
     else:
@@ -447,6 +511,11 @@ def comparison_simulations(dict_output: dict, ref, greenfield=False, health=Fals
 
                 subsidies_insulation_dict[name_config] = dataframe_subsidy[["Insulation"]].squeeze()
                 subsidies_heater_dict[name_config] = dataframe_subsidy[["Heater"]].squeeze()
+                if secondary_y is not None and name_config == secondary_y:
+                    with open(os.path.join(path, 'config', 'config_coupling.json')) as file:
+                        config_coupling = json.load(file)
+                    price_cap = config_coupling['subsidy']['insulation']['cap']
+                    subsidies_insulation_dict[name_config] = subsidies_insulation_dict[name_config]*price_cap/100
             except:
                 pass
 
@@ -503,7 +572,7 @@ def comparison_simulations(dict_output: dict, ref, greenfield=False, health=Fals
         #         gas_generation_demand[col] = gas_generation_demand[col] - gas_generation_demand[ref]
         make_stacked_bar_plot(gas_generation_demand, subset=supply_gas + demand_gas, y_label="Gas demand balance (TWh)",
                               colors=resources_data["colors_eoles"], format_y=lambda y, _: '{:.0f}'.format(y),
-                              index_int=False, rotation=90, dict_legend=DICT_TRANSFORM_LEGEND, save=save_path_plot, hline=True)
+                              index_int=False, rotation=rotation, dict_legend=DICT_TRANSFORM_LEGEND, save=save_path_plot, hline=True)
 
         if save_path is None:
             save_path_plot = None
@@ -516,7 +585,7 @@ def comparison_simulations(dict_output: dict, ref, greenfield=False, health=Fals
         # TODO: ajouter la demande en elec
         make_stacked_bar_plot(elec_generation_demand, subset=supply_elec + demand_elec, y_label="Electricity demand balance (TWh)",
                               colors=resources_data["colors_eoles"], format_y=lambda y, _: '{:.0f}'.format(y),
-                              index_int=False, rotation=90, dict_legend=DICT_TRANSFORM_LEGEND, save=save_path_plot, hline=True)
+                              index_int=False, rotation=rotation, dict_legend=DICT_TRANSFORM_LEGEND, save=save_path_plot, hline=True)
 
     # Total system costs
     if carbon_constraint:
@@ -571,7 +640,7 @@ def comparison_simulations(dict_output: dict, ref, greenfield=False, health=Fals
         if health:
             make_stacked_investment_plot(df=total_system_costs_diff_df.drop(columns=[ref]).T,
                                          # y_label="Difference of total system costs over 2025-2050 (Billion €)",
-                                         y_label="",
+                                         y_label="Total costs (Billion EUR)",
                                          subset=subset_costs,
                                          scatter=total_system_costs_diff_df.drop(columns=[ref]).T[
                                              ["Total costs"]].squeeze(),
@@ -696,14 +765,14 @@ def comparison_simulations(dict_output: dict, ref, greenfield=False, health=Fals
     plot_comparison_savings(savings_and_costs_df, x="Consumption saving insulation (TWh/year)",
                             y="Consumption saving heater (TWh/year)", save=os.path.join(save_path, f"savings_and_costs.{extension}"),
                             col_for_size="Total costs", smallest_size=100, biggest_size=400,
-                            fontsize=18, x_min=x_min, x_max=x_max, y_min=y_min, y_max=y_max, unit=unit)
+                            fontsize=18, x_min=x_min, x_max=x_max, y_min=y_min, y_max=y_max, unit=unit, coordinates=coordinates)
 
     savings_and_costs_hp = pd.concat([consumption_savings_tot_df, stock_heat_pump_df, total_system_costs_df], axis=0)
     savings_and_costs_hp = savings_and_costs_hp.T
     plot_comparison_savings(savings_and_costs_hp, x="Consumption saving insulation (TWh/year)",
                             y="Stock Heat pump (Million)", save=os.path.join(save_path, f"savings_and_costs_hp.{extension}"),
                             col_for_size="Total costs", smallest_size=100, biggest_size=400,
-                            fontsize=18, x_min=x_min, x_max=x_max, y_min=y_min, y_max=y_max, unit=unit)
+                            fontsize=18, x_min=x_min, x_max=x_max, y_min=y_min, y_max=y_max, unit=unit, coordinates=coordinates)
 
     if eoles:
         emissions_tot = pd.concat([emissions_dict[key].rename(key).to_frame() for key in emissions_dict.keys()], axis=1).loc[2050].rename("Emissions (MtCO2)").to_frame().T
@@ -712,7 +781,7 @@ def comparison_simulations(dict_output: dict, ref, greenfield=False, health=Fals
         plot_comparison_savings(savings_and_emissions_df, x="Consumption saving insulation (TWh/year)",
                                 y="Consumption saving heater (TWh/year)", save=os.path.join(save_path, f"savings_and_emissions.{extension}"),
                                 col_for_size="Emissions (MtCO2)", smallest_size=100,
-                                biggest_size=400, fontsize=18, x_min=x_min, x_max=x_max, y_min=y_min, y_max=y_max, unit=unit)
+                                biggest_size=400, fontsize=18, x_min=x_min, x_max=x_max, y_min=y_min, y_max=y_max, unit=unit, coordinates=coordinates)
 
     try:  # TODO: a modifier pour les prochains graphes
         if not greenfield:
@@ -741,7 +810,7 @@ def comparison_simulations(dict_output: dict, ref, greenfield=False, health=Fals
         make_line_plots(subsidies_insulation_dict, y_label="Subsidies insulation (%)",
                         format_y=lambda y, _: '{:.0f}'.format(y),
                         index_int=True, save=save_path_plot, rotation=45, x_ticks=dataframe_subsidy.index[::2], y_min=0,
-                        y_max=100)
+                        y_max=100, secondary_y=secondary_y, secondary_axis_spec=secondary_axis_spec)
 
         # Evolution of heater subsidies
         if save_path is None:
@@ -1296,7 +1365,8 @@ def plot_investment_trajectory(resirf_costs_df, save=None):
     save_fig(fig, save=save_path)
 
 
-def plot_typical_week(hourly_generation, date_start, date_end, climate=2006, methane=True, save=None):
+def plot_typical_week(hourly_generation, date_start, date_end, climate=2006, methane=True, save_path=None,
+                      y_min=None, y_max=None, x_min=None, x_max=None):
     hourly_generation_subset = hourly_generation.copy()
     hourly_generation_subset["date"] = hourly_generation_subset.apply(
         lambda row: datetime.datetime(climate, 1, 1, 0) + datetime.timedelta(hours=row["hour"]),
@@ -1309,26 +1379,27 @@ def plot_typical_week(hourly_generation, date_start, date_end, climate=2006, met
     hourly_generation_subset["wind"] = hourly_generation_subset["onshore"] + hourly_generation_subset["offshore_f"] + \
                                        hourly_generation_subset["offshore_g"]
     hourly_generation_subset["hydro"] = hourly_generation_subset["river"] + hourly_generation_subset["lake"]
-    hourly_generation_subset["battery_in"] = - hourly_generation_subset["battery1_in"] - hourly_generation_subset[
+    hourly_generation_subset["battery charging"] = - hourly_generation_subset["battery1_in"] - hourly_generation_subset[
         "battery4_in"]
-    hourly_generation_subset["battery_discharge"] = hourly_generation_subset["battery1"] + hourly_generation_subset[
+    hourly_generation_subset["battery discharging"] = hourly_generation_subset["battery1"] + hourly_generation_subset[
         "battery4"]
-    hourly_generation_subset["phs_in"] = - hourly_generation_subset["phs_in"]
+    hourly_generation_subset["phs charging"] = - hourly_generation_subset["phs_in"]
+    hourly_generation_subset["phs discharging"] = - hourly_generation_subset["phs"]
     hourly_generation_subset["electrolysis"] = - hourly_generation_subset["electrolysis"]
     hourly_generation_subset["methanation"] = - hourly_generation_subset["methanation"]
-    hourly_generation_subset["peaking_plants"] = hourly_generation_subset["ocgt"] + hourly_generation_subset["ccgt"] + \
+    hourly_generation_subset["peaking plants"] = hourly_generation_subset["ocgt"] + hourly_generation_subset["ccgt"] + \
                                                  hourly_generation_subset["h2_ccgt"]
     if methane:
         prod = hourly_generation_subset[
-            ["nuclear", "wind", "pv", "hydro", "battery_in", "battery_discharge", "phs", "phs_in", "peaking_plants",
+            ["nuclear", "wind", "pv", "hydro", "battery charging", "battery discharging", "phs discharging", "phs charging", "peaking plants",
              "electrolysis", "methanation", "methane"]]
     else:
         prod = hourly_generation_subset[
-            ["nuclear", "wind", "pv", "hydro", "battery_in", "battery_discharge", "phs", "phs_in", "peaking_plants",
+            ["nuclear", "wind", "pv", "hydro", "battery charging", "battery discharging", "phs discharging", "phs charging", "peaking plants",
              "electrolysis", "methanation"]]
     elec_demand = hourly_generation_subset[["elec_demand"]].squeeze()
 
-    if save is None:
+    if save_path is None:
         fig, ax = plt.subplots(1, 1)
     else:  # we change figure size when saving figure
         fig, ax = plt.subplots(1, 1, figsize=(12.8, 9.6))
@@ -1339,17 +1410,26 @@ def plot_typical_week(hourly_generation, date_start, date_end, climate=2006, met
     ax.spines['right'].set_visible(False)
     ax.spines['bottom'].set_visible(True)
     ax.spines['left'].set_visible(True)
-    ax.set_title("Hourly production and demand")
+    ax.set_title("Hourly production and demand (GWh)", loc='left', color='black')
+    ax.set_xlabel('')
+    if y_min is not None:
+        ax.set_ylim(ymin=y_min)
+    if y_max is not None:
+        ax.set_ylim(ymax=y_max)
+    if x_min is not None:
+        ax.set_xlim(xmin=x_min)
+    if x_max is not None:
+        ax.set_xlim(xmax=x_max)
     # ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda y, _: '{:.0f}'.format(y)))
     # ax.xaxis.set_major_formatter(mdates.DateFormatter('%d-%m-%Y'))
     # ax.xaxis.set_major_locator(mdates.DayLocator(interval=1))
     # plt.gcf().autofmt_xdate()
     # ax = format_ax(ax, title="Hourly demand and production (GWh)", format_y=lambda y, _: '{:.0f}'.format(y),
-    #                       rotation=45, x_ticks=prod.index[::12])
+    #               x_ticks=prod.index[::12])
     format_legend(ax)
     plt.axhline(y=0)
 
-    save_fig(fig, save=save)
+    save_fig(fig, save=save_path)
 
 
 def format_legend(ax, dict_legend=None):
@@ -1384,6 +1464,25 @@ def format_legend_multiple(ax, d, n_style, n_color):
     legend_color = plt.legend(dummy_lines_color, labels_color, loc='lower left', bbox_to_anchor=(1, 0.5), frameon=False)
     ax.add_artist(legend_style)
     ax.add_artist(legend_color)
+
+
+def format_y_ax(ax, title=None, format_y=lambda y, _: y, y_min=None, y_max=None, loc_title=None, c_title=None):
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(True)
+    ax.spines['bottom'].set_visible(True)
+    ax.spines['left'].set_visible(True)
+    ax.yaxis.set_major_formatter(plt.FuncFormatter(format_y))
+    if y_min is not None:
+        ax.set_ylim(ymin=y_min)
+    if y_max is not None:
+        ax.set_ylim(ymax=y_max)
+    if title is not None:
+        if loc_title is not None:
+            ax.set_title(title, loc=loc_title, color=c_title)
+        else:
+            ax.set_title(title)
+
+    return ax
 
 
 def format_ax(ax: plt.Axes, title=None, y_label=None, x_label=None, x_ticks=None, format_y=lambda y, _: y, format_x=lambda x, _: x,
@@ -1426,7 +1525,7 @@ def format_ax(ax: plt.Axes, title=None, y_label=None, x_label=None, x_ticks=None
 
 
 def format_ax_string(ax: plt.Axes, title=None, y_label=None, x_label=None, x_ticks_labels=None, format_y=lambda y, _: y,
-                     rotation=None, dict_labels=None):
+                     rotation=None, dict_labels=None, loc_title=None, c_title=None):
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
     ax.spines['bottom'].set_visible(True)
@@ -1443,7 +1542,10 @@ def format_ax_string(ax: plt.Axes, title=None, y_label=None, x_label=None, x_tic
         ax.set_xlabel(x_label)
 
     if title is not None:
-        ax.set_title(title)
+        if loc_title is not None:
+            ax.set_title(title, loc=loc_title, color=c_title)
+        else:
+            ax.set_title(title)
 
     return ax
 
@@ -1483,9 +1585,11 @@ def make_stacked_investment_plot(df, y_label, subset, scatter, save, colors, for
         fig, ax = plt.subplots(1, 1, figsize=(12.8, 9.6))
     df[subset].plot(kind='bar', stacked=True, color=colors, ax=ax)
     scatter.plot(ax=ax, style='.', c='black', ms=20)
-    ax = format_ax_string(ax, title=y_label, x_ticks_labels=df.index, format_y=format_y, rotation=rotation, dict_labels=dict_xlabels)
+    ax = format_ax_string(ax, title=y_label, x_ticks_labels=df.index, format_y=format_y, rotation=rotation, dict_labels=dict_xlabels,
+                          loc_title='left', c_title='black')
+    ax.spines['bottom'].set_visible(False)
     format_legend(ax, dict_legend=dict_legend)
-    plt.axhline(y=0)
+    plt.axhline(y=0, c='black')
     save_fig(fig, save=save)
 
 
@@ -1500,14 +1604,14 @@ def make_stacked_bar_plot(df, y_label=None, subset=None, colors=None, format_y=l
 
     if subset is not None:
         if colors is None:
-            df[subset].plot(kind='bar', stacked=True, ax=ax)
+            df[subset].plot(kind='bar', stacked=True, ax=ax, linewidth=0)
         else:
-            df[subset].plot(kind='bar', stacked=True, color=colors, ax=ax)
+            df[subset].plot(kind='bar', stacked=True, color=colors, ax=ax, linewidth=0)
     else:
         if colors is None:
-            df.plot(kind='bar', stacked=True, ax=ax)
+            df.plot(kind='bar', stacked=True, ax=ax, linewidth=0)
         else:
-            df.plot(kind='bar', stacked=True, color=colors, ax=ax)
+            df.plot(kind='bar', stacked=True, color=colors, ax=ax, linewidth=0)
 
     if index_int:
         ax = format_ax(ax, title=y_label, format_y=format_y)
@@ -1597,34 +1701,62 @@ def make_line_plot(df, subset=None, y_label=None, colors=None, format_y=lambda y
 
 
 def make_line_plots(dict_df, y_label, format_y=lambda y, _: y, colors=None, x_ticks=None, index_int=True, save=None,
-                    rotation=None,
-                    multiple_legend=False, y_min=None, y_max=None):
+                    rotation=None, multiple_legend=False, y_min=None, y_max=None, secondary_y=None, secondary_axis_spec=None):
     """Make line plot by combining different scenarios."""
     if save is None:
         fig, ax = plt.subplots(1, 1)
     else:  # we change figure size when saving figure
         fig, ax = plt.subplots(1, 1, figsize=(12.8, 9.6))
+
+    secondary_ax = None
     for i, (key, df) in enumerate(dict_df.items()):
         if isinstance(df, pd.Series):
             df = df.rename(key)
         if index_int:
             df.index = df.index.astype(int)
-        if colors is None:
-            df.plot.line(ax=ax, style=STYLES[i])
+
+        if secondary_y is not None and key == secondary_y:
+            secondary_ax = ax.twinx()
+            if colors is None:
+                df.plot.line(ax=secondary_ax, style=STYLES[i])
+            else:
+                df.plot.line(ax=secondary_ax, color=colors, style=STYLES[i])
         else:
-            df.plot.line(ax=ax, color=colors, style=STYLES[i])
+            if colors is None:
+                df.plot.line(ax=ax, style=STYLES[i])
+            else:
+                df.plot.line(ax=ax, color=colors, style=STYLES[i])
 
     if x_ticks is None:
         ax = format_ax(ax, title=y_label, x_ticks=df.index, format_y=format_y, rotation=rotation, y_min=y_min,
-                       y_max=y_max)
+                       y_max=y_max, loc_title='left', c_title='black')
     else:
         ax = format_ax(ax, title=y_label, x_ticks=x_ticks, format_y=format_y, rotation=rotation, y_min=y_min,
-                       y_max=y_max)
+                       y_max=y_max, loc_title='left', c_title='black')
+
+    if secondary_y is not None and secondary_ax is not None:
+        y_min, y_max, title = None, None, None
+        if secondary_axis_spec is not None:
+            if 'y_min' in secondary_axis_spec.keys():
+                y_min = secondary_axis_spec['y_min']
+            if 'y_max' in secondary_axis_spec.keys():
+                y_max = secondary_axis_spec['y_max']
+            if 'title' in secondary_axis_spec.keys():
+                title = secondary_axis_spec['title']
+        secondary_ax = format_y_ax(secondary_ax, title=title, format_y=format_y,
+                                 y_min=y_min, y_max=y_max, loc_title='right', c_title='black')
 
     if not multiple_legend:
         format_legend(ax)
     else:
         format_legend_multiple(ax, dict_df, n_style=len(list(dict_df.keys())), n_color=df.shape[1])
+
+    if secondary_y is not None and secondary_ax is not None:
+        handles1, labels1 = ax.get_legend_handles_labels()
+        handles2, labels2 = secondary_ax.get_legend_handles_labels()
+        merged_handles = handles1 + handles2
+        merged_labels = labels1 + labels2
+        ax.legend(merged_handles, merged_labels, loc='center left', bbox_to_anchor=(1.2, 0.5), frameon=False)
 
     save_fig(fig, save=save)
 
