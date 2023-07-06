@@ -4,19 +4,31 @@ import os
 from datetime import datetime
 
 ############# Extract required years for renewable data #########
-vre_profiles = pd.read_csv('eoles/inputs/hourly_profiles/vre_profiles_2000-2019.csv', index_col=0).reset_index()
-vre_profiles.columns = ["tec", "hour", "capacity_factor"]
-list_year = [2006, 2010]
+vre_profiles_initial = pd.read_csv('eoles/inputs/hourly_profiles/vre_profiles_2000-2019.csv', index_col=0).reset_index()
+vre_profiles_initial.columns = ["tec", "hour", "capacity_factor"]
+vre_profiles_initial = vre_profiles_initial.loc[vre_profiles_initial.tec.isin(['offshore_f', 'river'])]
+vre_profiles_quentin = pd.read_csv('eoles/inputs/hourly_profiles/vre_profiles_all_years.csv', index_col=0).reset_index()
+vre_profiles_quentin.columns = ["tec", "hour", "capacity_factor"]
+# vre_profiles_quentin = vre_profiles_quentin.replace('pv_g_EW', 'pv_g')  # we rename to have the good technology name
+# vre_profiles_quentin = vre_profiles_quentin.replace('offshore_f', 'offshore_g')  # we rename to have the good technology name
+vre_profiles_quentin = vre_profiles_quentin.loc[vre_profiles_quentin.tec.isin(['offshore_g', 'onshore', 'pv_c', 'pv_g'])]
+
+list_year = [2006, 2004]
 vre_profiles_subset = pd.DataFrame()
 
 for (i, y) in enumerate(list_year):
     n = y - 2000
     initial_hour = 8760*n
     final_hour = 8760*n+8759
-    vre_profiles_y = vre_profiles.loc[(vre_profiles.hour >= initial_hour) & (vre_profiles.hour <= final_hour)]
-    vre_profiles_y['hour'] = vre_profiles_y['hour'].apply(lambda x: x + 8760*(i-n), )
+    vre_profiles_initial_y = vre_profiles_initial.loc[(vre_profiles_initial.hour >= initial_hour) & (vre_profiles_initial.hour <= final_hour)]
+    vre_profiles_quentin_y = vre_profiles_quentin.loc[(vre_profiles_quentin.hour >= initial_hour) & (vre_profiles_quentin.hour <= final_hour)]
+    vre_profiles_y = pd.concat([vre_profiles_initial_y, vre_profiles_quentin_y], axis=0)
+    vre_profiles_y['hour'] = vre_profiles_y['hour'].apply(lambda x: x + 8760*(i-n))
     vre_profiles_subset = pd.concat([vre_profiles_subset, vre_profiles_y], axis=0)
 vre_profiles_subset = vre_profiles_subset.sort_values(by=["tec", "hour"])
+vre_profiles_subset = vre_profiles_subset.set_index("tec")
+
+vre_profiles_subset.to_csv('eoles/inputs/hourly_profiles/vre_profiles_2006_2004.csv', header=False)
 
 ############## Estimate run of river values for different years  ######################
 
@@ -41,7 +53,7 @@ for year in [2013, 2014, 2015, 2016, 2017, 2018]:
     tmp2 = tmp2[["river_capacity_factor"]]
     river_historic = pd.concat([river_historic, tmp2], ignore_index=True)
 
-river_historic.to_csv(os.path.join("eoles/inputs/hourly_profiles/river_2013-2018.csv"))
+# river_historic.to_csv(os.path.join("eoles/inputs/hourly_profiles/river_2013-2018.csv"))
 
 
 # ################## Projection of transport and distribution costs #############
