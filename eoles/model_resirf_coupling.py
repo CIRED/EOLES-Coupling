@@ -88,7 +88,8 @@ class ModelEOLES():
         self.model = ConcreteModel()
         # Dual Variable, used to get the marginal value of an equation.
         self.model.dual = Suffix(direction=Suffix.IMPORT)
-        self.nb_years = nb_years
+        self.nb_years = self.config["nb_years"]
+        self.input_years = self.config["input_years"]
         self.anticipated_scc = anticipated_social_cost_of_carbon
         self.actual_scc = actual_social_cost_of_carbon
         self.discount_rate = discount_rate
@@ -110,6 +111,7 @@ class ModelEOLES():
         self.load_factors = data_hourly_and_anticipated["load_factors"]
         self.elec_demand1y = data_hourly_and_anticipated["demand"]
         self.lake_inflows = data_hourly_and_anticipated["lake_inflows"]
+        assert int(self.load_factors.shape[0]/(8760*6)) == self.nb_years, "Specified number of years does not match load factors"
 
         self.hourly_heat_elec = hourly_heat_elec
 
@@ -118,10 +120,10 @@ class ModelEOLES():
             self.elec_demand = self.elec_demand1y
             for i in range(self.nb_years - 1):  # plus nécessaire avec la condition if /else
                 self.elec_demand = pd.concat([self.elec_demand, self.elec_demand1y], ignore_index=True)
-        else:
+        else:  # nb_years > 1
             self.elec_demand = pd.DataFrame()
             for i in range(self.nb_years - 1):
-                self.elec_demand_year = self.elec_demand1y + self.hourly_heat_elec.loc[0:8760]  # TODO: a changer selon format Lucas
+                self.elec_demand_year = self.elec_demand1y + self.hourly_heat_elec.loc[0:8760]  # TODO: a changer selon format Lucas pour ajouter la thermosensibilité
                 self.elec_demand = pd.concat([self.elec_demand, self.elec_demand_year], ignore_index=True)
 
         # Creation of demand for district heating
@@ -139,7 +141,7 @@ class ModelEOLES():
         self.CH4_demand = {}
 
         if self.hourly_heat_gas is not None:  # we provide hourly gas data
-            # TODO: a changer de manière identique selon le format choisi
+            # TODO: a changer selon le format choisi par Lucas pour nb_years > 1
             self.gas_demand = self.hourly_heat_gas
             for i in range(self.nb_years - 1):
                 self.gas_demand = pd.concat([self.gas_demand, self.hourly_heat_gas], ignore_index=True)
@@ -245,6 +247,9 @@ class ModelEOLES():
         # Months
         self.model.months = \
             RangeSet(1, 12 * self.nb_years)
+        # Years
+        self.model.years = RangeSet(0, self.nb_years - 1)
+
         # Technologies
         self.model.tec = \
             Set(initialize=["offshore_f", "offshore_g", "onshore", "pv_g", "pv_c", "river", "lake", "methanization",
@@ -388,10 +393,10 @@ class ModelEOLES():
             """Cnstraint on variables renewable profiles generation."""
             return model.gene[vre, h] == model.capacity[vre] * self.load_factors[vre, h]
 
-        def generation_nuclear_constraint_rule(model):
+        def generation_nuclear_constraint_rule(model, y):
             """Constraint on total nuclear production which cannot be superior to nuclear capacity times a given
             capacity factor inferior to 1."""
-            return sum(model.gene["nuclear", h] for h in model.h) <= self.capacity_factor_nuclear * model.capacity["nuclear"] * 8760
+            return sum(model.gene["nuclear", h] for h in range(8760*y,8760*(y+1)-1)) <= self.capacity_factor_nuclear * model.capacity["nuclear"] * 8760
 
         def generation_capacity_constraint_rule(model, h, tec):
             """Constraint on maximum power for non-VRE technologies."""
@@ -451,29 +456,29 @@ class ModelEOLES():
             """Constraint to limit charging capacity to be lower than discharging capacity"""
             return model.charging_capacity[storage_tec] <= model.capacity[storage_tec]
 
-        def methanization_constraint_rule(model):
+        def methanization_constraint_rule(model, y):
             """Constraint on methanization. The annual power production from methanization is limited to a certain amount."""
-            gene_biogas = sum(model.gene['methanization', hour] for hour in model.h)
+            gene_biogas = sum(model.gene['methanization', hour] for hour in range(8760*y,8760*(y+1)-1))
             return gene_biogas <= self.biomass_potential["methanization"] * 1000  # max biogas yearly energy expressed in TWh
 
-        def pyrogazification_constraint_rule(model):
+        def pyrogazification_constraint_rule(model, y):
             """Constraint on pyrogazification. The annual power production from pyro is limited to a certain amount."""
-            gene_pyro = sum(model.gene['pyrogazification', hour] for hour in model.h)
+            gene_pyro = sum(model.gene['pyrogazification', hour] for hour in range(8760*y,8760*(y+1)-1))
             return gene_pyro <= self.biomass_potential["pyrogazification"] * 1000  # max pyro yearly energy expressed in TWh
 
-        def geothermal_constraint_rule(model):
+        def geothermal_constraint_rule(model, y):
             """Constraint on geothermal potential in TWh."""
-            gene_geothermal = sum(model.gene['geothermal', hour] for hour in model.h)
+            gene_geothermal = sum(model.gene['geothermal', hour] for hour in range(8760*y,8760*(y+1)-1))
             return gene_geothermal <= self.district_heating_potential["geothermal"] * 1000
 
-        def central_wood_constraint_rule(model):
+        def central_wood_constraint_rule(model, y):
             """Constraint on central wood potential in TWh."""
-            gene_central_wood = sum(model.gene['central_wood_boiler', hour] for hour in model.h)
+            gene_central_wood = sum(model.gene['central_wood_boiler', hour] for hour in range(8760*y,8760*(y+1)-1))
             return gene_central_wood <= self.district_heating_potential["central_wood_boiler"] * 1000
 
-        def uiom_constraint_rule(model):
+        def uiom_constraint_rule(model, y):
             """Constraint on UIOM potential in TWh."""
-            gene_uiom = sum(model.gene['uiom', hour] for hour in model.h)
+            gene_uiom = sum(model.gene['uiom', hour] for hour in range(8760*y,8760*(y+1)-1))
             return gene_uiom <= self.district_heating_potential["uiom"] * 1000
 
         def reserves_constraint_rule(model, h):
@@ -530,23 +535,22 @@ class ModelEOLES():
                        'nuclear', h] <= \
                    self.miscellaneous['hourly_ramping_nuclear'] * model.capacity['nuclear']
 
-        def methanation_CO2_constraint_rule(model):
+        def methanation_CO2_constraint_rule(model, y):
             """Constraint on CO2 balance from methanization, summing over all hours of the year"""
-            return sum(model.gene['methanation', h] for h in model.h) / self.conversion_efficiency['methanation'] <= (
-                    sum(model.gene['methanization', h] for h in model.h) * self.miscellaneous[
+            return sum(model.gene['methanation', h] for h in range(8760*y,8760*(y+1)-1)) / self.conversion_efficiency['methanation'] <= (
+                    sum(model.gene['methanization', h] for h in range(8760*y,8760*(y+1)-1)) * self.miscellaneous[
                 'percentage_co2_from_methanization']
             )
 
-        def carbon_budget_constraint_rule(model):
+        def carbon_budget_constraint_rule(model, y):
             """Constraint on carbon budget in MtCO2."""
-            return sum(model.gene["natural_gas", h] for h in model.h) * 0.2295 / 1000 + \
-                   self.oil_consumption * 0.271 / 1000 <= self.carbon_budget
+            return sum(model.gene["natural_gas", h] for h in range(8760*y,8760*(y+1)-1)) * 0.2295 / 1000 + self.oil_consumption * 0.271 / 1000 <= self.carbon_budget
 
 
         self.model.generation_vre_constraint = \
             Constraint(self.model.h, self.model.vre, rule=generation_vre_constraint_rule)
 
-        self.model.generation_nuclear_constraint = Constraint(rule=generation_nuclear_constraint_rule)
+        self.model.generation_nuclear_constraint = Constraint(self.model.years, rule=generation_nuclear_constraint_rule)
 
         self.model.generation_capacity_constraint = \
             Constraint(self.model.h, self.model.tec, rule=generation_capacity_constraint_rule)
@@ -574,21 +578,21 @@ class ModelEOLES():
         self.model.storage_charging_discharging_constraint = \
             Constraint(self.model.str, rule=storage_charging_discharging_constraint_rule)
 
-        self.model.biogas_constraint = Constraint(rule=methanization_constraint_rule)
+        self.model.biogas_constraint = Constraint(self.model.years, rule=methanization_constraint_rule)
 
-        self.model.pyrogazification_constraint = Constraint(rule=pyrogazification_constraint_rule)
+        self.model.pyrogazification_constraint = Constraint(self.model.years, rule=pyrogazification_constraint_rule)
 
-        self.model.geothermal_constraint = Constraint(rule=geothermal_constraint_rule)
+        self.model.geothermal_constraint = Constraint(self.model.years, rule=geothermal_constraint_rule)
 
-        self.model.central_wood_constraint = Constraint(rule=central_wood_constraint_rule)
+        self.model.central_wood_constraint = Constraint(self.model.years, rule=central_wood_constraint_rule)
 
-        self.model.uiom_constraint_rule = Constraint(rule=uiom_constraint_rule)
+        self.model.uiom_constraint_rule = Constraint(self.model.years, rule=uiom_constraint_rule)
 
         self.model.ramping_nuclear_up_constraint = Constraint(self.model.h, rule=ramping_nuclear_up_constraint_rule)
 
         self.model.ramping_nuclear_down_constraint = Constraint(self.model.h, rule=ramping_nuclear_down_constraint_rule)
 
-        self.model.methanation_constraint = Constraint(rule=methanation_CO2_constraint_rule)
+        self.model.methanation_constraint = Constraint(self.model.years, rule=methanation_CO2_constraint_rule)
 
         self.model.reserves_constraint = Constraint(self.model.h, rule=reserves_constraint_rule)
 
@@ -601,29 +605,29 @@ class ModelEOLES():
         self.model.electricity_adequacy_constraint = Constraint(self.model.h, rule=electricity_adequacy_constraint_rule)
 
         if self.carbon_constraint:  # on ajoute la contrainte carbone
-            self.model.carbon_budget_constraint = Constraint(rule=carbon_budget_constraint_rule)
+            self.model.carbon_budget_constraint = Constraint(self.model.years, rule=carbon_budget_constraint_rule)
 
     def define_objective(self):
         def objective_rule(model):
             """Objective value in 10**3 M€, or 1e9€"""
             return (sum(
-                (model.capacity[tec] - self.existing_capacity[tec]) * self.annuities[tec] * self.nb_years for tec in
+                (model.capacity[tec] - self.existing_capacity[tec]) * self.annuities[tec] for tec in
                 model.tec)
                     + sum(
                         (model.energy_capacity[storage_tecs] - self.existing_energy_capacity[storage_tecs]) *
                         self.storage_annuities[
-                            storage_tecs] * self.nb_years for storage_tecs in model.str)
+                            storage_tecs] for storage_tecs in model.str)
                     # + sum(
                     #     (model.charging_capacity[storage_tecs] - self.existing_charging_capacity[storage_tecs]) *
                     #     self.charging_capex[
                     #         storage_tecs] * self.nb_years for storage_tecs in model.str)
-                    + sum(model.capacity[tec] * self.fOM[tec] * self.nb_years for tec in model.tec)
+                    + sum(model.capacity[tec] * self.fOM[tec] for tec in model.tec)
                     # + sum(
                     #     model.charging_capacity[storage_tecs] * self.charging_opex[storage_tecs] * self.nb_years
                     #     for storage_tecs in model.str)
-                    + sum(sum(model.gene[tec, h] * self.vOM[tec] for h in model.h) for tec in model.tec)
-                    + self.oil_consumption * self.vOM["oil"]
-                    + (self.wood_consumption + sum(model.gene["central_wood_boiler", h] for h in model.h)) * self.vOM["wood"]  # we add variable costs from wood and fuel
+                    + sum(sum(model.gene[tec, h] * self.vOM[tec] for h in model.h) for tec in model.tec) / self.nb_years
+                    + self.oil_consumption * self.vOM["oil"] / self.nb_years
+                    + (self.wood_consumption + sum(model.gene["central_wood_boiler", h] for h in model.h)) * self.vOM["wood"] / self.nb_years  # we add variable costs from wood and fuel
                     ) / 1000
 
         # Creation of the objective -> Cost
@@ -673,11 +677,11 @@ class ModelEOLES():
         """
         # get value of objective function
         self.objective = self.solver_results["Problem"][0]["Upper bound"]
-        self.technical_cost, self.emissions = get_technical_cost(self.model, self.objective, self.anticipated_scc, self.oil_consumption)
+        self.technical_cost, self.emissions = get_technical_cost(self.model, self.objective, self.anticipated_scc, self.oil_consumption, self.nb_years)
         self.hourly_generation = extract_hourly_generation(self.model, elec_demand=self.elec_demand,  CH4_demand=list(self.CH4_demand.values()),
                                                            H2_demand=list(self.H2_demand.values()), hourly_heat_elec=self.hourly_heat_elec, hourly_heat_gas=self.hourly_heat_gas)
-        self.peak_electricity_load_info = extract_peak_load(self.hourly_generation, self.conversion_efficiency)
-        self.peak_heat_load_info = extract_peak_heat_load(self.hourly_generation)
+        self.peak_electricity_load_info = extract_peak_load(self.hourly_generation, self.conversion_efficiency, self.input_years)
+        self.peak_heat_load_info = extract_peak_heat_load(self.hourly_generation, self.input_years)
         self.spot_price = extract_spot_price(self.model, self.last_hour)
         self.carbon_value = extract_carbon_value(self.model, self.carbon_constraint, self.anticipated_scc)
         self.capacities = extract_capacities(self.model)
@@ -693,7 +697,7 @@ class ModelEOLES():
         self.new_capacity_annualized_costs, self.new_energy_capacity_annualized_costs = \
             extract_annualized_costs_investment_new_capa(self.capacities, self.energy_capacity,
                                                          self.existing_capacity, self.existing_energy_capacity, self.annuities,
-                                                         self.storage_annuities, self.fOM, self.nb_years)
+                                                         self.storage_annuities, self.fOM)
 
         # self.use_elec = extract_use_elec(self.model, self.nb_years, self.miscellaneous)
         self.transport_distribution_cost = transportation_distribution_cost(self.model, self.prediction_transport_and_distrib_annuity)
@@ -708,10 +712,11 @@ class ModelEOLES():
         self.new_capacity_annualized_costs_nofOM, self.new_energy_capacity_annualized_costs_nofOM = \
             extract_annualized_costs_investment_new_capa_nofOM(self.capacities, self.energy_capacity,
                                                          self.existing_capacity, self.existing_energy_capacity, self.annuities,
-                                                         self.storage_annuities, self.nb_years)  # pd.Series
+                                                         self.storage_annuities)  # pd.Series
         self.functionment_cost = extract_functionment_cost(self.model, self.capacities, self.fOM, self.vOM,
                                                            pd.Series(self.generation_per_technology) * 1000, self.oil_consumption, self.wood_consumption,
-                                                           self.anticipated_scc, self.actual_scc, carbon_constraint=self.carbon_constraint)  # pd.Series
+                                                           self.anticipated_scc, self.actual_scc, carbon_constraint=self.carbon_constraint,
+                                                           nb_years=self.nb_years)  # pd.Series
         self.results = {'objective': self.objective, 'summary': self.summary,
                         'hourly_generation': self.hourly_generation,
                         'capacities': self.capacities, 'energy_capacity': self.energy_capacity,
@@ -957,7 +962,7 @@ def extract_summary(model, elec_demand, H2_demand, CH4_demand, existing_capacity
     summary["hydrogen_demand_tot"] = H2_demand_tot
     summary["methane_demand_tot"] = CH4_demand_tot
 
-    # Overall yearly energy generated by the technology in TWh
+    # Overall energy generated by the technology in TWh over total considered years
     # TODO: à mettre dans un autre dataframe
     gene_per_tec = {}
     for tec in model.tec:

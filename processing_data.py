@@ -3,6 +3,20 @@ import pandas as pd
 import os
 from datetime import datetime
 
+############# Extract required years for renewable data #########
+vre_profiles = pd.read_csv('eoles/inputs/hourly_profiles/vre_profiles_2000-2019.csv', index_col=0).reset_index()
+vre_profiles.columns = ["tec", "hour", "capacity_factor"]
+list_year = [2006, 2010]
+vre_profiles_subset = pd.DataFrame()
+
+for (i, y) in enumerate(list_year):
+    n = y - 2000
+    initial_hour = 8760*n
+    final_hour = 8760*n+8759
+    vre_profiles_y = vre_profiles.loc[(vre_profiles.hour >= initial_hour) & (vre_profiles.hour <= final_hour)]
+    vre_profiles_y['hour'] = vre_profiles_y['hour'].apply(lambda x: x + 8760*(i-n), )
+    vre_profiles_subset = pd.concat([vre_profiles_subset, vre_profiles_y], axis=0)
+vre_profiles_subset = vre_profiles_subset.sort_values(by=["tec", "hour"])
 
 ############## Estimate run of river values for different years  ######################
 

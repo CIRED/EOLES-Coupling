@@ -1,3 +1,4 @@
+import dataclasses
 import math
 from importlib import resources
 from pathlib import Path
@@ -8,6 +9,8 @@ from matplotlib import pyplot as plt
 from pyomo.environ import value
 import datetime
 from copy import deepcopy
+from typing import Union
+from pickle import load
 
 
 def get_pandas(path, func=lambda x: pd.read_csv(x)):
@@ -267,11 +270,11 @@ def define_month_hours(first_month, nb_years, months_hours, hours_by_months):
 
 ### Processing output
 
-def get_technical_cost(model, objective, scc, heat_fuel):
+def get_technical_cost(model, objective, scc, heat_fuel, nb_years):
     """Returns technical cost (social cost without CO2 emissions-related cost"""
     gene_ngas = sum(value(model.gene["natural_gas", hour]) for hour in model.h)   # GWh
     net_emissions = gene_ngas * 0.2295 / 1000 + heat_fuel * 0.271 / 1000  # MtCO2
-    emissions = pd.Series({"natural_gas": gene_ngas * 0.2295 / 1000, "Oil fuel": heat_fuel * 0.271 / 1000})
+    emissions = pd.Series({"natural_gas": gene_ngas * 0.2295 / 1000 / nb_years, "Oil fuel": heat_fuel * 0.271 / 1000 / nb_years})
     technical_cost = objective - net_emissions * scc / 1000
     return technical_cost, emissions
 
@@ -364,7 +367,8 @@ def extract_renovation_rates_detailed(model):
 
 
 def extract_hourly_generation(model, elec_demand, CH4_demand, H2_demand, heat_demand=None, hourly_heat_elec=None, hourly_heat_gas=None):
-    """Extracts hourly defined data, including demand, generation and storage"""
+    """Extracts hourly defined data, including demand, generation and storage
+    Returns a dataframe with hourly generation for each hour."""
     list_tec = list(model.tec)
     list_storage_in = [e + "_in" for e in model.str]
     list_storage_charge = [e + "_charge" for e in model.str]
@@ -389,7 +393,7 @@ def extract_hourly_generation(model, elec_demand, CH4_demand, H2_demand, heat_de
     return hourly_generation  # GWh
 
 
-def extract_peak_load(hourly_generation:pd.DataFrame, conversion_efficiency):
+def extract_peak_load(hourly_generation:pd.DataFrame, conversion_efficiency, input_years):
     """Returns the value of peak load for electricity in GW. Includes electricity demand, as well as demand for electrolysis.
     ATTENTION: cette fonction marche uniquement pour le couplage avec ResIRF, pas pour le social planner. Dans ce cas,
      il faudrait ajouter également à la valeur de la pointe la demande pour les PAC et radiateurs."""
@@ -402,20 +406,22 @@ def extract_peak_load(hourly_generation:pd.DataFrame, conversion_efficiency):
         "electrolysis"] + peak_load["methanation"] / conversion_efficiency["methanation"]
     ind = peak_load.index[peak_load["peak_electricity_load"] == peak_load["peak_electricity_load"].max()]
     peak_load_info = peak_load.loc[ind].reset_index().rename(columns={"index": "hour"})
-    peak_load_info["date"] = peak_load_info.apply(lambda row: datetime.datetime(2006, 1, 1, 0) + datetime.timedelta(hours=row["hour"]),
+    peak_load_info["nb_year"] = peak_load_info.apply(lambda row: int(row["hour"] // 8760), axis=1)
+    peak_load_info["date"] = peak_load_info.apply(lambda row: datetime.datetime(input_years[int(row["nb_year"])], 1, 1, 0) + datetime.timedelta(hours=row["hour"] - 8760*row["nb_year"]),
                             axis=1)  # TODO: a changer si on modifie le climat
 
     return peak_load_info  # GW
 
 
-def extract_peak_heat_load(hourly_generation:pd.DataFrame):
+def extract_peak_heat_load(hourly_generation:pd.DataFrame, input_years):
     """Returns the value of peak load for electricity in GW. Includes electricity demand, as well as demand for electrolysis.
     ATTENTION: cette fonction marche uniquement pour le couplage avec ResIRF, pas pour le social planner. Dans ce cas,
      il faudrait ajouter également à la valeur de la pointe la demande pour les PAC et radiateurs."""
     peak_heat_load = hourly_generation.copy()[["elec_demand", "heat_elec", "heat_gas"]]
     ind = peak_heat_load.index[peak_heat_load["heat_elec"] == peak_heat_load["heat_elec"].max()]
     peak_heat_load_info = peak_heat_load.loc[ind].reset_index().rename(columns={"index": "hour"})
-    peak_heat_load_info["date"] = peak_heat_load_info.apply(lambda row: datetime.datetime(2006, 1, 1, 0) + datetime.timedelta(hours=row["hour"]),
+    peak_heat_load_info["nb_year"] = peak_heat_load_info.apply(lambda row: int(row["hour"] // 8760), axis=1)
+    peak_heat_load_info["date"] = peak_heat_load_info.apply(lambda row: datetime.datetime(input_years[int(row["nb_year"])], 1, 1, 0) + datetime.timedelta(hours=row["hour"] - 8760*row["nb_year"]),
                             axis=1)  # TODO: a changer si on modifie le climat
 
     return peak_heat_load_info  # GW
@@ -435,7 +441,8 @@ def extract_spot_price(model, nb_hours):
 def extract_carbon_value(model, carbon_constraint, scc):
     """Extracts the social value of carbon in the considered model."""
     if carbon_constraint:
-        carbon_value = -1e3 * model.dual[model.carbon_budget_constraint]  # €/tCO2
+        # TODO: here we only consider the carbon value for one of the given years !! to modify in future
+        carbon_value = -1e3 * model.dual[model.carbon_budget_constraint[0]]  # €/tCO2
     else:
         carbon_value = scc
     return carbon_value
@@ -537,7 +544,7 @@ def extract_use_elec(model, nb_years, miscellaneous):
 
 
 def extract_annualized_costs_investment_new_capa(capacities, energy_capacities, existing_capacities, existing_energy_capacities,
-                                                 annuities, storage_annuities, fOM, nb_years):
+                                                 annuities, storage_annuities, fOM):
     """
     Returns the annualized costs coming from newly invested capacities and energy capacities. This includes annualized CAPEX + fOM.
     Unit: 1e6€/yr
@@ -547,16 +554,16 @@ def extract_annualized_costs_investment_new_capa(capacities, energy_capacities, 
     """
     new_capacity = capacities - existing_capacities  # pd.Series
     costs_new_capacity = pd.concat([new_capacity, annuities, fOM], axis=1, ignore_index=True).rename(columns={0: "new_capacity", 1: "annuities", 2: "fOM"})
-    costs_new_capacity["annualized_costs"] = costs_new_capacity["new_capacity"] * (costs_new_capacity["annuities"] + costs_new_capacity["fOM"])*nb_years  # includes both annuity and fOM ! not to be counted twice in the LCOE
+    costs_new_capacity["annualized_costs"] = costs_new_capacity["new_capacity"] * (costs_new_capacity["annuities"] + costs_new_capacity["fOM"])  # includes both annuity and fOM ! not to be counted twice in the LCOE
 
     new_storage_capacity = energy_capacities - existing_energy_capacities
     costs_new_energy_capacity = pd.concat([new_storage_capacity, storage_annuities], axis=1, ignore_index=True).rename(columns={0: "new_capacity", 1: "storage_annuities"})
-    costs_new_energy_capacity["annualized_costs"] = costs_new_energy_capacity["new_capacity"] * costs_new_energy_capacity["storage_annuities"] * nb_years
+    costs_new_energy_capacity["annualized_costs"] = costs_new_energy_capacity["new_capacity"] * costs_new_energy_capacity["storage_annuities"]
     return costs_new_capacity[["annualized_costs"]], costs_new_energy_capacity[["annualized_costs"]]
 
 
 def extract_annualized_costs_investment_new_capa_nofOM(capacities, energy_capacities, existing_capacities, existing_energy_capacities,
-                                                 annuities, storage_annuities, nb_years):
+                                                 annuities, storage_annuities):
     """
     Returns the annualized investment coming from newly invested capacities and energy capacities, without fOM. Unit: 1e6€/yr
     :param model: pyomo model
@@ -566,19 +573,21 @@ def extract_annualized_costs_investment_new_capa_nofOM(capacities, energy_capaci
     new_capacity = capacities - existing_capacities  # pd.Series
     costs_new_capacity = pd.concat([new_capacity, annuities], axis=1, ignore_index=True).rename(columns={0: "new_capacity", 1: "annuities"})
     costs_new_capacity = costs_new_capacity.dropna()
-    costs_new_capacity["annualized_costs"] = costs_new_capacity["new_capacity"] * costs_new_capacity["annuities"] * nb_years  # includes both annuity and fOM ! not to be counted twice in the LCOE
+    costs_new_capacity["annualized_costs"] = costs_new_capacity["new_capacity"] * costs_new_capacity["annuities"]  # includes both annuity and fOM ! not to be counted twice in the LCOE
 
     new_storage_capacity = energy_capacities - existing_energy_capacities
     costs_new_energy_capacity = pd.concat([new_storage_capacity, storage_annuities], axis=1, ignore_index=True).rename(columns={0: "new_capacity", 1: "storage_annuities"})
     costs_new_energy_capacity = costs_new_energy_capacity.dropna()
-    costs_new_energy_capacity["annualized_costs"] = costs_new_energy_capacity["new_capacity"] * costs_new_energy_capacity["storage_annuities"] * nb_years
+    costs_new_energy_capacity["annualized_costs"] = costs_new_energy_capacity["new_capacity"] * costs_new_energy_capacity["storage_annuities"]
     return costs_new_capacity[["annualized_costs"]], costs_new_energy_capacity[["annualized_costs"]]
 
 
-def extract_functionment_cost(model, capacities, fOM, vOM, generation, oil_consumption, wood_consumption, anticipated_scc, actual_scc, carbon_constraint=True):
+def extract_functionment_cost(model, capacities, fOM, vOM, generation, oil_consumption, wood_consumption, anticipated_scc, actual_scc, carbon_constraint=True,
+                              nb_years=1):
     """Returns functionment cost, including fOM and vOM. vOM for gas and oil include the SCC. Unit: 1e6€/yr
     This function has to update vOM for natural gas and fossil fuel based on the actual scc, and no longer based on the
     anticipated_scc which was used to find optimal investment and dispatch.
+    IMPORTANT REMARK: we divide generation by number of total years to get the average yearly generation
     :param anticipated_scc: int
         Anticipated social cost of carbon used to estimate optimal power mix.
     :param actual_scc: int
@@ -594,7 +603,7 @@ def extract_functionment_cost(model, capacities, fOM, vOM, generation, oil_consu
         vOM_SCC_only.loc["natural_gas"] = update_ngas_cost(vOM_SCC_only.loc["natural_gas"], scc=(actual_scc - anticipated_scc), emission_rate=0.2295)  # €/kWh
         vOM_SCC_only["oil"] = update_ngas_cost(vOM_SCC_only["oil"], scc=(actual_scc - anticipated_scc), emission_rate=0.324)
 
-        system_fOM_vOM = pd.concat([capacities, fOM, vOM_no_scc, vOM_SCC_only, generation], axis=1, ignore_index=True).rename(
+        system_fOM_vOM = pd.concat([capacities, fOM, vOM_no_scc, vOM_SCC_only, generation/nb_years], axis=1, ignore_index=True).rename(
             columns={0: "capacity", 1: "fOM", 2: "vOM_no_scc", 3: "vOM_SCC_only", 4: "generation"})
         system_fOM_vOM = system_fOM_vOM.dropna()
         system_fOM_vOM["functionment_cost_noSCC"] = system_fOM_vOM["capacity"] * system_fOM_vOM["fOM"] + system_fOM_vOM["generation"] * system_fOM_vOM["vOM_no_scc"]
@@ -611,7 +620,7 @@ def extract_functionment_cost(model, capacities, fOM, vOM, generation, oil_consu
         system_fOM_vOM_df = system_fOM_vOM_df.rename(columns={'functionment_cost_noSCC': 'functionment_cost'})
     else:
         new_vOM = vOM.copy()
-        system_fOM_vOM = pd.concat([capacities, fOM, new_vOM, generation], axis=1, ignore_index=True).rename(columns={0: "capacity", 1: "fOM", 2: "vOM", 3: "generation"})
+        system_fOM_vOM = pd.concat([capacities, fOM, new_vOM, generation/nb_years], axis=1, ignore_index=True).rename(columns={0: "capacity", 1: "fOM", 2: "vOM", 3: "generation"})
         system_fOM_vOM = system_fOM_vOM.dropna()
         system_fOM_vOM["functionment_cost"] = system_fOM_vOM["capacity"] * system_fOM_vOM["fOM"] + system_fOM_vOM["generation"] * system_fOM_vOM["vOM"]
         system_fOM_vOM_df = system_fOM_vOM[["functionment_cost"]]
@@ -762,6 +771,67 @@ def plot_capacities_old(df, y_max=None):
 def plot_generation(df):
     fig, ax = plt.subplots(1, 1)
     df.plot.pie(ax=ax)
+
+
+##### CONFIG FUNCTIONS ######
+
+def create_default_options(config_coupling):
+    """Updates default parameters for the optimization function."""
+    default_config = {
+        'acquisition_jitter' : 0.01,
+        'grid_initialize' : False,
+        'normalize_Y' : True,
+        'nb_years': 1,
+        'anticipated_demand_t10' : False,
+        'anticipated_scc' : False,
+        'price_feedback' : False,
+        'aggregated_potential' : False,
+        'cofp' : False,
+        'electricity_constant' : False
+    }
+
+    for key in default_config.keys():
+        if key in config_coupling.keys():
+            default_config[key] = config_coupling[key]
+        if key in config_coupling['eoles'].keys():  # for specific case of aggregated potential
+            default_config[key] = config_coupling['eoles'][key]
+    return default_config
+
+@dataclasses.dataclass
+class OptimizationParam:
+    acquisition_jitter: float = 0.01
+    grid_initialize: bool = False
+    normalize_Y : bool = True
+
+
+@dataclasses.dataclass
+class CouplingParam:
+    """
+        aggregated_potential: If True, then this means that the maximum capacities for each time step is an aggregated potential (thus allowing
+        to catch up for capacities not built initially because of myopic optimization)"""
+    nb_years: int = 1
+    anticipated_demand_t10: bool = False
+    anticipated_scc: bool = False
+    price_feedback: bool = False
+    aggregated_potential: bool = False
+    cofp: bool = False
+    electricity_constant: bool = False
+
+
+def create_optimization_param(default_config) -> OptimizationParam:
+    return OptimizationParam(acquisition_jitter=default_config['acquisition_jitter'],
+                             grid_initialize=default_config['grid_initialize'],
+                             normalize_Y=default_config['normalize_Y'])
+
+
+def create_coupling_param(default_config) -> CouplingParam:
+    return CouplingParam(nb_years=default_config['nb_years'],
+                         anticipated_demand_t10=default_config['anticipated_demand_t10'],
+                         anticipated_scc=default_config['anticipated_scc'],
+                         price_feedback=default_config['price_feedback'],
+                         aggregated_potential=default_config['aggregated_potential'],
+                         cofp=default_config['cofp'],
+                         electricity_constant=default_config['electricity_constant'])
 
 
 def modif_config_coupling(design, config_coupling, max_iter_single_iteration=50, cap_MWh=400, cap_tCO2=1000,
@@ -1098,11 +1168,7 @@ def modif_config_eoles(config_eoles, config_coupling):
     Namely, we modify: maximum capacity evolution"""
     config_eoles_update = deepcopy(config_eoles)
 
-    aggregated_potential = False
-
-    if 'aggregated_potential' in config_coupling["eoles"].keys():
-        if config_coupling["eoles"]['aggregated_potential']:
-            aggregated_potential = True
+    aggregated_potential = config_coupling["eoles"]['aggregated_potential']
 
     # Choice of evolution of capacity
     if aggregated_potential:
@@ -1110,25 +1176,31 @@ def modif_config_eoles(config_eoles, config_coupling):
     else:
         config_eoles_update["maximum_capacity_evolution"] = "eoles/inputs/technology_potential/maximum_capacity_evolution.csv"
 
-    if 'greenfield' in config_coupling.keys():
-        if config_coupling['greenfield']:
-            config_eoles_update["maximum_capacity_evolution"] = "eoles/inputs/technology_potential/maximum_capacity_greenfield.csv"
+    if config_coupling['greenfield']:
+        config_eoles_update["maximum_capacity_evolution"] = "eoles/inputs/technology_potential/maximum_capacity_greenfield.csv"
 
-    # Choice of scenario
+    # Choice of scenario for available potential
     assert config_coupling["eoles"]['maximum_capacity_scenario'] in ['N1', 'Opt', 'N1nuc'], "Scenario for capacity evolution is not correctly specified"
     config_eoles_update["maximum_capacity_evolution_scenario"] = config_coupling["eoles"]['maximum_capacity_scenario']
 
-    if "biomass_potential_scenario" in config_coupling["eoles"].keys():
-        assert config_coupling["eoles"]["biomass_potential_scenario"] in ["S3", "S2", "S2p"], "Biomass potential scenario is not specified correctly in config_coupling."
-        config_eoles_update["biomass_potential_scenario"] = config_coupling["eoles"]["biomass_potential_scenario"]
+    assert config_coupling["eoles"]["biomass_potential_scenario"] in ["S3", "S2", "S2p"], "Biomass potential scenario is not specified correctly in config_coupling."
+    config_eoles_update["biomass_potential_scenario"] = config_coupling["eoles"]["biomass_potential_scenario"]
 
     if 'carbon_budget' in config_coupling['eoles'].keys():
         carbon_budget_spec = config_coupling["eoles"]['carbon_budget']
-        config_eoles_update["carbon_budget"] = f"eoles/inputs/{carbon_budget_spec}.csv"
+        config_eoles_update["carbon_budget"] = f"eoles/inputs/technical/{carbon_budget_spec}.csv"
 
     if 'carbon_budget_resirf' in config_coupling['eoles'].keys():
         carbon_budget_resirf_spec = config_coupling["eoles"]['carbon_budget_resirf']
-        config_eoles_update["carbon_budget_resirf"] = f"eoles/inputs/{carbon_budget_resirf_spec}.csv"
+        config_eoles_update["carbon_budget_resirf"] = f"eoles/inputs/technical/{carbon_budget_resirf_spec}.csv"
+
+    if 'load_factors' in config_coupling['eoles'].keys():  # we modify the considered weather years
+        load_factors = config_coupling['eoles']["load_factors"]
+        config_eoles_update["load_factors"] = f"eoles/inputs/hourly_profiles/{load_factors}.csv"
+        lake_inflows = config_coupling['eoles']["lake_inflows"]
+        config_eoles_update["lake_inflows"] = f"eoles/inputs/hourly_profiles/{lake_inflows}.csv"
+        config_eoles_update["nb_years"] = config_coupling['eoles']['nb_years']
+        config_eoles_update["input_years"] = config_coupling['eoles']['input_years']
 
     if "worst_case" in config_coupling["eoles"].keys():  # definition of worst case scenario for EOLES
         if config_coupling["eoles"]["worst_case"]:
@@ -1148,15 +1220,15 @@ def modif_config_eoles(config_eoles, config_coupling):
                     "h2_ccgt": 0
                 }
 
-    return config_eoles_update
+    return config_eoles_update, config_coupling
 
 
-def modif_config_resirf(config_resirf, config_coupling, calibration=None):
+def modif_config_resirf(config_resirf, config_coupling):
     """This function modifies the ResIRF configuration file based on specified options in config_coupling.
     Namely, we modify: supply, premature replacement, rational behavior"""
-    config_resirf_update = deepcopy(config_resirf)
+    config_resirf_update = deepcopy(config_resirf)  # corresponds to the resirf configuration file for coupling
 
-    if 'file' in config_resirf_update.keys():
+    if 'file' in config_resirf_update.keys():  # we load the reference file with all the default options for ResIRF
         path_reference = config_resirf_update['file']
         with open(path_reference) as file:
             config_reference = json.load(file)
@@ -1169,9 +1241,9 @@ def modif_config_resirf(config_resirf, config_coupling, calibration=None):
     if 'end' in config_coupling.keys():
         config_resirf_update["end"] = config_coupling["end"]
 
-    if 'carbon_emissions_resirf' in config_coupling.keys():
+    if 'carbon_emissions_resirf' in config_coupling.keys():  # modification of carbon emissions assumptions
         config_resirf_update['technical'] = config_reference['technical']
-        assert config_coupling['carbon_emissions_resirf'] in ['project/input/technical/carbon_emission.csv', 'project/input/technical/carbon_emission_s2.csv', 'project/input/technical/carbon_emission_s3.csv', 'project/input/technical/carbon_emission_s4.csv'], 'Carbon emissions are not correctly specified.'
+        assert Path(config_coupling['carbon_emissions_resirf']).is_file(), "Carbon emissions as specified are not a correct file"
         config_resirf_update['technical']['carbon_emission'] = config_coupling['carbon_emissions_resirf']
 
     # Modification rational behavior insulation
@@ -1198,20 +1270,8 @@ def modif_config_resirf(config_resirf, config_coupling, calibration=None):
     if "prices_constant" in config_coupling.keys():  # we remove hypothesis of prices constant
         config_resirf_update["simple"]["prices_constant"] = config_coupling["prices_constant"]
 
-    # # Modification premature replacement
-    # config_resirf_update["switch_heater"]["premature_replacement"] = config_coupling["premature_replacement"]
-
-    # if 'calibration' in config_coupling.keys():
-    #     config_resirf_update['calibration'] = config_coupling["calibration"]
-
     if "information_rate" in config_coupling.keys():
-        config_resirf_update["switch_heater"] = config_reference["switch_heater"]
         config_resirf_update['switch_heater']["information_rate"] = config_coupling["information_rate"]
-
-    # if not config_coupling["rational_behavior"]:  # we use calibration file only for configs without rational behavior
-    #     if calibration is not None:  #  only if calibration file is specified
-    #         assert os.path.isfile(calibration), "Calibration should profile the name of a file"
-    #         config_resirf_update["calibration"] = calibration
 
     if 'no_MF' in config_coupling.keys():
         if config_coupling['no_MF']:  # we want to remove market failures
@@ -1233,49 +1293,95 @@ def modif_config_resirf(config_resirf, config_coupling, calibration=None):
     return config_resirf_update
 
 
-def create_configs_coupling(list_design, name_design, config_coupling, cap_MWh, cap_tCO2, greenfield, prices_constant=True,
-                            biomass_potential_scenario='S3', aggregated_potential=True, maximum_capacity_scenario='N1', max_iter=100,
-                            lifetime_insulation=5, dict_configs=None, subsidies_heater=None, subsidies_insulation=None,
-                            optim_eoles=True, carbon_emissions_resirf=None, electricity_constant=False, carbon_budget=None,
-                            carbon_budget_resirf=None, district_heating=False):
-    """Creates a list of configs to test from different specified parameters."""
+def create_configs_coupling(list_design: list, config_coupling: dict, config_additional: dict):
+    """
+    Creates a list of configs to test from different specified parameters.
+    :param list_design:
+        List of designs of subsidies
+    :param config_coupling:
+        initial configuration
+    :param config_additional:
+        additional parameters for the configuration
+    :return:
+    """
     config_coupling_update = deepcopy(config_coupling)
-    if greenfield:  # we add specification of greenfield parameter
-        config_coupling_update['greenfield'] = greenfield
-    config_coupling_update['prices_constant'] = prices_constant
-    config_coupling_update['max_iter'] = max_iter
-    config_coupling_update['lifetime_insulation'] = lifetime_insulation
-    config_coupling_update['eoles']['biomass_potential_scenario'] = biomass_potential_scenario
-    config_coupling_update['eoles']['aggregated_potential'] = aggregated_potential
-    config_coupling_update['eoles']['maximum_capacity_scenario'] = maximum_capacity_scenario
-    if not optim_eoles:
-        config_coupling_update['optim_eoles'] = optim_eoles
+    config_coupling_update['greenfield'] = config_additional['greenfield']
+    config_coupling_update['prices_constant'] = config_additional['prices_constant']
+    config_coupling_update['price_feedback'] = config_additional['price_feedback']
+    config_coupling_update['max_iter'] = config_additional['max_iter']
+    config_coupling_update['lifetime_insulation'] = config_additional['lifetime_insulation']
+    config_coupling_update['eoles']['biomass_potential_scenario'] = config_additional['biomass_potential_scenario']
+    config_coupling_update['eoles']['aggregated_potential'] = config_additional['aggregated_potential']
+    config_coupling_update['eoles']['maximum_capacity_scenario'] = config_additional['maximum_capacity_scenario']
+    config_coupling_update['optim_eoles'] = config_additional['optim_eoles']
+    config_coupling_update['electricity_constant'] = config_additional['electricity_constant']
+    carbon_emissions_resirf = config_additional['carbon_emissions_resirf']
+    carbon_budget = config_additional['carbon_budget']
+    carbon_budget_resirf = config_additional['carbon_budget_resirf']
+    district_heating = config_additional['district_heating']
+
     if carbon_emissions_resirf is not None:
-        config_coupling_update['carbon_emissions_resirf'] = f'project/input/technical/{carbon_emissions_resirf}.csv'
-    config_coupling_update['electricity_constant'] = electricity_constant
+        config_coupling_update['carbon_emissions_resirf'] = f'eoles/inputs/technical/{carbon_emissions_resirf}.csv'
     if carbon_budget is not None:
         config_coupling_update['eoles']['carbon_budget'] = carbon_budget
     if carbon_budget_resirf is not None:
         config_coupling_update['eoles']['carbon_budget_resirf'] = carbon_budget_resirf
     if district_heating:
         config_coupling_update['district_heating'] = True
+    if 'load_factors' in config_additional.keys():  # we add specification for other weather years
+        config_coupling_update['eoles']['load_factors'] = config_additional['load_factors']
+        assert 'lake_inflows' in config_additional.keys(), 'Modification of load factors is specified, but missing specification for lake inflows'
+        config_coupling_update['eoles']['lake_inflows'] = config_additional['lake_inflows']
+        assert 'nb_years' in config_additional.keys(), 'Modification of load factors is specified, but missing specification for number of years'
+        config_coupling_update['eoles']['nb_years'] = config_additional['nb_years']
+        assert 'input_years' in config_additional.keys(), 'Modification of load factors is specified, but missing specification for included years'
+        config_coupling_update['eoles']['input_years'] = config_additional['input_years']
 
-    if dict_configs is None:
+    if config_additional['dict_configs'] is None:
         dict_configs = {}
+    else:
+        dict_configs = config_additional['dict_configs']
+
     for design in list_design:
-        name_config = f"{design}_{name_design}"
-        if subsidies_heater is not None:
-            sub_heater = subsidies_heater[design]
+        name_config = config_additional['name_config']
+        name_config = f"{design}_{name_config}"
+        if config_additional['subsidies_heater'] is not None:
+            sub_heater = config_additional['subsidies_heater'][design]
         else:
             sub_heater = None
-        if subsidies_insulation is not None:
-            sub_insulation = subsidies_insulation[design]
+        if config_additional['subsidies_insulation'] is not None:
+            sub_insulation = config_additional['subsidies_insulation'][design]
         else:
             sub_insulation = None
-        dict_configs[name_config] = modif_config_coupling(design, config_coupling_update, cap_MWh=cap_MWh, cap_tCO2=cap_tCO2,
-                                                          subsidies_heater=sub_heater,
-                                                          subsidies_insulation=sub_insulation)
+        dict_configs[name_config] = modif_config_coupling(design, config_coupling_update, cap_MWh=config_additional['cap_MWh'],
+                                                          cap_tCO2=config_additional['cap_tCO2'],
+                                                          subsidies_heater=sub_heater, subsidies_insulation=sub_insulation)
     return dict_configs
+
+
+def extract_subsidy_value(folder: str, name_config: str):
+    """
+    Function to extract the value of the subsidies found in the algorithm.
+    :param folder: str
+        Name of folder where we can find the required results
+    :param name_config: str
+        Name of configuration used to save the results
+    :return:
+    """
+    subsidies_heater_dict, subsidies_insulation_dict = {}, {}
+    for f in os.listdir(folder):
+        if os.path.isdir(os.path.join(folder, f)):
+            with open(os.path.join(folder, f, 'coupling_results.pkl'), "rb") as file:
+                output = load(file)
+            subsidies = output["Subsidies (%)"]
+            subsidies_insulation = subsidies['Insulation'].tolist()
+            subsidies_heater = subsidies['Heater'].tolist()
+            len_name_config = len(name_config.split('_'))
+            name_design = f.split('_')
+            name_design = '_'.join(name_design[2:len(name_design) - len_name_config])
+            subsidies_heater_dict[name_design] = subsidies_heater
+            subsidies_insulation_dict[name_design] = subsidies_insulation
+    return subsidies_heater_dict, subsidies_insulation_dict
 
 
 def config_resirf_exogenous(sensitivity, config_resirf):

@@ -275,7 +275,7 @@ def plot_comparison_savings(df, x, y, save, col_for_size, smallest_size=100, big
 
 def comparison_simulations_scenarios(dict_output1, dict_output2, x_min=-5, x_max=None, y_min=-5, y_max=None,
                                      save_path=None, pdf=False, carbon_constraint=True, percent=False, eoles=True,
-                                     coordinates=None, dict_output3=None):
+                                     coordinates=None, dict_output3=None, smallest_size=100, biggest_size=400, fontsize=18):
     if pdf:
         extension = "pdf"
     else:
@@ -395,7 +395,8 @@ def comparison_simulations_scenarios(dict_output1, dict_output2, x_min=-5, x_max
 
     plot_comparison_savings_move(savings_and_costs_df1, savings_and_costs_df2, x="Consumption saving insulation (TWh/year)",
                                  y="Consumption saving heater (TWh/year)",
-                                 col_for_size="Total costs", smallest_size=100, biggest_size=400, fontsize=18,
+                                 col_for_size="Total costs", smallest_size=smallest_size, biggest_size=biggest_size,
+                                 fontsize=fontsize,
                                  y_min=y_min, y_max=y_max, x_min=x_min, x_max=x_max, unit=unit,
                                  save=os.path.join(save_path, f"savings_and_costs.{extension}"),
                                  coordinates=coordinates, df3=savings_and_costs_df3)
@@ -403,7 +404,8 @@ def comparison_simulations_scenarios(dict_output1, dict_output2, x_min=-5, x_max
 
 def comparison_simulations(dict_output: dict, ref, greenfield=False, health=False, x_min=0, x_max=None, y_min=0, y_max=None,
                            rotation=90, save_path=None, pdf=False, carbon_constraint=True, percent=False, eoles=True,
-                           coordinates=None, secondary_y=None, secondary_axis_spec=None):
+                           coordinates=None, secondary_y=None, secondary_axis_spec=None, smallest_size=100, biggest_size=400,
+                           fontsize=18):
     if pdf:
         extension = "pdf"
     else:
@@ -764,15 +766,15 @@ def comparison_simulations(dict_output: dict, ref, greenfield=False, health=Fals
     savings_and_costs_df = savings_and_costs_df.T
     plot_comparison_savings(savings_and_costs_df, x="Consumption saving insulation (TWh/year)",
                             y="Consumption saving heater (TWh/year)", save=os.path.join(save_path, f"savings_and_costs.{extension}"),
-                            col_for_size="Total costs", smallest_size=100, biggest_size=400,
-                            fontsize=18, x_min=x_min, x_max=x_max, y_min=y_min, y_max=y_max, unit=unit, coordinates=coordinates)
+                            col_for_size="Total costs", smallest_size=smallest_size, biggest_size=biggest_size, fontsize=fontsize,
+                            x_min=x_min, x_max=x_max, y_min=y_min, y_max=y_max, unit=unit, coordinates=coordinates)
 
     savings_and_costs_hp = pd.concat([consumption_savings_tot_df, stock_heat_pump_df, total_system_costs_df], axis=0)
     savings_and_costs_hp = savings_and_costs_hp.T
     plot_comparison_savings(savings_and_costs_hp, x="Consumption saving insulation (TWh/year)",
                             y="Stock Heat pump (Million)", save=os.path.join(save_path, f"savings_and_costs_hp.{extension}"),
-                            col_for_size="Total costs", smallest_size=100, biggest_size=400,
-                            fontsize=18, x_min=x_min, x_max=x_max, y_min=y_min, y_max=y_max, unit=unit, coordinates=coordinates)
+                            col_for_size="Total costs", smallest_size=smallest_size, biggest_size=biggest_size, fontsize=fontsize,
+                            x_min=x_min, x_max=x_max, y_min=y_min, y_max=y_max, unit=unit, coordinates=coordinates)
 
     if eoles:
         emissions_tot = pd.concat([emissions_dict[key].rename(key).to_frame() for key in emissions_dict.keys()], axis=1).loc[2050].rename("Emissions (MtCO2)").to_frame().T
