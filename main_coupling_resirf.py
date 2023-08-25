@@ -201,14 +201,18 @@ def run_exogenous_scenario(config_coupling, name_config_coupling="default"):
 
 def run_optimization_scenario(config_coupling, name_config_coupling="default"):
     """
-
+    Runs an optimization scenario.
     :param config_coupling: dict
         Dictionary containing different configurations. For the time being, includes:
         configuration for resirf (market failures, threshold), consideration of H2 CCGT in EOLES, and number of iterations for optimization
+    :param name_config_coupling: str
+        Name of the configuration used to save the results.
     :return:
     Saves the output of the optimization + save plots
     """
     print(name_config_coupling)
+
+    # We update the different configuration dictionaries
     config_resirf_path = DICT_CONFIG_RESIRF["classic_simple"]  # classical ResIRF configuration
     with open(config_resirf_path) as file:  # load config_resirf
         config_resirf = json.load(file).get('Reference')
@@ -217,10 +221,8 @@ def run_optimization_scenario(config_coupling, name_config_coupling="default"):
     config_eoles = eoles.utils.get_config(spec="eoles_coupling")
     config_eoles, config_coupling = modif_config_eoles(config_eoles, config_coupling)  # modif of this configuration file to take into account options specified in coupling configuration
 
-    list_year = config_coupling["list_year"]
-    list_trajectory_scc = config_coupling["list_trajectory_scc"]  # SCC trajectory
-
-    default_config = create_default_options(config_coupling)  # update of default options for the optimization framework
+    # update of default options based on the config_coupling dictionary.
+    default_config = create_default_options(config_coupling)
     optimparam = create_optimization_param(default_config)
     couplingparam = create_coupling_param(default_config)
 
@@ -241,7 +243,6 @@ def run_optimization_scenario(config_coupling, name_config_coupling="default"):
 
     # Specification of options for optimization
     list_sub_heater, list_sub_insulation = None, None
-    optim_eoles = config_coupling['optim_eoles']
     optimization = True
 
     if config_coupling["no_subsidies"]:
@@ -274,13 +275,12 @@ def run_optimization_scenario(config_coupling, name_config_coupling="default"):
                                                                              list_sub_heater=list_sub_heater,
                                                                              list_sub_insulation=list_sub_insulation,
                                                                              optimparam=optimparam,
-                                                                             couplingparam=couplingparam,
-                                                                             optim_eoles=optim_eoles
+                                                                             couplingparam=couplingparam
                                                                              )
     else:  # we optimize the value of subsidy
         output, buildings, dict_optimizer = resirf_eoles_coupling_dynamic(buildings, inputs_dynamics,
                                                                           policies_heater, policies_insulation,
-                                                                          list_year, list_trajectory_scc, config_coupling["scenario_cost_eoles"],
+                                                                          config_coupling["scenario_cost_eoles"],
                                                                           config_eoles=config_eoles,
                                                                           config_coupling=config_coupling,
                                                                           add_CH4_demand=False,
@@ -290,8 +290,7 @@ def run_optimization_scenario(config_coupling, name_config_coupling="default"):
                                                                           list_sub_heater=list_sub_heater,
                                                                           list_sub_insulation=list_sub_insulation,
                                                                           energy_taxes=energy_taxes,
-                                                                          energy_vta=energy_vta,
-                                                                          optim_eoles=optim_eoles)
+                                                                          energy_vta=energy_vta)
 
 
     # if "no_subsidies" in config_coupling.keys():  # we do not want to have any insolation and electrification
@@ -468,6 +467,7 @@ def run_multiple_configs(dict_config, cpu: int, exogenous=True, reference=None, 
 
 
 if __name__ == '__main__':
+    # Main code
     parser = argparse.ArgumentParser(description='Simulate coupling.')
     parser.add_argument("--cpu", type=int, default=3, help="CPUs for multiprocessing")
     parser.add_argument("--configpath", type=str, help="config")
@@ -488,48 +488,14 @@ if __name__ == '__main__':
         config_coupling = json.load(file)
 
     list_design = ['uniform', 'centralized_insulation', 'GR', 'GR_fge', 'MWh_insulation']
-    list_design = ['uniform']
-    DICT_CONFIGS_no_optim_s3 = create_configs_coupling(list_design=list_design, config_coupling=config_coupling,
+    list_design = ['GR']
+    DICT_CONFIGS = create_configs_coupling(list_design=list_design, config_coupling=config_coupling,
                                                        config_additional=config_additional)
 
-    # DICT_CONFIGS_no_optim_s3_constant = create_configs_coupling(list_design=list_design, name_design='no_optim_s3_constant', config_coupling=config_coupling, cap_MWh=1000,
-    #                                              cap_tCO2=2000, greenfield=False, prices_constant=True, biomass_potential_scenario="S3",
-    #                                              aggregated_potential=True, maximum_capacity_scenario='N1', max_iter=100, lifetime_insulation=5,
-    #                                                    optim_eoles=False, carbon_emissions_resirf='carbon_emission_s3', electricity_constant=True)
-    #
-    # DICT_CONFIGS_S3_N1_tight = create_configs_coupling(list_design=list_design, name_design='S3_N1_tight', config_coupling=config_coupling, cap_MWh=1000,
-    #                                              cap_tCO2=2000, greenfield=False, prices_constant=True, biomass_potential_scenario="S3",
-    #                                              aggregated_potential=True, maximum_capacity_scenario='N1', max_iter=100, lifetime_insulation=5,
-    #                                                    carbon_budget='carbon_budget_tight')
-    #
-    # DICT_CONFIGS_greenfield_S3_N1_dh = create_configs_coupling(list_design=list_design, name_design='greenfield_S3_N1_dh',
-    #                                                            config_coupling=config_coupling, cap_MWh=1000,
-    #                                              cap_tCO2=2000, greenfield=True, prices_constant=True, biomass_potential_scenario="S3",
-    #                                              aggregated_potential=True, maximum_capacity_scenario='N1', max_iter=100, lifetime_insulation=5,
-    #                                                    district_heating=True)
-    #
-    # DICT_CONFIGS_S3_N1_dh = create_configs_coupling(list_design=list_design, name_design='S3_N1_dh', config_coupling=config_coupling, cap_MWh=1000,
-    #                                              cap_tCO2=2000, greenfield=False, prices_constant=True, biomass_potential_scenario="S3",
-    #                                              aggregated_potential=True, maximum_capacity_scenario='N1', max_iter=100, lifetime_insulation=5,
-    #                                                    district_heating=True)
-    #
-    # DICT_CONFIGS_S3_N1nuc = create_configs_coupling(list_design=list_design,
-    #                                              name_design='S3_N1nuc', config_coupling=config_coupling, cap_MWh=1000,
-    #                                              cap_tCO2=2000, greenfield=False, prices_constant=True, biomass_potential_scenario="S3",
-    #                                              aggregated_potential=True, maximum_capacity_scenario='N1nuc', max_iter=100, lifetime_insulation=5)
-    #
-    # DICT_CONFIGS_S2p_N1nuc = create_configs_coupling(list_design=list_design,
-    #                                              name_design='S2p_N1nuc', config_coupling=config_coupling, cap_MWh=1000,
-    #                                              cap_tCO2=2000, greenfield=False, prices_constant=True, biomass_potential_scenario="S2p",
-    #                                              aggregated_potential=True, maximum_capacity_scenario='N1nuc', max_iter=100, lifetime_insulation=5)
-    #
-    # DICT_CONFIGS_greenfield_S2p_N1 = create_configs_coupling(list_design=list_design, name_design='greenfield_S2p_N1', config_coupling=config_coupling, cap_MWh=1000,
-    #                                              cap_tCO2=2000, greenfield=True, prices_constant=True, biomass_potential_scenario="S2p",
-    #                                              aggregated_potential=True, maximum_capacity_scenario='N1', max_iter=100, lifetime_insulation=5)
-    #
-    # DICT_CONFIGS_greenfield_S3_Opt = create_configs_coupling(list_design=list_design, name_design='greenfield_S3_Opt', config_coupling=config_coupling, cap_MWh=1000,
-    #                                              cap_tCO2=2000, greenfield=True, prices_constant=True, biomass_potential_scenario="S3",
-    #                                              aggregated_potential=True, maximum_capacity_scenario='Opt', max_iter=100, lifetime_insulation=5)
+    results = run_multiple_configs(DICT_CONFIGS, cpu=cpu, exogenous=False, reference=None, greenfield=True,
+                                   health=True, carbon_constraint=True)
+
+    # Additional code
 
     list_design = ['uniform', 'centralized_insulation', 'GR', 'MWh_insulation']
 
@@ -545,16 +511,14 @@ if __name__ == '__main__':
         'GR': [0.16, 0.83, 0.5, 0.16, 0.16],
         'MWh_insulation': [0.14],
     }
-    subsidies_heater, subsidies_insulation = extract_subsidy_value(os.path.join('eoles/outputs', '0511_no_optim_s3'), name_config='greenfield_no_optim_s3')
-    config_additional["subsidies_heater"] = subsidies_heater
-    config_additional["subsidies_insulation"] = subsidies_insulation
-    # list_design = ['centralized_insulation']
-    # list_design = ['uniform', 'GR', 'MWh_insulation']
+
+    # Cas spécifique où on vient extraire la valeur de subventions qui ont été optimisées au préalable
+    # subsidies_heater, subsidies_insulation = extract_subsidy_value(os.path.join('eoles/outputs', '0511_no_optim_s3'), name_config='greenfield_no_optim_s3')
+    # config_additional["subsidies_heater"] = subsidies_heater
+    # config_additional["subsidies_insulation"] = subsidies_insulation
+
     DICT_CONFIGS_greenfield_S3_N1_no_optim_rerun = create_configs_coupling(list_design=list_design,
                                                                      config_coupling=config_coupling, config_additional=config_additional)
-
-    results = run_multiple_configs(DICT_CONFIGS_no_optim_s3, cpu=cpu, exogenous=False, reference=None, greenfield=True,
-                                   health=True, carbon_constraint=True)
 
     # config_coupling_no_optim['carbon_emissions_resirf'] = "project/input/technical/carbon_emission_s3.csv"
     # DICT_CONFIGS_greenfield_S3_N1_no_optim = create_configs_coupling(list_design=['centralized_insulation'],

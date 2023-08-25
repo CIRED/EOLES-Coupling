@@ -776,18 +776,22 @@ def plot_generation(df):
 ##### CONFIG FUNCTIONS ######
 
 def create_default_options(config_coupling):
-    """Updates default parameters for the optimization function."""
+    """Updates default parameters for the optimization function. Those parameters correspond to parameters required for optimization,
+    and parameters required for the coupling setting. Other specific parameters stay included in the config_coupling dictionary.
+     Note that some of those parameters will always be updated,
+    since they are required in the config_coupling file."""
     default_config = {
-        'acquisition_jitter' : 0.01,
-        'grid_initialize' : False,
-        'normalize_Y' : True,
-        'nb_years': 1,
-        'anticipated_demand_t10' : False,
-        'anticipated_scc' : False,
+        'acquisition_jitter' : 0.01,  # optional in config_coupling
+        'grid_initialize' : False,  # optional in config_coupling
+        'normalize_Y' : True,  # optional in config_coupling
+        'nb_years': 1,  # optional in config_coupling
+        'anticipated_demand_t10' : False,  # optional in config_coupling
+        'anticipated_scc' : False,  # optional in config_coupling
         'price_feedback' : False,
         'aggregated_potential' : False,
         'cofp' : False,
-        'electricity_constant' : False
+        'electricity_constant' : False,
+        'optim_eoles': True
     }
 
     for key in default_config.keys():
@@ -816,6 +820,7 @@ class CouplingParam:
     aggregated_potential: bool = False
     cofp: bool = False
     electricity_constant: bool = False
+    optim_eoles: bool = True
 
 
 def create_optimization_param(default_config) -> OptimizationParam:
@@ -1190,7 +1195,7 @@ def modif_config_eoles(config_eoles, config_coupling):
         carbon_budget_spec = config_coupling["eoles"]['carbon_budget']
         config_eoles_update["carbon_budget"] = f"eoles/inputs/technical/{carbon_budget_spec}.csv"
 
-    if 'carbon_budget_resirf' in config_coupling['eoles'].keys():
+    if 'carbon_budget_resirf' in config_coupling['eoles'].keys():  # parameter used only if we optimize without considering the EOLES module
         carbon_budget_resirf_spec = config_coupling["eoles"]['carbon_budget_resirf']
         config_eoles_update["carbon_budget_resirf"] = f"eoles/inputs/technical/{carbon_budget_resirf_spec}.csv"
 
@@ -1225,7 +1230,7 @@ def modif_config_eoles(config_eoles, config_coupling):
 
 def modif_config_resirf(config_resirf, config_coupling):
     """This function modifies the ResIRF configuration file based on specified options in config_coupling.
-    Namely, we modify: supply, premature replacement, rational behavior"""
+    Namely, we modify: supply, premature replacement, rational behavior, carbon content hypothesis, prices."""
     config_resirf_update = deepcopy(config_resirf)  # corresponds to the resirf configuration file for coupling
 
     if 'file' in config_resirf_update.keys():  # we load the reference file with all the default options for ResIRF
@@ -1267,7 +1272,7 @@ def modif_config_resirf(config_resirf, config_coupling):
         if config_coupling['district_heating']:  # we want to include district heating in the experiences
             del config_resirf_update['simple']['heating_system']['Heating-District heating']
 
-    if "prices_constant" in config_coupling.keys():  # we remove hypothesis of prices constant
+    if "prices_constant" in config_coupling.keys():  # this hypothesis is always specified in the config_coupling dictionary
         config_resirf_update["simple"]["prices_constant"] = config_coupling["prices_constant"]
 
     if "information_rate" in config_coupling.keys():
@@ -1293,6 +1298,23 @@ def modif_config_resirf(config_resirf, config_coupling):
     return config_resirf_update
 
 
+def check_required_keys_additional(config_additional):
+    """
+    Checks that the provided configuration dictionary includes the required keys.
+    :param config_additional: dict
+
+    """
+    required_keys = ['greenfield', 'prices_constant', 'price_feedback', 'max_iter', 'lifetime_insulation', 'optim_eoles',
+                     'electricity_constant', 'carbon_emissions_resirf', 'carbon_budget', 'carbon_budget_resirf', 'district_heating',
+                     'biomass_potential_scenario', 'aggregated_potential', 'maximum_capacity_scenario']
+    assert set(required_keys).issubset(config_additional.keys()), "Some required keys in config_additional are missing"
+
+
+def check_required_keys_base(config_coupling):
+    required_keys = ['no_subsidies', 'subsidies_specified', 'eoles', 'subsidy', 'discount_rate', 'max_iter', 'fix_sub_heater',
+                     'fix_sub_insulation', 'health', 'carbon_constraint', 'list_year', 'list_trajectory_scc']
+    assert set(required_keys).issubset(config_coupling.keys()), "Some required keys in config_coupling are missing"
+
 def create_configs_coupling(list_design: list, config_coupling: dict, config_additional: dict):
     """
     Creates a list of configs to test from different specified parameters.
@@ -1304,6 +1326,9 @@ def create_configs_coupling(list_design: list, config_coupling: dict, config_add
         additional parameters for the configuration
     :return:
     """
+    check_required_keys_base(config_coupling)  # check that all required keys are included in the coupling configuration
+    check_required_keys_additional(config_additional)  # check that all required keys are included in the additional configuration
+
     config_coupling_update = deepcopy(config_coupling)
     config_coupling_update['greenfield'] = config_additional['greenfield']
     config_coupling_update['prices_constant'] = config_additional['prices_constant']
@@ -1345,7 +1370,7 @@ def create_configs_coupling(list_design: list, config_coupling: dict, config_add
     for design in list_design:
         name_config = config_additional['name_config']
         name_config = f"{design}_{name_config}"
-        if config_additional['subsidies_heater'] is not None:
+        if config_additional['subsidies_heater'] is not None:  # in this case, we have specified the value for the subsidies in the configuration file, for each design.
             sub_heater = config_additional['subsidies_heater'][design]
         else:
             sub_heater = None

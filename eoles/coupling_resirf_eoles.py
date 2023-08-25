@@ -424,8 +424,7 @@ def resirf_eoles_coupling_greenfield(buildings, inputs_dynamics, policies_heater
                                      add_CH4_demand=False, lifetime_insulation_annuity=50, lifetime_heater_annuity=20,
                                      optimization=True, list_sub_heater=None, list_sub_insulation=None,
                                      optimparam: OptimizationParam = OptimizationParam(),
-                                     couplingparam: CouplingParam = CouplingParam(),
-                                     optim_eoles=True):
+                                     couplingparam: CouplingParam = CouplingParam()):
     # importing evolution of historical capacity and expected evolution of demand
     existing_capacity_historical, existing_charging_capacity_historical, existing_energy_capacity_historical, \
     maximum_capacity_evolution, heating_gas_demand_RTE_timesteps, ECS_gas_demand_RTE_timesteps, capex_annuity_fOM_historical, \
@@ -582,7 +581,7 @@ def resirf_eoles_coupling_greenfield(buildings, inputs_dynamics, policies_heater
                                                     health=config_coupling["health"],
                                                     carbon_constraint=config_coupling["carbon_constraint"],
                                                     initial_state_budget=initial_state_budget,
-                                                    cofp=couplingparam.cofp, optim_eoles=optim_eoles, electricity_constant=couplingparam.electricity_constant)
+                                                    cofp=couplingparam.cofp, optim_eoles=couplingparam.optim_eoles, electricity_constant=couplingparam.electricity_constant)
         dict_optimizer.update({year_eoles: optimizer})
         opt_sub_heater_value, opt_sub_insulation_value = opt_sub[0], opt_sub[1]
         list_sub_heater.append(opt_sub_heater_value)
@@ -707,7 +706,7 @@ def resirf_eoles_coupling_greenfield(buildings, inputs_dynamics, policies_heater
 
     m_eoles.build_model()
 
-    if optim_eoles:  # we solve the model
+    if couplingparam.optim_eoles:  # we solve the model
         solver_results, status, termination_condition = m_eoles.solve(solver_name="gurobi")
 
         if termination_condition == "infeasibleOrUnbounded":
@@ -963,13 +962,13 @@ def resirf_eoles_coupling_greenfield(buildings, inputs_dynamics, policies_heater
 
 
 def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, policies_insulation,
-                                  list_year, list_trajectory_scc, scenario_cost, config_eoles, config_coupling,
+                                  scenario_cost, config_eoles, config_coupling,
                                   add_CH4_demand=False, lifetime_insulation_annuity=50, lifetime_heater_annuity=20,
                                   couplingparam : CouplingParam = CouplingParam(),
                                   optimization=True,
                                   list_sub_heater=None, list_sub_insulation=None,
                                   energy_taxes=None, energy_vta=None, optimparam: OptimizationParam = OptimizationParam(),
-                                  grad_descent=False, two_stage_optim=False, optim_eoles=True):
+                                  grad_descent=False, two_stage_optim=False):
     """Performs multistep optimization of capacities and subsidies.
     :param config_coupling: dict
         Includes a number of parametrization for configuration of the coupling
@@ -992,7 +991,10 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
         assert list_sub_heater is not None, "Parameter list_sub_heater should be provided when optimization is set to False."
         assert list_sub_insulation is not None, "Parameter list_sub_insulation should be provided when optimization is set to False."
     assert couplingparam.anticipated_scc in [False, "t5", "average"], "Parameter anticipated_scc is not in the allowed range of parameters."
+
     # INITIALIZATION OF EOLES PARAMETERS
+    list_year = config_coupling["list_year"]
+    list_trajectory_scc = config_coupling["list_trajectory_scc"]
 
     # importing evolution of historical capacity and expected evolution of demand
     existing_capacity_historical, existing_charging_capacity_historical, existing_energy_capacity_historical, \
@@ -1100,7 +1102,7 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
             else:  # 2045
                 actual_scc = scc
         elif couplingparam.anticipated_scc == "average":  # we modify the scc to consider the average scc over time period of new system
-            scc = average_scc_discounted(list_scc_year, lifetime=25, initial_time=t, discount_rate=0.032)
+            scc = average_scc_discounted(list_scc_year, lifetime=25, initial_time=t, discount_rate=config_coupling['discount_rate'])
             actual_scc = list_trajectory_scc[t]
         else:
             actual_scc = scc  # no difference between anticipated and actual scc
@@ -1197,7 +1199,7 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
                                                         fix_sub_heater=config_coupling["fix_sub_heater"], fix_sub_insulation=config_coupling["fix_sub_insulation"],
                                                         health=config_coupling["health"], carbon_constraint=config_coupling["carbon_constraint"],
                                                         initial_state_budget=initial_state_budget,
-                                                        cofp=couplingparam.cofp, optim_eoles=optim_eoles, electricity_constant=couplingparam.electricity_constant)
+                                                        cofp=couplingparam.cofp, optim_eoles=couplingparam.optim_eoles, electricity_constant=couplingparam.electricity_constant)
             if two_stage_optim:
                 optimizer_refined, opt_sub_refined = \
                     optimize_blackbox_resirf_eoles_coupling(config_coupling["subsidy"]["heater"]["policy"], config_coupling["subsidy"]["insulation"]["policy"],
@@ -1234,7 +1236,7 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
                                                             health=config_coupling["health"],
                                                             carbon_constraint=config_coupling["carbon_constraint"],
                                                             initial_state_budget=initial_state_budget,
-                                                            cofp=couplingparam.cofp, optim_eoles=optim_eoles,
+                                                            cofp=couplingparam.cofp, optim_eoles=couplingparam.optim_eoles,
                                                             electricity_constant=couplingparam.electricity_constant,
                                                             x_opt=opt_sub)
                 dict_optimizer.update({y: {"first_stage": optimizer, "second_stage": optimizer_refined}})
@@ -1375,7 +1377,7 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
                              discount_rate=config_coupling["discount_rate"])
 
         m_eoles.build_model()
-        if optim_eoles:
+        if couplingparam.optim_eoles:
             solver_results, status, termination_condition = m_eoles.solve(solver_name="gurobi")
 
             if termination_condition == "infeasibleOrUnbounded":
@@ -1564,7 +1566,7 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
             emissions = output_opt.loc["Emission (MtCO2)"][endyear_resirf - 1]
             list_emissions.append(emissions)
 
-    if optim_eoles:
+    if couplingparam.optim_eoles:
         price_df = pd.DataFrame(
             {'Average electricity price': weighted_average_elec_price, 'Average CH4 price': weighted_average_CH4_price,
              'Average H2 price': weighted_average_H2_price,

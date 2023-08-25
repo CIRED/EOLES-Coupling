@@ -1,5 +1,6 @@
 {
-  "name_config": "S3_N1_2y",
+  "name_config": "S3_N1",
+  "subsidies_specified": false,
   "greenfield": false,
   "prices_constant": true,
   "price_feedback": false,

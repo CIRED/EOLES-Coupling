@@ -4,6 +4,15 @@
     "optim_eoles": true,
     "no_subsidies": false,
     "subsidies_specified": false,
+    "max_iter": 100,
+    "health": true,
+    "discount_rate": 0.032,
+    "carbon_constraint": true,
+    "fix_sub_heater": false,
+    "fix_sub_insulation": false,
+    "list_year": [2025, 2030, 2035, 2040, 2045],
+    "list_trajectory_scc": [250, 350, 500, 650, 775],
+    "acquisition_jitter": 0.02,
     "eoles": {
         "biomass_potential_scenario": "S3",
         "aggregated_potential": true,
@@ -24,16 +33,6 @@
             "cap": null
         }
     },
-    "max_iter": 100,
-    "health": true,
-    "discount_rate": 0.032,
-    "carbon_constraint": true,
-    "one_shot_setting": false,
-    "fix_sub_heater": false,
-    "fix_sub_insulation": false,
-    "list_year": [2025, 2030, 2035, 2040, 2045],
-    "list_trajectory_scc": [250, 350, 500, 650, 775],
-    "acquisition_jitter": 0.02,
     "scenario_cost_eoles": {
         "fix_capacities": {
             "uiom": 0,
