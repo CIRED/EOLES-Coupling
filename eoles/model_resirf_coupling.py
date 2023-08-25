@@ -119,8 +119,8 @@ class ModelEOLES():
             for i in range(self.nb_years - 1):  # plus nécessaire avec la condition if /else
                 self.elec_demand = pd.concat([self.elec_demand, self.elec_demand1y], ignore_index=True)
         else:  # nb_years > 1
-            self.elec_demand = pd.DataFrame()
-            for i in range(self.nb_years - 1):
+            self.elec_demand = pd.Series()
+            for i in range(self.nb_years):
                 self.elec_demand_year = self.elec_demand1y + self.hourly_heat_elec.loc[0:8760]  # TODO: a changer selon format Lucas pour ajouter la thermosensibilité
                 self.elec_demand = pd.concat([self.elec_demand, self.elec_demand_year], ignore_index=True)
 
@@ -139,7 +139,7 @@ class ModelEOLES():
         self.CH4_demand = {}
 
         if self.hourly_heat_gas is not None:  # we provide hourly gas data
-            # TODO: a changer selon le format choisi par Lucas pour nb_years > 1
+            # TODO: a changer selon le format choisi par Lucas pour nb_years > 1, pour ajouter la thermosensibilité
             self.gas_demand = self.hourly_heat_gas
             for i in range(self.nb_years - 1):
                 self.gas_demand = pd.concat([self.gas_demand, self.hourly_heat_gas], ignore_index=True)
@@ -233,9 +233,9 @@ class ModelEOLES():
 
         self.months_hours = {1: range(0, self.hours_by_months[self.first_month])}
         self.month_hours = define_month_hours(self.first_month, self.nb_years, self.months_hours, self.hours_by_months)
-        for i in range(1, self.nb_years - 1):  # we update month_hours to add multiple years
-            new_month_hours = {key + 12*i: self.months_hours[key] for key in self.months_hours.keys()}
-            self.months_hours.update(new_month_hours)
+        # for i in range(1, self.nb_years):  # we update month_hours to add multiple years
+        #     new_month_hours = {key + 12*i: self.months_hours[key] for key in self.months_hours.keys()}
+        #     self.months_hours.update(new_month_hours)
 
 
     def define_sets(self):

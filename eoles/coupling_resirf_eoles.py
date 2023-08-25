@@ -1779,6 +1779,7 @@ def calibration_price(config_eoles, scc=40):
     """Returns calibration factor based on the SNBC LCOE."""
     # Initialization needed for calibration
     config_eoles_copy = deepcopy(config_eoles)
+    # config_eoles_copy["nb_years"] = 1
     # config_eoles_copy["capacity_factor_nuclear"] = 0.6  # we change the capacity factor from nuclear to reflect more realistic situation
     existing_capacity_historical, existing_charging_capacity_historical, existing_energy_capacity_historical, \
     maximum_capacity_evolution, heating_gas_demand_RTE_timesteps, ECS_gas_demand_RTE_timesteps, capex_annuity_fOM_historical, capex_annuity_historical, storage_annuity_historical = eoles.utils.load_evolution_data(config=config_eoles)
