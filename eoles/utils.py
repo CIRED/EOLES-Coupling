@@ -784,7 +784,6 @@ def create_default_options(config_coupling):
         'acquisition_jitter' : 0.01,  # optional in config_coupling
         'grid_initialize' : False,  # optional in config_coupling
         'normalize_Y' : True,  # optional in config_coupling
-        'nb_years': 1,  # optional in config_coupling
         'anticipated_demand_t10' : False,  # optional in config_coupling
         'anticipated_scc' : False,  # optional in config_coupling
         'price_feedback' : False,
@@ -813,7 +812,6 @@ class CouplingParam:
     """
         aggregated_potential: If True, then this means that the maximum capacities for each time step is an aggregated potential (thus allowing
         to catch up for capacities not built initially because of myopic optimization)"""
-    nb_years: int = 1
     anticipated_demand_t10: bool = False
     anticipated_scc: bool = False
     price_feedback: bool = False
@@ -830,8 +828,7 @@ def create_optimization_param(default_config) -> OptimizationParam:
 
 
 def create_coupling_param(default_config) -> CouplingParam:
-    return CouplingParam(nb_years=default_config['nb_years'],
-                         anticipated_demand_t10=default_config['anticipated_demand_t10'],
+    return CouplingParam(anticipated_demand_t10=default_config['anticipated_demand_t10'],
                          anticipated_scc=default_config['anticipated_scc'],
                          price_feedback=default_config['price_feedback'],
                          aggregated_potential=default_config['aggregated_potential'],

@@ -488,7 +488,7 @@ if __name__ == '__main__':
         config_coupling = json.load(file)
 
     list_design = ['uniform', 'centralized_insulation', 'GR', 'GR_fge', 'MWh_insulation']
-    list_design = ['GR']
+    list_design = ['centralized_insulation']
     DICT_CONFIGS = create_configs_coupling(list_design=list_design, config_coupling=config_coupling,
                                                        config_additional=config_additional)
 

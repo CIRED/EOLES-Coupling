@@ -105,7 +105,7 @@ def resirf_eoles_coupling_static(subsidy, subsidy_policy_heater, subsidy_policy_
                                  scenario_cost, existing_annualized_costs_elec, existing_annualized_costs_CH4,
                                  existing_annualized_costs_CH4_naturalgas, existing_annualized_costs_CH4_biogas,
                                  existing_annualized_costs_H2, lifetime_insulation_annuity=50, lifetime_heater_annuity=20,
-                                 nb_years=1, discount_rate=0.045, health=True, carbon_constraint=False,
+                                 discount_rate=0.045, health=True, carbon_constraint=False,
                                  bayesian_optim=True, initial_state_budget=0, cofp=False, optim_eoles=True,
                                  electricity_constant=False):
     """
@@ -184,7 +184,7 @@ def resirf_eoles_coupling_static(subsidy, subsidy_policy_heater, subsidy_policy_
     else:
         annuity_health_cost = 0
     # print(annuity_health_cost, annuity_investment_cost)
-    m_eoles = ModelEOLES(name="trajectory", config=config_eoles, path="eoles/outputs", logger=logger, nb_years=nb_years,
+    m_eoles = ModelEOLES(name="trajectory", config=config_eoles, path="eoles/outputs", logger=logger,
                          hourly_heat_elec=hourly_heat_elec, hourly_heat_gas=hourly_heat_gas,
                          hourly_heat_district=hourly_heat_district,
                          wood_consumption=wood_consumption, oil_consumption=oil_consumption,
@@ -253,7 +253,7 @@ def optimize_blackbox_resirf_eoles_coupling(subsidy_policy_heater, subsidy_polic
                                             scenario_cost, existing_annualized_costs_elec,
                                             existing_annualized_costs_CH4, existing_annualized_costs_CH4_naturalgas, existing_annualized_costs_CH4_biogas,
                                             existing_annualized_costs_H2, lifetime_insulation_annuity=50, lifetime_heater_annuity=20,
-                                            nb_years=1, discount_rate=0.045,
+                                            discount_rate=0.045,
                                             max_iter=20, initial_design_numdata=3, grid_initialize=False, acquisition_jitter=0.01,
                                             normalize_Y=True, plot=False,
                                             fix_sub_heater=False, fix_sub_insulation=False,
@@ -356,7 +356,7 @@ def optimize_blackbox_resirf_eoles_coupling(subsidy_policy_heater, subsidy_polic
                                                  existing_annualized_costs_CH4_biogas=existing_annualized_costs_CH4_biogas,
                                                  existing_annualized_costs_H2=existing_annualized_costs_H2,
                                                  lifetime_insulation_annuity=lifetime_insulation_annuity, lifetime_heater_annuity=lifetime_heater_annuity,
-                                                 nb_years=nb_years, discount_rate=discount_rate, health=health, carbon_constraint=carbon_constraint,
+                                                 discount_rate=discount_rate, health=health, carbon_constraint=carbon_constraint,
                                                  initial_state_budget=initial_state_budget,
                                                  cofp=cofp, optim_eoles=optim_eoles, electricity_constant=electricity_constant),
         domain=bounds2d,
@@ -688,7 +688,7 @@ def resirf_eoles_coupling_greenfield(buildings, inputs_dynamics, policies_heater
     list_healthcost_annualized.append(annuity_health_cost)
 
     # Rerun EOLES with optimal parameters
-    m_eoles = ModelEOLES(name="trajectory", config=config_eoles, path="eoles/outputs", logger=logger, nb_years=couplingparam.nb_years,
+    m_eoles = ModelEOLES(name="trajectory", config=config_eoles, path="eoles/outputs", logger=logger,
                          hourly_heat_elec=hourly_heat_elec, hourly_heat_gas=hourly_heat_gas,
                          hourly_heat_district=hourly_heat_district,
                          wood_consumption=wood_consumption * 1e3,  # GWh
@@ -1362,7 +1362,7 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
         list_healthcost_annualized.append(annuity_health_cost)
 
         # Rerun EOLES with optimal parameters
-        m_eoles = ModelEOLES(name="trajectory", config=config_eoles, path="eoles/outputs", logger=logger, nb_years=couplingparam.nb_years,
+        m_eoles = ModelEOLES(name="trajectory", config=config_eoles, path="eoles/outputs", logger=logger,
                              hourly_heat_elec=hourly_heat_elec, hourly_heat_gas=hourly_heat_gas, hourly_heat_district=hourly_heat_district,
                              wood_consumption=wood_consumption * 1e3,  # GWh
                              oil_consumption=oil_consumption * 1e3,
@@ -1845,7 +1845,7 @@ def calibration_price(config_eoles, scc=40):
     hourly_heat_gas = eoles.utils.create_hourly_residential_demand_profile(total_consumption=128 * 1e3,
                                                          method=HOURLY_PROFILE_METHOD)  # on ne se préoccupe pas du gaz chauffage ici, considéré comme indépendant (réaliste pour la situation actuelle)
     # We use year = 2025 to get technology parameters, and anticipated_year = 2020 to get demand data for 2020, since calibration is done in 2020.
-    m_eoles = ModelEOLES(name="trajectory", config=config_eoles_copy, path="eoles/outputs", logger=logger, nb_years=1,
+    m_eoles = ModelEOLES(name="trajectory", config=config_eoles_copy, path="eoles/outputs", logger=logger,
                          hourly_heat_elec=hourly_heat_elec, hourly_heat_gas=hourly_heat_gas,
                          wood_consumption=0, oil_consumption=0,
                          existing_capacity=existing_capacity, existing_charging_capacity=existing_charging_capacity,

@@ -35,7 +35,7 @@ from pyomo.environ import (
 
 
 class ModelEOLES():
-    def __init__(self, name, config, path, logger, nb_years, hourly_heat_elec, hourly_heat_gas, hourly_heat_district=None,
+    def __init__(self, name, config, path, logger, hourly_heat_elec, hourly_heat_gas, hourly_heat_district=None,
                  wood_consumption=0, oil_consumption=0,
                  existing_capacity=None, existing_charging_capacity=None, existing_energy_capacity=None, maximum_capacity=None,
                  method_hourly_profile="valentin", anticipated_social_cost_of_carbon=0, actual_social_cost_of_carbon=0, year=2050, anticipated_year=2050,
@@ -48,8 +48,6 @@ class ModelEOLES():
         :param config: dict
         :param path: str
         :param logger:
-        :param nb_years: int
-            Number of years considered in the analysis
         :param hourly_heat_elec: pd.Series
             Sequence of hourly electricity demand for heat in the residential sector. 
         :param hourly_heat_gas: pd.Series
@@ -115,7 +113,7 @@ class ModelEOLES():
 
         self.hourly_heat_elec = hourly_heat_elec
 
-        if nb_years == 1:
+        if self.nb_years == 1:
             self.elec_demand1y = self.elec_demand1y + self.hourly_heat_elec  # we add electricity demand from heating
             self.elec_demand = self.elec_demand1y
             for i in range(self.nb_years - 1):  # plus nécessaire avec la condition if /else
@@ -235,7 +233,7 @@ class ModelEOLES():
 
         self.months_hours = {1: range(0, self.hours_by_months[self.first_month])}
         self.month_hours = define_month_hours(self.first_month, self.nb_years, self.months_hours, self.hours_by_months)
-        for i in range(1, nb_years - 1):  # we update month_hours to add multiple years
+        for i in range(1, self.nb_years - 1):  # we update month_hours to add multiple years
             new_month_hours = {key + 12*i: self.months_hours[key] for key in self.months_hours.keys()}
             self.months_hours.update(new_month_hours)
 
