@@ -129,7 +129,7 @@ def resirf_eoles_coupling_static(subsidy, subsidy_policy_heater, subsidy_policy_
     print(f'Subvention: {sub_heater_value}, {sub_insulation_value}')
 
     buildings_copy = deepcopy(buildings)
-    energy_prices, taxes, cost_heater, cost_insulation, demolition_rate = deepcopy(inputs_dynamics['energy_prices']), deepcopy(inputs_dynamics['taxes']), deepcopy(inputs_dynamics['cost_heater']), deepcopy(inputs_dynamics['cost_insulation']), deepcopy(inputs_dynamics['demolition_rate'])
+    energy_prices, taxes, cost_heater, cost_insulation, demolition_rate, flow_district_heating = deepcopy(inputs_dynamics['energy_prices']), deepcopy(inputs_dynamics['taxes']), deepcopy(inputs_dynamics['cost_heater']), deepcopy(inputs_dynamics['cost_insulation']), deepcopy(inputs_dynamics['demolition_rate']), deepcopy(inputs_dynamics['flow_district_heating'])
     lifetime_heater, lifetime_insulation = deepcopy(inputs_dynamics["lifetime_heater"]), deepcopy(inputs_dynamics["lifetime_insulation"])
     flow_built, post_inputs, policies_heater_copy, policies_insulation_copy = deepcopy(inputs_dynamics['flow_built']), deepcopy(inputs_dynamics['post_inputs']), deepcopy(policies_heater), deepcopy(policies_insulation)
     technical_progress, financing_cost, premature_replacement, carbon_content = deepcopy(inputs_dynamics['technical_progress']), deepcopy(inputs_dynamics['financing_cost']), deepcopy(inputs_dynamics['premature_replacement']), deepcopy(inputs_dynamics['post_inputs']['carbon_emission'])
@@ -147,9 +147,10 @@ def resirf_eoles_coupling_static(subsidy, subsidy_policy_heater, subsidy_policy_
                                                       policies_insulation=policies_insulation_copy,
                                                       financing_cost=financing_cost, sub_heater=sub_heater, sub_insulation=sub_insulation,
                                                       climate=2006, smooth=False, efficiency_hour=True,
+                                                      flow_district_heating=flow_district_heating,
                                                       demolition_rate=demolition_rate, output_consumption=True,
                                                       technical_progress=technical_progress,  premature_replacement=premature_replacement,
-                                                      output_details='cost_benefit', carbon_content=carbon_content
+                                                      output_options='cost_benefit', carbon_content=carbon_content
                                                       )
 
     # heating_consumption = output[endyear_resirf - 1]['Consumption (kWh/h)']
@@ -491,11 +492,12 @@ def resirf_eoles_coupling_greenfield(buildings, inputs_dynamics, policies_heater
                                                               policies_insulation=policies_insulation, financing_cost=inputs_dynamics['financing_cost'],
                                                               sub_heater=None, sub_insulation=None,
                                                               climate=2006, smooth=False, efficiency_hour=True,
+                                                              flow_district_heating=inputs_dynamics['flow_district_heating'],
                                                               demolition_rate=inputs_dynamics['demolition_rate'],
                                                               output_consumption=True,
                                                               technical_progress=inputs_dynamics['technical_progress'],
                                                               premature_replacement=inputs_dynamics['premature_replacement'],
-                                                              output_details='full', carbon_content=inputs_dynamics['post_inputs']['carbon_emission'])
+                                                              output_options='full', carbon_content=inputs_dynamics['post_inputs']['carbon_emission'])
     initial_state_budget = output_opt.loc["Balance state (Billion euro)"][2024]  # we get final state budget
 
     # we add initial values to observe what happens
@@ -610,11 +612,12 @@ def resirf_eoles_coupling_greenfield(buildings, inputs_dynamics, policies_heater
                                                               sub_heater=opt_sub_heater,
                                                               sub_insulation=opt_sub_insulation,
                                                               climate=2006, smooth=False, efficiency_hour=True,
+                                                              flow_district_heating=inputs_dynamics['flow_district_heating'],
                                                               demolition_rate=inputs_dynamics['demolition_rate'],
                                                               output_consumption=True,
                                                               technical_progress=inputs_dynamics['technical_progress'],
                                                               premature_replacement=inputs_dynamics['premature_replacement'],
-                                                              output_details='full', carbon_content=inputs_dynamics['post_inputs']['carbon_emission'])
+                                                              output_options='full', carbon_content=inputs_dynamics['post_inputs']['carbon_emission'])
 
     output_global_ResIRF = pd.concat([output_global_ResIRF, output_opt], axis=1)
     stock_global_ResIRF = pd.concat([stock_global_ResIRF, stock_opt], axis=1)
@@ -1068,11 +1071,12 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
                                                               policies_insulation=policies_insulation, financing_cost=inputs_dynamics['financing_cost'],
                                                               sub_heater=None, sub_insulation=None,
                                                               climate=2006, smooth=False, efficiency_hour=True,
+                                                              flow_district_heating=inputs_dynamics['flow_district_heating'],
                                                               demolition_rate=inputs_dynamics['demolition_rate'],
                                                               output_consumption=True,
                                                               technical_progress=inputs_dynamics['technical_progress'],
                                                               premature_replacement=inputs_dynamics['premature_replacement'],
-                                                              output_details='full', carbon_content=inputs_dynamics['post_inputs']['carbon_emission'])
+                                                              output_options='full', carbon_content=inputs_dynamics['post_inputs']['carbon_emission'])
     initial_state_budget = output_opt.loc["Balance state (Billion euro)"][2024]  # we get final state budget
 
     # we add initial values to observe what happens
@@ -1287,13 +1291,12 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
                                                                   sub_heater=opt_sub_heater,
                                                                   sub_insulation=opt_sub_insulation,
                                                                   climate=2006, smooth=False, efficiency_hour=True,
+                                                                  flow_district_heating=inputs_dynamics['flow_district_heating'],
                                                                   demolition_rate=inputs_dynamics['demolition_rate'],
                                                                   output_consumption=True,
-                                                                  technical_progress=inputs_dynamics[
-                                                                      'technical_progress'],
-                                                                  premature_replacement=inputs_dynamics[
-                                                                      'premature_replacement'],
-                                                                  output_details='full', carbon_content=inputs_dynamics['post_inputs']['carbon_emission'])
+                                                                  technical_progress=inputs_dynamics['technical_progress'],
+                                                                  premature_replacement=inputs_dynamics['premature_replacement'],
+                                                                  output_options='full', carbon_content=inputs_dynamics['post_inputs']['carbon_emission'])
 
         output_global_ResIRF = pd.concat([output_global_ResIRF, output_opt], axis=1)
         stock_global_ResIRF = pd.concat([stock_global_ResIRF, stock_opt], axis=1)
@@ -1880,6 +1883,7 @@ def calibration_price(config_eoles, scc=40):
 def get_energy_prices_and_taxes(config):
     """
     Returns energy prices without tax and energy taxes (from ResIRF config).
+    Be careful !! This may change with the configuration file from Res-IRF.
     :param config: json file
         This is a ResIRF config
     :return:
@@ -1888,7 +1892,7 @@ def get_energy_prices_and_taxes(config):
         path_reference = config['file']
         with open(path_reference) as file:
             config_reference = json.load(file)
-
-    energy_taxes = get_pandas(config_reference['macro']['energy_taxes'], lambda x: pd.read_csv(x, index_col=[0]).rename_axis('Year').rename_axis('Heating energy', axis=1))
-    energy_vta = get_pandas(config_reference['macro']['energy_vta'], lambda x: pd.read_csv(x, header=None)).set_index(0).rename_axis("Heating energy").rename_axis("vta", axis=1).T
+     # May be a source of problem with the new configuration file
+    energy_taxes = get_pandas(config_reference['energy']['energy_taxes'], lambda x: pd.read_csv(x, index_col=[0]).rename_axis('Year').rename_axis('Heating energy', axis=1))
+    energy_vta = get_pandas(config_reference['energy']['energy_vta'], lambda x: pd.read_csv(x, header=None)).set_index(0).rename_axis("Heating energy").rename_axis("vta", axis=1).T
     return energy_taxes, energy_vta

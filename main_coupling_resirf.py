@@ -245,15 +245,15 @@ def run_optimization_scenario(config_coupling, name_config_coupling="default"):
     list_sub_heater, list_sub_insulation = None, None
     optimization = True
 
-    if config_coupling["no_subsidies"]:
+    if config_coupling["no_subsidies"]:  # scenario particulier où on fixe les subventions à zéro (quand on fait tourner un scénario Res-IRF spécifique)
         print("no optimized subsidies")
         optimization = False
         if config_coupling["greenfield"]:
-            list_sub_heater, list_sub_insulation = [0.0], [1.0]
+            list_sub_heater, list_sub_insulation = [0.0], [0.0]
         else:
-            list_sub_heater, list_sub_insulation = [0.0 for i in range(5)], [1.0 for i in range(5)]
+            list_sub_heater, list_sub_insulation = [0.0 for i in range(5)], [0.0 for i in range(5)]
 
-    if config_coupling['subsidies_specified']:
+    if config_coupling['subsidies_specified']:  # on donne des subventions spécifiées
         print('Subsidies specified')
         optimization = False
         if config_coupling["greenfield"]:

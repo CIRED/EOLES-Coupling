@@ -129,7 +129,7 @@ class ModelEOLES():
             self.district_heating_demand = hourly_heat_district
             for i in range(self.nb_years - 1):
                 self.district_heating_demand = pd.concat([self.district_heating_demand, hourly_heat_district], ignore_index=True)
-        else:
+        else:  # if not specified, this is equal to 0
             self.district_heating_demand = pd.Series(0, index=self.elec_demand.index)
         self.hourly_heat_gas = hourly_heat_gas
         self.wood_consumption = wood_consumption
@@ -289,6 +289,7 @@ class ModelEOLES():
         self.model.H2_balance = Set(initialize=["electrolysis", "hydrogen"])
 
         # District heating technologies
+        # TODO: voir si on ajoute les UIOM dans la modélisation !!
         self.model.district_heating_balance = Set(initialize=["geothermal", "central_gas_boiler", "central_wood_boiler", "CTES"])
 
         # Conversion technologies

@@ -13,7 +13,7 @@
   "demand_noP2G_RTE_timesteps": "eoles/inputs/demand/demand_noP2G_timesteps.csv",
   "demand_residential_heating_RTE_timesteps": "eoles/inputs/demand/demand_residential_heating_timesteps.csv",
   "demand_H2_timesteps": "eoles/inputs/demand/demand_H2_timesteps.csv",
-  "district_heating_potential": "eoles/inputs/technology_potential/district_heating_potential_S1.csv",
+  "district_heating_potential": "eoles/inputs/technology_potential/district_heating_potential_S2.csv",
   "energy_prices": "eoles/inputs/energy_prices_evolution.csv",
   "epsilon": "eoles/inputs/technology_characteristics/reserve_requirements_new.csv",
   "eta_in": "eoles/inputs/technology_characteristics/eta_in.csv",

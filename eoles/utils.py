@@ -849,7 +849,6 @@ def modif_config_coupling(design, config_coupling, max_iter_single_iteration=50,
             'proportional_uniform': None,
             'heater': {
                 'policy': 'subsidy_ad_valorem',
-                'rational_behavior': False,
                 'proportional': None,
                 'cap': None
             },
@@ -866,7 +865,6 @@ def modif_config_coupling(design, config_coupling, max_iter_single_iteration=50,
             'proportional_uniform': None,
             'heater': {
                 'policy': 'subsidy_ad_valorem',
-                'rational_behavior': False,
                 'proportional': None,
                 'cap': None
             },
@@ -883,7 +881,6 @@ def modif_config_coupling(design, config_coupling, max_iter_single_iteration=50,
             'proportional_uniform': None,
             'heater': {
                 'policy': 'subsidy_ad_valorem',
-                'rational_behavior': False,
                 'proportional': None,
                 'cap': None
             },
@@ -900,7 +897,6 @@ def modif_config_coupling(design, config_coupling, max_iter_single_iteration=50,
             'proportional_uniform': None,
             'heater': {
                 'policy': 'subsidy_ad_valorem',
-                'rational_behavior': False,
                 'proportional': None,
                 'cap': None
             },
@@ -917,7 +913,6 @@ def modif_config_coupling(design, config_coupling, max_iter_single_iteration=50,
             'proportional_uniform': None,
             'heater': {
                 'policy': 'subsidy_ad_valorem',
-                'rational_behavior': False,
                 'proportional': None,
                 'cap': None
             },
@@ -934,7 +929,6 @@ def modif_config_coupling(design, config_coupling, max_iter_single_iteration=50,
             'proportional_uniform': None,
             'heater': {
                 'policy': 'subsidy_ad_valorem',
-                'rational_behavior': False,
                 'proportional': None,
                 'cap': None
             },
@@ -951,7 +945,6 @@ def modif_config_coupling(design, config_coupling, max_iter_single_iteration=50,
             'proportional_uniform': None,
             'heater': {
                 'policy': 'subsidy_ad_valorem',
-                'rational_behavior': False,
                 'proportional': None,
                 'cap': None
             },
@@ -968,7 +961,6 @@ def modif_config_coupling(design, config_coupling, max_iter_single_iteration=50,
             'proportional_uniform': None,
             'heater': {
                 'policy': 'subsidy_ad_valorem',
-                'rational_behavior': False,
                 'proportional': None,
                 'cap': None
             },
@@ -986,7 +978,6 @@ def modif_config_coupling(design, config_coupling, max_iter_single_iteration=50,
             'proportional_uniform': None,
             'heater': {
                 'policy': 'subsidy_ad_valorem',
-                'rational_behavior': True,
                 'proportional': None,
                 'cap': None
             },
@@ -1005,7 +996,6 @@ def modif_config_coupling(design, config_coupling, max_iter_single_iteration=50,
             'proportional_uniform': None,
             'heater': {
                 'policy': 'subsidy_ad_valorem',
-                'rational_behavior': False,
                 'proportional': None,
                 'cap': None
             },
@@ -1024,7 +1014,6 @@ def modif_config_coupling(design, config_coupling, max_iter_single_iteration=50,
             'proportional_uniform': None,
             'heater': {
                 'policy': 'subsidy_ad_valorem',
-                'rational_behavior': False,
                 'proportional': None,
                 'cap': None
             },
@@ -1043,7 +1032,6 @@ def modif_config_coupling(design, config_coupling, max_iter_single_iteration=50,
             'proportional_uniform': None,
             'heater': {
                 'policy': 'subsidy_ad_valorem',
-                'rational_behavior': False,
                 'proportional': None,
                 'cap': None
             },
@@ -1062,7 +1050,6 @@ def modif_config_coupling(design, config_coupling, max_iter_single_iteration=50,
             'proportional_uniform': True,
             'heater': {
                 'policy': 'subsidy_proportional',
-                'rational_behavior': False,
                 'proportional': "MWh_cumac",
                 'cap': cap_MWh
             },
@@ -1079,7 +1066,6 @@ def modif_config_coupling(design, config_coupling, max_iter_single_iteration=50,
             'proportional_uniform': False,
             'heater': {
                 'policy': 'subsidy_ad_valorem',
-                'rational_behavior': False,
                 'proportional': None,
                 'cap': None
             },
@@ -1096,7 +1082,6 @@ def modif_config_coupling(design, config_coupling, max_iter_single_iteration=50,
             'proportional_uniform': False,
             'heater': {
                 'policy': 'subsidy_proportional',
-                'rational_behavior': False,
                 'proportional': "MWh_cumac",
                 'cap': cap_MWh
             },
@@ -1115,7 +1100,6 @@ def modif_config_coupling(design, config_coupling, max_iter_single_iteration=50,
             'proportional_uniform': True,
             'heater': {
                 'policy': 'subsidy_proportional',
-                'rational_behavior': False,
                 'proportional': "tCO2_cumac",
                 'cap': cap_tCO2
             },
@@ -1132,7 +1116,6 @@ def modif_config_coupling(design, config_coupling, max_iter_single_iteration=50,
             'proportional_uniform': False,
             'heater': {
                 'policy': 'subsidy_proportional',
-                'rational_behavior': False,
                 'proportional': "tCO2_cumac",
                 'cap': cap_tCO2
             },
@@ -1150,7 +1133,6 @@ def modif_config_coupling(design, config_coupling, max_iter_single_iteration=50,
             'proportional_uniform': False,
             'heater': {
                 'policy': 'subsidy_proportional',
-                'rational_behavior': False,
                 'proportional': "tCO2_cumac",
                 'cap': cap_tCO2
             },
@@ -1204,6 +1186,12 @@ def modif_config_eoles(config_eoles, config_coupling):
         config_eoles_update["nb_years"] = config_coupling['eoles']['nb_years']
         config_eoles_update["input_years"] = config_coupling['eoles']['input_years']
 
+    if 'district_heating_potential' in config_coupling['eoles'].keys():  # we modify the available potential for district heating
+        district_heating_potential = config_coupling["eoles"]['district_heating_potential']
+        path_dh_potential = Path("eoles") / "inputs" / "technology_potential" / f"district_heating_potential_{district_heating_potential}.csv"
+        assert path_dh_potential.is_file(), "Scenario for district heating potential is not correctly specified"
+        config_eoles_update['district_heating_potential'] =  path_dh_potential
+
     if "worst_case" in config_coupling["eoles"].keys():  # definition of worst case scenario for EOLES
         if config_coupling["eoles"]["worst_case"]:
             config_eoles_update["capex"] = "eoles/inputs/technology_characteristics/overnight_capex_evolution_high.csv"
@@ -1244,9 +1232,12 @@ def modif_config_resirf(config_resirf, config_coupling):
         config_resirf_update["end"] = config_coupling["end"]
 
     if 'carbon_emissions_resirf' in config_coupling.keys():  # modification of carbon emissions assumptions
-        config_resirf_update['technical'] = config_reference['technical']
+        config_resirf_update['energy'] = config_reference['energy']
         assert Path(config_coupling['carbon_emissions_resirf']).is_file(), "Carbon emissions as specified are not a correct file"
-        config_resirf_update['technical']['carbon_emission'] = config_coupling['carbon_emissions_resirf']
+        config_resirf_update['energy']['carbon_emission'] = config_coupling['carbon_emissions_resirf']
+
+    if 'policies' in config_coupling.keys():
+        config_resirf_update['policies'] = config_coupling['policies']
 
     # Modification rational behavior insulation
     config_resirf_update["renovation"] = config_reference["renovation"]
@@ -1258,12 +1249,12 @@ def modif_config_resirf(config_resirf, config_coupling):
     if 'social' in config_coupling['subsidy']['insulation'].keys():
         config_resirf_update['renovation']["rational_behavior"]["social"] = config_coupling["subsidy"]['insulation']["social"]
 
-    # Modification rational behavior heater
-    config_resirf_update["switch_heater"] = config_reference["switch_heater"]
-    config_resirf_update["switch_heater"]["rational_behavior"]["activated"] = config_coupling["subsidy"]['heater']["rational_behavior"]
-
-    if 'social' in config_coupling['subsidy']['heater'].keys():
-        config_resirf_update['switch_heater']["rational_behavior"]["social"] = config_coupling["subsidy"]['heater']["social"]
+    # # OLD: Modification rational behavior heater
+    # config_resirf_update["switch_heater"] = config_reference["switch_heater"]
+    # config_resirf_update["switch_heater"]["rational_behavior"]["activated"] = config_coupling["subsidy"]['heater']["rational_behavior"]
+    #
+    # if 'social' in config_coupling['subsidy']['heater'].keys():
+    #     config_resirf_update['switch_heater']["rational_behavior"]["social"] = config_coupling["subsidy"]['heater']["social"]
 
     if 'district_heating' in config_coupling.keys():
         if config_coupling['district_heating']:  # we want to include district heating in the experiences
@@ -1301,9 +1292,9 @@ def check_required_keys_additional(config_additional):
     :param config_additional: dict
 
     """
-    required_keys = ['greenfield', 'prices_constant', 'price_feedback', 'max_iter', 'lifetime_insulation', 'optim_eoles',
+    required_keys = ['greenfield', 'prices_constant', 'price_feedback', 'lifetime_insulation', 'optim_eoles',
                      'electricity_constant', 'carbon_emissions_resirf', 'carbon_budget', 'carbon_budget_resirf', 'district_heating',
-                     'biomass_potential_scenario', 'aggregated_potential', 'maximum_capacity_scenario']
+                     'district_heating_potential', 'biomass_potential_scenario', 'aggregated_potential', 'maximum_capacity_scenario']
     assert set(required_keys).issubset(config_additional.keys()), "Some required keys in config_additional are missing"
 
 
@@ -1330,7 +1321,6 @@ def create_configs_coupling(list_design: list, config_coupling: dict, config_add
     config_coupling_update['greenfield'] = config_additional['greenfield']
     config_coupling_update['prices_constant'] = config_additional['prices_constant']
     config_coupling_update['price_feedback'] = config_additional['price_feedback']
-    config_coupling_update['max_iter'] = config_additional['max_iter']
     config_coupling_update['lifetime_insulation'] = config_additional['lifetime_insulation']
     config_coupling_update['eoles']['biomass_potential_scenario'] = config_additional['biomass_potential_scenario']
     config_coupling_update['eoles']['aggregated_potential'] = config_additional['aggregated_potential']
@@ -1341,15 +1331,24 @@ def create_configs_coupling(list_design: list, config_coupling: dict, config_add
     carbon_budget = config_additional['carbon_budget']
     carbon_budget_resirf = config_additional['carbon_budget_resirf']
     district_heating = config_additional['district_heating']
+    district_heating_potential = config_additional['district_heating_potential']
 
-    if carbon_emissions_resirf is not None:
-        config_coupling_update['carbon_emissions_resirf'] = f'eoles/inputs/technical/{carbon_emissions_resirf}.csv'
+    if "policies" in config_additional.keys():  # we update the default policies in ResIRF
+        policies = config_additional["policies"]
+        assert type(policies) is dict  ## we should provide a dictionary in this case
+        config_coupling_update['policies'] = policies
+
+    if carbon_emissions_resirf is not None:  # carbon emissions are now specified in the files from Res-IRF
+        # config_coupling_update['carbon_emissions_resirf'] = f'eoles/inputs/technical/{carbon_emissions_resirf}.csv'  # Old version
+        config_coupling_update['carbon_emissions_resirf'] = f'project/input/energy/{carbon_emissions_resirf}.csv'
     if carbon_budget is not None:
         config_coupling_update['eoles']['carbon_budget'] = carbon_budget
     if carbon_budget_resirf is not None:
         config_coupling_update['eoles']['carbon_budget_resirf'] = carbon_budget_resirf
     if district_heating:
         config_coupling_update['district_heating'] = True
+    if district_heating_potential is not None:  # we specify another potential for district heating (based on one of ADEME scenario)
+        config_coupling_update['eoles']['district_heating_potential'] = district_heating_potential
     if 'load_factors' in config_additional.keys():  # we add specification for other weather years
         config_coupling_update['eoles']['load_factors'] = config_additional['load_factors']
         assert 'lake_inflows' in config_additional.keys(), 'Modification of load factors is specified, but missing specification for lake inflows'
