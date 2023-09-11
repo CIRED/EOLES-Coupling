@@ -1,5 +1,5 @@
 {
-  "name_config": "S3_N1_ref",
+  "name_config": "S3_N1_ref_cc",
   "policies": {
     "file": "project/input/policies/current/policies_ref.json"
   },

@@ -1,8 +1,5 @@
 {
-  "name_config": "S3_N1_ref",
-  "policies": {
-    "file": "project/input/policies/current/policies_ref.json"
-  },
+  "name_config": "S3_N1_noHC",
   "greenfield": false,
   "prices_constant": true,
   "price_feedback": false,

@@ -839,6 +839,7 @@ def create_coupling_param(default_config) -> CouplingParam:
 def modif_config_coupling(design, config_coupling, max_iter_single_iteration=50, cap_MWh=400, cap_tCO2=1000,
                           subsidies_heater=None, subsidies_insulation=None):
     """Creates a new configuration file based on an initial configuration file, for a given subsidy design."""
+    # TODO: attention, il y a eu des changements côté Res-IRF: modifier cette fonction !
     config_coupling_update = deepcopy(config_coupling)
     if subsidies_heater is not None:
         config_coupling_update['subsidies_heater'] = subsidies_heater
@@ -860,7 +861,7 @@ def modif_config_coupling(design, config_coupling, max_iter_single_iteration=50,
                 'cap': None
             }
         }
-    elif design == "GR":
+    elif design == "DR":
         config_coupling_update["subsidy"] = {
             'proportional_uniform': None,
             'heater': {
@@ -871,12 +872,12 @@ def modif_config_coupling(design, config_coupling, max_iter_single_iteration=50,
             'insulation': {
                 'policy': 'subsidy_ad_valorem',
                 'rational_behavior': False,
-                'target': "global_renovation",
+                'target': "deep_renovation",
                 'proportional': None,
                 'cap': None
             }
         }
-    elif design == "GR_low_income":
+    elif design == "GR_low_income":  # TODO: nom a changer
         config_coupling_update["subsidy"] = {
             'proportional_uniform': None,
             'heater': {

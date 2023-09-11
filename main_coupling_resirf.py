@@ -109,7 +109,7 @@ def save_simulation_results(output, buildings, name_config_coupling, config_coup
         plot_scenario(output["Output global ResIRF ()"], output["Stock global ResIRF ()"],
                       buildings)  # make ResIRF plots
 
-        if not "greenfield" in config_coupling.keys():  # si greenfield, on ne veut pas plotter l'évolution des quantités, car pas d'optimisation dynamique
+        if not config_coupling["greenfield"]:  # si greenfield, on ne veut pas plotter l'évolution des quantités, car pas d'optimisation dynamique
             plot_simulation(output, save_path=os.path.join(export_results, "plots"))
             save_summary_pdf(path=export_results)  # saving summary as pdf
     return export_results, output["Output global ResIRF ()"]
@@ -487,8 +487,7 @@ if __name__ == '__main__':
     with open(configpath.resolve().parent / Path("base.json")) as file:  # load reference configuration for coupling
         config_coupling = json.load(file)
 
-    list_design = ['uniform', 'centralized_insulation', 'GR', 'GR_fge', 'MWh_insulation']
-    list_design = ['uniform']
+    list_design = ['uniform', 'centralized_insulation', 'GR']
     DICT_CONFIGS = create_configs_coupling(list_design=list_design, config_coupling=config_coupling,
                                                        config_additional=config_additional)
 
