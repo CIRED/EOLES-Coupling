@@ -1366,6 +1366,43 @@ def plot_investment_trajectory(resirf_costs_df, save=None):
     format_legend(ax, dict_legend=DICT_TRANSFORM_LEGEND)
     save_fig(fig, save=save_path)
 
+def plot_typical_demand(hourly_generation, date_start, date_end, climate=2006, save_path=None,
+                      y_min=None, y_max=None, x_min=None, x_max=None):
+    hourly_generation_subset = hourly_generation.copy()
+    hourly_generation_subset["date"] = hourly_generation_subset.apply(
+        lambda row: datetime.datetime(climate, 1, 1, 0) + datetime.timedelta(hours=row["hour"]),
+        axis=1)
+    hourly_generation_subset = hourly_generation_subset.set_index("date")
+
+    hourly_generation_subset = hourly_generation_subset.loc[date_start: date_end, :]  # select week of interest
+    hourly_generation_subset["electricity demand"] = hourly_generation_subset["elec_demand"]
+
+    demand = hourly_generation_subset[["electricity demand", "electrolysis", "methanation"]]
+
+    if save_path is None:
+        fig, ax = plt.subplots(1, 1)
+    else:  # we change figure size when saving figure
+        fig, ax = plt.subplots(1, 1, figsize=(12.8, 9.6))
+
+    demand.plot.area(color=resources_data["colors_eoles"], ax=ax, linewidth=0)
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['bottom'].set_visible(True)
+    ax.spines['left'].set_visible(True)
+    ax.set_title("Hourly demand (GW)", loc='left', color='black')
+    ax.set_xlabel('')
+    if y_min is not None:
+        ax.set_ylim(ymin=y_min)
+    if y_max is not None:
+        ax.set_ylim(ymax=y_max)
+    if x_min is not None:
+        ax.set_xlim(xmin=x_min)
+    if x_max is not None:
+        ax.set_xlim(xmax=x_max)
+    format_legend(ax)
+    plt.axhline(y=0)
+
+    save_fig(fig, save=save_path)
 
 def plot_typical_week(hourly_generation, date_start, date_end, climate=2006, methane=True, save_path=None,
                       y_min=None, y_max=None, x_min=None, x_max=None):
@@ -1412,7 +1449,7 @@ def plot_typical_week(hourly_generation, date_start, date_end, climate=2006, met
     ax.spines['right'].set_visible(False)
     ax.spines['bottom'].set_visible(True)
     ax.spines['left'].set_visible(True)
-    ax.set_title("Hourly production and demand (GWh)", loc='left', color='black')
+    ax.set_title("Hourly production and demand (GW)", loc='left', color='black')
     ax.set_xlabel('')
     if y_min is not None:
         ax.set_ylim(ymin=y_min)

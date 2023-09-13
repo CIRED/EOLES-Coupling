@@ -487,7 +487,7 @@ if __name__ == '__main__':
     with open(configpath.resolve().parent / Path("base.json")) as file:  # load reference configuration for coupling
         config_coupling = json.load(file)
 
-    list_design = ['uniform', 'centralized_insulation', 'GR']
+    list_design = ['uniform', 'centralized_insulation', 'DR']
     DICT_CONFIGS = create_configs_coupling(list_design=list_design, config_coupling=config_coupling,
                                                        config_additional=config_additional)
 

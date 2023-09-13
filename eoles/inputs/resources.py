@@ -93,6 +93,7 @@ colors_resirf = {
 }
 
 colors_eoles = {
+    "electricity demand": 'red',
     "offshore_f": '#0173B2',
     "offshore floating wind": '#0173B2',
     "offshore_g": '#56B4E9',
