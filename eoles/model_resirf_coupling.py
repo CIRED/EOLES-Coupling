@@ -495,7 +495,7 @@ class ModelEOLES():
             return gene_e_h == dem_sto
 
         def methane_balance_constraint_rule(model, h):
-            """Constraint on methane's balance. Methane production must satisfy CCGT and OCGT plants and CH4 demand"""
+            """Constraint on methane's balance. Methane production must satisfy CCGT and OCGT plants, CH4 demand and district heating demand for gas."""
             gene_methane = model.gene['methanation', h] + model.gene['methanization', h] + \
                            model.gene['pyrogazification', h] + model.gene['methane', h] + model.gene["natural_gas", h]
             dem_sto = model.gene['ocgt', h] / self.conversion_efficiency['ocgt'] + model.gene['ccgt', h] / \
@@ -678,7 +678,8 @@ class ModelEOLES():
         self.objective = self.solver_results["Problem"][0]["Upper bound"]
         self.technical_cost, self.emissions = get_technical_cost(self.model, self.objective, self.anticipated_scc, self.oil_consumption, self.nb_years)
         self.hourly_generation = extract_hourly_generation(self.model, elec_demand=self.elec_demand,  CH4_demand=list(self.CH4_demand.values()),
-                                                           H2_demand=list(self.H2_demand.values()), hourly_heat_elec=self.hourly_heat_elec, hourly_heat_gas=self.hourly_heat_gas)
+                                                           H2_demand=list(self.H2_demand.values()), conversion_efficiency=self.conversion_efficiency,
+                                                           hourly_heat_elec=self.hourly_heat_elec, hourly_heat_gas=self.hourly_heat_gas)
         self.peak_electricity_load_info = extract_peak_load(self.hourly_generation, self.conversion_efficiency, self.input_years)
         self.peak_heat_load_info = extract_peak_heat_load(self.hourly_generation, self.input_years)
         self.spot_price = extract_spot_price(self.model, self.last_hour)

@@ -475,7 +475,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
     cpu = args.cpu  # we select the config we are interested in
     configpath = Path(args.configpath)
-    configpath = Path('eoles') / Path('inputs') / Path('xps') / configpath
+    # configpath = Path('eoles') / Path('inputs') / Path('xps') / configpath
 
     assert configpath.is_file(), "configpath argument does not correspond to a real file"
     # assert os.path.isfile(configpath)

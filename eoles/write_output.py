@@ -402,6 +402,148 @@ def comparison_simulations_scenarios(dict_output1, dict_output2, x_min=-5, x_max
                                  coordinates=coordinates, df3=savings_and_costs_df3)
 
 
+def plot_capacities_barplot_2(capacity_df, save):
+    # TODO: graphe en cours, il faut ajouter du white space entre les barres et ajouter les noms des configurations.
+    list_configs = capacity_df['Configuration'].unique()
+    list_years = capacity_df.index.unique()
+
+    fig, ax = fig, ax = plt.subplots(1, 1, figsize=(12.8, 9.6))
+    df = capacity_df.loc[capacity_df.Configuration == list_configs[0]]
+    df.index.name = None
+    df.plot(kind='bar', stacked=True, ax=ax, linewidth=0, position=1.5, width=0.1)
+
+    df = capacity_df.loc[capacity_df.Configuration == list_configs[1]]
+    df.index.name = None
+    df.plot(kind='bar', stacked=True, ax=ax, linewidth=0, position=-0.5, width=0.1)
+
+    df = capacity_df.loc[capacity_df.Configuration == list_configs[2]]
+    df.index.name = None
+    df.plot(kind='bar', stacked=True, ax=ax, linewidth=0, position=0.5, width=0.1)
+
+    box = ax.get_position()
+    ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
+
+    current_labels = ax.get_legend_handles_labels()[1]
+    current_labels = current_labels[0:int(len(current_labels) / len(list_configs))]
+    new_labels = [DICT_TRANSFORM_LEGEND[e] if e in DICT_TRANSFORM_LEGEND.keys() else e for e in current_labels]
+    ax.legend(loc='center left', bbox_to_anchor=(1, 0.5), labels=new_labels, frameon=False)
+
+    # # Calculate positions and width
+    # positions = np.array([0, 0.5, 1])  # You can adjust these values as needed
+    # width = 0.3  # You can adjust the width of the bars as needed
+    #
+    # xticks = positions
+    # xticks_labels = list(capacity_df['Configuration'].unique())
+    #
+    # df = capacity_df.loc[2030].set_index("Configuration")
+    # df.index.name = None
+    # df.plot(kind='bar', stacked=True, ax=ax, linewidth=0, position=positions, width=width)
+    #
+    # # Calculate positions and width
+    # positions = np.array([2.5, 3, 3.5])  # You can adjust these values as needed
+    # width = 0.3  # You can adjust the width of the bars as needed
+    #
+    # df = capacity_df.loc[2035].set_index("Configuration")
+    # df.index.name = None
+    # df.plot(kind='bar', stacked=True, ax=ax, linewidth=0, position=positions, width=width)
+    #
+    # xticks = np.concatenate((xticks, positions))
+    # xticks_labels +=  list(capacity_df['Configuration'].unique())
+    #
+    # # Customize the x-axis labels if needed
+    # ax.set_xticks(positions)
+    # # ax.set_xticklabels(xticks_labels)
+
+    # Show the plot
+    plt.show()
+
+
+def plot_capacities_barplot(capacity_df, save, rotation):
+    # capacity_df = capacity_df.reset_index().rename(columns={'index': 'Year'})
+    # years = capacity_df['Year'].unique()
+    # configurations = capacity_df['Configuration'].unique()
+    #
+    # # Set up the subplots
+    # fig, axs = plt.subplots(1, len(years), figsize=(15, 5), sharey=True)
+    #
+    # # Loop through years and create stacked bar plots
+    # for i, year in enumerate(years):
+    #     ax = axs[i]
+    #     year_data = capacity_df[capacity_df['Year'] == year]
+    #
+    #     bottom = np.zeros(len(configurations))  # Initialize bottom values for stacking
+    #     year_data.set_index("Configuration").plot(kind='bar', stacked=True, ax=ax, linewidth=0)
+    #
+    #     # for j, config in enumerate(configurations):
+    #     #     config_data = year_data[year_data['Configuration'] == config]
+    #     #     ax.bar(config_data.index, config_data['Technology1'], label=config, bottom=bottom)
+    #     #     bottom += config_data['ocgt']  # Update bottom values for stacking
+    #
+    #     ax.set_xlabel('Configuration')
+    #     ax.set_ylabel('Technology1 Capacity')
+    #     ax.set_title(f'Stacked Bar Plot for {year}')
+    #     ax.set_xticks(year_data.index)
+    #     ax.set_xticklabels(year_data['Configuration'])
+    #     ax.legend()
+    #
+    # plt.tight_layout()
+    # plt.show()
+
+    list_configs = capacity_df['Configuration'].unique()
+    list_years = capacity_df.index.unique()
+
+    fig, axs = plt.subplots(1, len(list_years), figsize=(15, 5), sharey=True)
+    for i, year in enumerate(list_years):
+        ax = axs[i]
+        df = capacity_df.loc[year].set_index("Configuration")
+        df.index.name = None
+        df.plot(kind='bar', stacked=True, ax=ax, linewidth=0)
+        ax = format_ax_string(ax, title="", x_ticks_labels=df.index, format_y=lambda y, _: '{:.0f}'.format(y), rotation=rotation)
+        if i == len(list_years) - 1:
+            # format_legend(ax, dict_legend=DICT_TRANSFORM_LEGEND)
+
+            box = ax.get_position()
+            ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
+
+            current_labels = ax.get_legend_handles_labels()[1]
+            new_labels = [DICT_TRANSFORM_LEGEND[e] if e in DICT_TRANSFORM_LEGEND.keys() else e for e in current_labels]
+            ax.legend(loc='center left', bbox_to_anchor=(1, 0.5), labels=new_labels, frameon=False)
+
+        else:
+            ax.get_legend().remove()
+
+        plt.axhline(y=0)
+
+    save_fig(fig, save=save)
+
+        # make_stacked_bar_plot(capacity_df.loc[year].set_index("Configuration"), y_label="Flexible capacity (GW)",
+        #                   format_y=lambda y, _: '{:.0f}'.format(y), index_int=False, rotation=90, dict_legend=DICT_TRANSFORM_LEGEND, save=save_path_plot)
+
+    # fig, axs = plt.subplots(len(list_years), figsize=(10, 8))  # TODO: a changer
+    #
+    # for i, year in enumerate(list_years):
+    #     data = capacity_df.loc[year]
+    #     width = 0.35
+    #     x = np.arange(len(list_configs))
+    #     ax = axs[i]
+    #
+    #     # for j, config_name in enumerate(list_configs):
+    #     #     data.drop(columns=["Configuration"]).iloc[j].plot(kind='bar', stacked=True, ax=ax, linewidth=0)  # TODO: il faut changer l'endroit où plotter, là ils s'entassent.
+    #
+    #     for j, config_name in enumerate(list_configs):
+    #         # Add an offset to x for each configuration
+    #         ax.bar(x + j * width, data.drop(columns=["Configuration"]).iloc[j], width, label=config_name)
+    #
+    #
+    #     ax.set_xlabel('Configuration')
+    #     ax.set_ylabel('Capacities')
+    #     ax.set_title(f'Stacked Bar Plot for {year}')
+    #     ax.set_xticks(x)
+    #     ax.set_xticklabels(list_configs)
+    #     ax.legend()
+    #
+    # save_fig(fig, save=save)
+
 def comparison_simulations(dict_output: dict, ref, greenfield=False, health=False, x_min=0, x_max=None, y_min=0, y_max=None,
                            rotation=90, save_path=None, pdf=False, carbon_constraint=True, percent=False, eoles=True,
                            coordinates=None, secondary_y=None, secondary_axis_spec=None, smallest_size=100, biggest_size=400,
@@ -423,6 +565,7 @@ def comparison_simulations(dict_output: dict, ref, greenfield=False, health=Fals
     subsidies_insulation_dict = {}
     subsidies_heater_dict = {}
     capacities_vre_dict, capacities_peaking_dict = {}, {}
+    capacities_flex_df = pd.DataFrame(dtype=float)
 
     if save_path is not None:
         if not os.path.isdir(save_path):  # create directory
@@ -529,6 +672,12 @@ def comparison_simulations(dict_output: dict, ref, greenfield=False, health=Fals
                 capacities_df["pv"] = capacities_df["pv_g"] + capacities_df["pv_c"]
                 capacities_df["battery"] = capacities_df["battery1"] + capacities_df["battery4"]
                 capacities_vre_dict[name_config] = capacities_df[["offshore", "onshore", "pv", "battery"]]
+
+                capacities_df = output["Capacities (GW)"].T
+                tec_flexibility = ['nuclear', "phs", 'ocgt', 'ccgt', 'h2_ccgt', 'battery1', 'battery4']
+                capacities_flex = capacities_df[tec_flexibility].copy()
+                capacities_flex['Configuration'] = name_config
+                capacities_flex_df = pd.concat([capacities_flex_df, capacities_flex])  # TODO: prendre l'année 2050, ou bien montrer l'évolution des capacités au cours du temps
 
                 capacities_df = output["Capacities (GW)"].T
                 capacities_df = capacities_df[['ocgt', 'ccgt', 'h2_ccgt']]
@@ -846,6 +995,14 @@ def comparison_simulations(dict_output: dict, ref, greenfield=False, health=Fals
             save_path_plot = os.path.join(save_path, f"electricity_capacities.{extension}")
         make_line_plots(capacities_vre_dict, y_label="Capacities (GW)", format_y=lambda y, _: '{:.0f}'.format(y),
                         index_int=True, colors=resources_data["colors_eoles"], multiple_legend=True, save=save_path_plot)
+
+        if save_path is None:
+            save_path_plot = None
+        else:
+            save_path_plot = os.path.join(save_path, f"flex_capacities_2050.{extension}")
+        make_stacked_bar_plot(capacities_flex_df.loc[2050].set_index("Configuration"), y_label="Flexible capacity (GW)",
+                          format_y=lambda y, _: '{:.0f}'.format(y), index_int=False, rotation=90, save=save_path_plot)  # TODO: ajouter les bonnes couleurs ici
+        plot_capacities_barplot_2(capacities_flex_df, save=save_path_plot)  # TODO: a modifier pour que cela fonctionne, ce n'est pas encore bien.
 
     try:  # TODO: a modifier proprement
         if not pdf:  # only save summary without pdf option
@@ -1366,6 +1523,68 @@ def plot_investment_trajectory(resirf_costs_df, save=None):
     format_legend(ax, dict_legend=DICT_TRANSFORM_LEGEND)
     save_fig(fig, save=save_path)
 
+
+def plot_residual_demand(hourly_generation, date_start, date_end, climate=2006, save_path=None,
+                      y_min=None, y_max=None, x_min=None, x_max=None):
+    """This plot allows to compare electricity demand, including electrolysis and methanation, and residual demand, where
+    fatal production is substracted from overall demand."""
+    # TODO: il faut modifier le graphe pour obtenir un graphe comme celui p.103 du chapitre 3 de RTE (il faut a priori juste décaler)
+    hourly_generation_subset = hourly_generation.copy()
+    hourly_generation_subset["date"] = hourly_generation_subset.apply(
+        lambda row: datetime.datetime(climate, 1, 1, 0) + datetime.timedelta(hours=row["hour"]),
+        axis=1)
+    hourly_generation_subset = hourly_generation_subset.set_index("date")
+
+    hourly_generation_subset = hourly_generation_subset.loc[date_start: date_end, :]  # select week of interest
+
+    hourly_generation_subset["pv"] = hourly_generation_subset["pv_g"] + hourly_generation_subset["pv_c"]
+    hourly_generation_subset["wind"] = hourly_generation_subset["onshore"] + hourly_generation_subset["offshore_f"] + \
+                                       hourly_generation_subset["offshore_g"]
+    hourly_generation_subset["hydro"] = hourly_generation_subset["river"] + hourly_generation_subset["lake"]
+
+    # TODO: a updater quand je ne travaillerai qu'avec les nouvelles versions de code
+    if "electrolysis_elec" in hourly_generation_subset.columns:  # we make two subcases, as the code changed, and i still want to process older versions of dataframes
+        hourly_generation_subset["electrolysis"] = hourly_generation_subset["electrolysis_elec"]  # we consider the electricity used by electrolysis !
+    if "methanation_elec" in hourly_generation_subset.columns:
+        hourly_generation_subset["methanation"] = hourly_generation_subset["methanation_elec"]  # similarly for methanation
+
+    hourly_generation_subset["total_electricity_demand"] = hourly_generation_subset["elec_demand"] + hourly_generation_subset["electrolysis"] + hourly_generation_subset["methanation"]
+
+    hourly_generation_subset["residual_demand"] = hourly_generation_subset["elec_demand"] - \
+                                (hourly_generation_subset["pv"] + hourly_generation_subset["wind"] + hourly_generation_subset["hydro"])
+
+    prod = hourly_generation_subset[["pv", "wind", "hydro"]]
+    elec_demand = hourly_generation_subset[["elec_demand"]].squeeze()
+    total_elec_demand = hourly_generation_subset[["total_electricity_demand"]].squeeze()
+    residual_demand = hourly_generation_subset[["residual_demand"]].squeeze()
+    if save_path is None:
+        fig, ax = plt.subplots(1, 1)
+    else:  # we change figure size when saving figure
+        fig, ax = plt.subplots(1, 1, figsize=(12.8, 9.6))
+
+    prod.plot.area(color=resources_data["colors_eoles"], ax=ax, linewidth=0)
+    elec_demand.plot(ax=ax, style='-', c='red')
+    total_elec_demand.plot(ax=ax, style='-', c='black')
+    residual_demand.plot(ax=ax, style='--', c='black')
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['bottom'].set_visible(True)
+    ax.spines['left'].set_visible(True)
+    ax.set_title("Residual demand (GW)", loc='left', color='black')
+    ax.set_xlabel('')
+    if y_min is not None:
+        ax.set_ylim(ymin=y_min)
+    if y_max is not None:
+        ax.set_ylim(ymax=y_max)
+    if x_min is not None:
+        ax.set_xlim(xmin=x_min)
+    if x_max is not None:
+        ax.set_xlim(xmax=x_max)
+    format_legend(ax)
+    plt.axhline(y=0)
+
+    save_fig(fig, save=save_path)
+
 def plot_typical_demand(hourly_generation, date_start, date_end, climate=2006, save_path=None,
                       y_min=None, y_max=None, x_min=None, x_max=None):
     hourly_generation_subset = hourly_generation.copy()
@@ -1376,6 +1595,12 @@ def plot_typical_demand(hourly_generation, date_start, date_end, climate=2006, s
 
     hourly_generation_subset = hourly_generation_subset.loc[date_start: date_end, :]  # select week of interest
     hourly_generation_subset["electricity demand"] = hourly_generation_subset["elec_demand"]
+
+    # TODO: a updater quand je ne travaillerai qu'avec les nouvelles versions de code
+    if "electrolysis_elec" in hourly_generation_subset.columns:  # we make two subcases, as the code changed, and i still want to process older versions of dataframes
+        hourly_generation_subset["electrolysis"] = hourly_generation_subset["electrolysis_elec"]  # we consider the electricity used by electrolysis !
+    if "methanation_elec" in hourly_generation_subset.columns:
+        hourly_generation_subset["methanation"] = hourly_generation_subset["methanation_elec"]  # similarly for methanation
 
     demand = hourly_generation_subset[["electricity demand", "electrolysis", "methanation"]]
 
@@ -1423,9 +1648,15 @@ def plot_typical_week(hourly_generation, date_start, date_end, climate=2006, met
     hourly_generation_subset["battery discharging"] = hourly_generation_subset["battery1"] + hourly_generation_subset[
         "battery4"]
     hourly_generation_subset["phs charging"] = - hourly_generation_subset["phs_in"]
-    hourly_generation_subset["phs discharging"] = - hourly_generation_subset["phs"]
-    hourly_generation_subset["electrolysis"] = - hourly_generation_subset["electrolysis"]
-    hourly_generation_subset["methanation"] = - hourly_generation_subset["methanation"]
+    hourly_generation_subset["phs discharging"] = hourly_generation_subset["phs"]
+    if "electrolysis_elec" in hourly_generation_subset.columns:  # we make two subcases, as the code changed, and i still want to process older versions of dataframes
+        hourly_generation_subset["electrolysis"] = - hourly_generation_subset["electrolysis_elec"]  # we consider the electricity used by electrolysis !
+    else:
+        hourly_generation_subset["electrolysis"] = - hourly_generation_subset["electrolysis"]
+    if "methanation_elec" in hourly_generation_subset.columns:
+        hourly_generation_subset["methanation"] = - hourly_generation_subset["methanation_elec"]  # similarly for methanation
+    else:
+        hourly_generation_subset["methanation"] = - hourly_generation_subset["methanation"]
     hourly_generation_subset["peaking plants"] = hourly_generation_subset["ocgt"] + hourly_generation_subset["ccgt"] + \
                                                  hourly_generation_subset["h2_ccgt"]
     if methane:
@@ -1634,6 +1865,7 @@ def make_stacked_investment_plot(df, y_label, subset, scatter, save, colors, for
 
 def make_stacked_bar_plot(df, y_label=None, subset=None, colors=None, format_y=lambda y, _: y, save=None, rotation=None,
                           index_int=True, dict_legend=None, hline=False):
+    """The index of the dataframe should correspond to the variable which will be displayed on the x axis of the plot."""
     if save is None:
         fig, ax = plt.subplots(1, 1)
     else:  # we change figure size when saving figure

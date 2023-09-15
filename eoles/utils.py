@@ -366,7 +366,7 @@ def extract_renovation_rates_detailed(model):
     return renovation_rates_detailed
 
 
-def extract_hourly_generation(model, elec_demand, CH4_demand, H2_demand, heat_demand=None, hourly_heat_elec=None, hourly_heat_gas=None):
+def extract_hourly_generation(model, elec_demand, CH4_demand, H2_demand, conversion_efficiency, heat_demand=None, hourly_heat_elec=None, hourly_heat_gas=None):
     """Extracts hourly defined data, including demand, generation and storage
     Returns a dataframe with hourly generation for each hour."""
     list_tec = list(model.tec)
@@ -390,6 +390,9 @@ def extract_hourly_generation(model, elec_demand, CH4_demand, H2_demand, heat_de
         hourly_generation[str_in] = value(model.storage[str, :])  # GWh
     for str, str_charge in zip(list(model.str), list_storage_charge):
         hourly_generation[str_charge] = value(model.stored[str, :])  # GWh
+    # We add technologies which include a conversion parameter, to express their hourly generation in TWh-e
+    hourly_generation["electrolysis_elec"] = value(model.gene["electrolysis", :]) / conversion_efficiency["electrolysis"]
+    hourly_generation["methanation_elec"] = value(model.gene["methanation", :]) / conversion_efficiency["methanation"]
     return hourly_generation  # GWh
 
 

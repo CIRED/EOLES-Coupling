@@ -20,4 +20,4 @@ module load gurobi
 export GRB_LICENSE_FILE="/mnt/beegfs/softs/opt/core/gurobi/9.5.2/linux64/gurobi.19.lic"
 conda activate envCoupling
 
-python main_coupling_resirf.py --cpu 40 --configpath "230908/optim_noHC/S3_N1.json"
+python main_coupling_resirf.py --cpu 40 --configpath "eoles/inputs/xps/230908/optim_noHC/S3_N1.json"
