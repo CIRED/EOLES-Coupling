@@ -8,6 +8,7 @@ import seaborn as sns
 import datetime
 from pickle import dump, load
 from multiprocessing import Pool
+import glob
 
 from project.coupling import ini_res_irf, simu_res_irf
 from project.utils import get_json
@@ -470,120 +471,64 @@ if __name__ == '__main__':
     # Main code
     parser = argparse.ArgumentParser(description='Simulate coupling.')
     parser.add_argument("--cpu", type=int, default=3, help="CPUs for multiprocessing")
-    parser.add_argument("--configpath", type=str, help="config")
+    parser.add_argument("--configpath", type=str, help="config json file", default=None)
+    parser.add_argument("--configdir", type=str, help="config directory", default=None)
+    parser.add_argument("--patterns", nargs="+", type=str, default=["S*.json"], help="Patterns to filter files in the directory.")
 
     args = parser.parse_args()
     cpu = args.cpu  # we select the config we are interested in
-    configpath = Path(args.configpath)
-    # configpath = Path('eoles') / Path('inputs') / Path('xps') / configpath
+    assert (args.configpath is not None) or (args.configdir is not None), "Parameters are not correctly specified"
 
-    assert configpath.is_file(), "configpath argument does not correspond to a real file"
-    # assert os.path.isfile(configpath)
-    assert (configpath.resolve().parent / Path("base.json")).is_file(), "Directory does not contain the reference configuration file"
+    if args.configpath is not None:  # we have specified a json file
+        configpath = Path(args.configpath)
+        assert configpath.is_file(), "configpath argument does not correspond to an existing file"
+        # assert os.path.isfile(configpath)
+        assert (configpath.resolve().parent / Path("base.json")).is_file(), "Directory does not contain the reference configuration file"
 
-    with open(configpath) as file:  # load additional configuration
-        config_additional = json.load(file)
+        with open(configpath) as file:  # load additional configuration
+            config_additional = json.load(file)
 
-    with open(configpath.resolve().parent / Path("base.json")) as file:  # load reference configuration for coupling
-        config_coupling = json.load(file)
+        with open(configpath.resolve().parent / Path("base.json")) as file:  # load reference configuration for coupling
+            config_coupling = json.load(file)
 
-    list_design = ['uniform', 'centralized_insulation', 'DR']
-    DICT_CONFIGS = create_configs_coupling(list_design=list_design, config_coupling=config_coupling,
-                                                       config_additional=config_additional)
+        list_design = ['uniform', 'centralized_insulation', 'DR']
+        list_design = None
+        DICT_CONFIGS = create_configs_coupling(list_design=list_design, config_coupling=config_coupling,
+                                               config_additional=config_additional)
+
+    if args.configdir is not None:  # we have specified a directory which contains multiple json files
+        configdir = Path(args.configdir)
+        assert configdir.is_dir(), "configdir argument does not correspond to an existing directory."
+        config_files = []
+        for pattern in args.patterns:
+            pattern_path = configdir / pattern
+            config_files.extend(glob.glob(str(pattern_path)))
+        print(config_files)
+        # config_files = [file for file in configdir.glob("*.json") if file.name != "base.json"]
+
+        DICT_CONFIGS = {}
+        for configpath in config_files:
+            configpath = Path(configpath)
+            with open(configpath) as file:  # load additional configuration
+                config_additional = json.load(file)
+
+            with open(configpath.resolve().parent / Path(
+                    "base.json")) as file:  # load reference configuration for coupling
+                config_coupling = json.load(file)
+
+            list_design = ['DR']  # TODO: a changer si on veut spécifier un design en particulier
+            DICT_CONFIGS = create_configs_coupling(list_design=list_design, config_coupling=config_coupling,
+                                                   config_additional=config_additional, dict_configs=DICT_CONFIGS)
 
     results = run_multiple_configs(DICT_CONFIGS, cpu=cpu, exogenous=False, reference=None, greenfield=True,
                                    health=True, carbon_constraint=True)
 
-    # Additional code
+    # configpath = Path('eoles') / Path('inputs') / Path('xps') / configpath
 
-    list_design = ['uniform', 'centralized_insulation', 'GR', 'MWh_insulation']
-
-    subsidies_heater = {
-        'uniform': [1.0],
-        'centralized_insulation': [0.5, 0.16, 0.5, 0.5, 0.28],
-        'GR': [0.5, 0.16, 0.5, 0.5, 0.5],
-        'MWh_insulation': [0.75],
-    }
-    subsidies_insulation = {
-        'uniform': [0.38],
-        'centralized_insulation': [0.16, 0.83, 0.5, 0.16, 0.95],
-        'GR': [0.16, 0.83, 0.5, 0.16, 0.16],
-        'MWh_insulation': [0.14],
-    }
 
     # Cas spécifique où on vient extraire la valeur de subventions qui ont été optimisées au préalable
     # subsidies_heater, subsidies_insulation = extract_subsidy_value(os.path.join('eoles/outputs', '0511_no_optim_s3'), name_config='greenfield_no_optim_s3')
     # config_additional["subsidies_heater"] = subsidies_heater
     # config_additional["subsidies_insulation"] = subsidies_insulation
 
-    DICT_CONFIGS_greenfield_S3_N1_no_optim_rerun = create_configs_coupling(list_design=list_design,
-                                                                     config_coupling=config_coupling, config_additional=config_additional)
 
-    # config_coupling_no_optim['carbon_emissions_resirf'] = "project/input/technical/carbon_emission_s3.csv"
-    # DICT_CONFIGS_greenfield_S3_N1_no_optim = create_configs_coupling(list_design=['centralized_insulation'],
-    #                                                         name_design='greenfield_no_optim_s3', config_coupling=config_coupling_no_optim, cap_MWh=1000,
-    #                                                         cap_tCO2=2000, greenfield=True, prices_constant=True, biomass_potential_scenario="S3",
-    #                                                         aggregated_potential=True, maximum_capacity_scenario='N1', max_iter=110, lifetime_insulation=5)
-    # results = run_multiple_configs(DICT_CONFIGS_greenfield_S3_N1_no_optim, cpu=cpu, exogenous=False, reference=None, greenfield=True,
-    #                                health=True, carbon_constraint=True)
-
-    # results = run_multiple_configs(DICT_CONFIGS_greenfield_S2_N1, cpu=cpu, exogenous=False, reference=None, greenfield=True,
-    #                                health=True, carbon_constraint=True)
-
-    ########## Test exogenous configurations
-    config_coupling = {
-        'no_subsidies': True,
-        'aggregated_potential': True,
-        'price_feedback': False,
-        'config_resirf': "classic_simple",
-        'calibration': None,
-        "config_eoles": "eoles_classic",  # includes costs assumptions
-        'supply_insulation': False,
-        'supply_heater': False,
-        'rational_behavior': False,
-        'social': False,
-        'premature_replacement': 3,
-        'h2ccgt': True,
-        'max_iter': 30,
-        'sub_design': None,
-        "health": True,  # on inclut les coûts de santé
-        "discount_rate": 0.032,
-        "rebound": True,
-        "carbon_constraint": False,
-        'fix_sub_heater': False,
-        'fix_sub_insulation': False,
-        'list_year': [2025, 2030, 2035, 2040, 2045],
-        'list_trajectory_scc': [250, 350, 500, 650, 775],
-        'scenario_cost_eoles': {}
-    }
-
-    # config_resirf_path, config_eoles_spec = DICT_CONFIG_RESIRF[config_coupling["config_resirf"]], DICT_CONFIG_EOLES[config_coupling["config_eoles"]]
-    # with open(config_resirf_path) as file:  # load config_resirf
-    #     config_resirf = json.load(file).get('Reference')
-    # config_resirf = modif_config_resirf(config_resirf, config_coupling, calibration=config_coupling["calibration"])  # modif of this configuration file to consider coupling options
-    #
-    # sensitivity = {
-    #     'Reference': {
-    #         "policies": "project/input/policies/current/policies_ref.json"
-    #     },
-    #     'No policy': {
-    #         'no_policy': True
-    #     },
-    #     "Ambitious": {
-    #         "policies": "project/input/policies/policies_ambitious.json"
-    #     },
-    #     # "Ambitious Price feedback": {
-    #     #     "policies": "project/input/policies/policies_ambitious.json",
-    #     #     "price_feedback": True
-    #     # }
-    # }
-    # dict_config_coupling = create_multiple_coupling_configs2(sensitivity, config_resirf, config_coupling)
-    # # dict_config_resirf = config_resirf_exogenous(sensitivity=sensitivity, config_resirf=config_resirf)
-    # # dict_config_coupling = create_multiple_coupling_configs(dict_config_resirf=dict_config_resirf, config_coupling=config_coupling)
-
-    # dict_output = {"Reference": os.path.join("eoles/outputs/0407_134331_Reference"),
-    #                "Ambitious": os.path.join("eoles/outputs/0407_134347_Ambitious"),
-    #                }
-    # annualized_system_costs_df, total_system_costs_df, consumption_savings_tot_df, complete_system_costs_2050_df = comparison_simulations(
-    #     dict_output, ref="Reference", greenfield=False, health=True,
-    #     save_path=os.path.join("eoles/outputs/comparison/test"), carbon_constraint=False)

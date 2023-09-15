@@ -1,5 +1,5 @@
 {
-  "name_config": "S3_Opt_restrictiongas_cc",
+  "name_config": "S3_Opt_restrictiongas_scc",
   "policies": {
     "file": "project/input/policies/current/policies_ref.json",
     "restriction_gas": {

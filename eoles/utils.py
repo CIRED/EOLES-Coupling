@@ -1307,7 +1307,7 @@ def check_required_keys_base(config_coupling):
                      'fix_sub_insulation', 'health', 'carbon_constraint', 'list_year', 'list_trajectory_scc']
     assert set(required_keys).issubset(config_coupling.keys()), "Some required keys in config_coupling are missing"
 
-def create_configs_coupling(list_design: list, config_coupling: dict, config_additional: dict):
+def create_configs_coupling(list_design, config_coupling: dict, config_additional: dict, dict_configs=None):
     """
     Creates a list of configs to test from different specified parameters.
     :param list_design:
@@ -1362,25 +1362,27 @@ def create_configs_coupling(list_design: list, config_coupling: dict, config_add
         assert 'input_years' in config_additional.keys(), 'Modification of load factors is specified, but missing specification for included years'
         config_coupling_update['eoles']['input_years'] = config_additional['input_years']
 
-    if config_additional['dict_configs'] is None:
+    if dict_configs is None:
         dict_configs = {}
-    else:
-        dict_configs = config_additional['dict_configs']
 
-    for design in list_design:
+    if list_design is not None:  # we want to update the subsidy design
+        for design in list_design:
+            name_config = config_additional['name_config']
+            name_config = f"{design}_{name_config}"
+            if config_additional['subsidies_heater'] is not None:  # in this case, we have specified the value for the subsidies in the configuration file, for each design.
+                sub_heater = config_additional['subsidies_heater'][design]
+            else:
+                sub_heater = None
+            if config_additional['subsidies_insulation'] is not None:
+                sub_insulation = config_additional['subsidies_insulation'][design]
+            else:
+                sub_insulation = None
+            dict_configs[name_config] = modif_config_coupling(design, config_coupling_update, cap_MWh=config_additional['cap_MWh'],
+                                                              cap_tCO2=config_additional['cap_tCO2'],
+                                                              subsidies_heater=sub_heater, subsidies_insulation=sub_insulation)
+    else:
         name_config = config_additional['name_config']
-        name_config = f"{design}_{name_config}"
-        if config_additional['subsidies_heater'] is not None:  # in this case, we have specified the value for the subsidies in the configuration file, for each design.
-            sub_heater = config_additional['subsidies_heater'][design]
-        else:
-            sub_heater = None
-        if config_additional['subsidies_insulation'] is not None:
-            sub_insulation = config_additional['subsidies_insulation'][design]
-        else:
-            sub_insulation = None
-        dict_configs[name_config] = modif_config_coupling(design, config_coupling_update, cap_MWh=config_additional['cap_MWh'],
-                                                          cap_tCO2=config_additional['cap_tCO2'],
-                                                          subsidies_heater=sub_heater, subsidies_insulation=sub_insulation)
+        dict_configs[name_config] = config_coupling_update
     return dict_configs
 
 

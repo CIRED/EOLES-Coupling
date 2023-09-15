@@ -1002,7 +1002,7 @@ def comparison_simulations(dict_output: dict, ref, greenfield=False, health=Fals
             save_path_plot = os.path.join(save_path, f"flex_capacities_2050.{extension}")
         make_stacked_bar_plot(capacities_flex_df.loc[2050].set_index("Configuration"), y_label="Flexible capacity (GW)",
                           format_y=lambda y, _: '{:.0f}'.format(y), index_int=False, rotation=90, save=save_path_plot)  # TODO: ajouter les bonnes couleurs ici
-        plot_capacities_barplot_2(capacities_flex_df, save=save_path_plot)  # TODO: a modifier pour que cela fonctionne, ce n'est pas encore bien.
+        # plot_capacities_barplot_2(capacities_flex_df, save=save_path_plot)  # TODO: a modifier pour que cela fonctionne, ce n'est pas encore bien.
 
     try:  # TODO: a modifier proprement
         if not pdf:  # only save summary without pdf option
