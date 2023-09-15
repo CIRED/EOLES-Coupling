@@ -1,0 +1,31 @@
+{
+  "name_config": "S2_Opt_restrictiongas_cc",
+  "policies": {
+    "file": "eoles/inputs/policies/policies_ref.json",
+    "restriction_gas": {
+      "start": 2025,
+      "end": 2051,
+      "value": "Natural gas",
+      "policy": "restriction_energy"
+    }
+  },
+  "greenfield": false,
+  "prices_constant": true,
+  "price_feedback": false,
+  "biomass_potential_scenario": "S2",
+  "aggregated_potential": true,
+  "maximum_capacity_scenario": "Opt",
+  "lifetime_insulation": 5,
+  "subsidies_heater": null,
+  "subsidies_insulation": null,
+  "optim_eoles": true,
+  "carbon_emissions_resirf": null,
+  "electricity_constant": false,
+  "carbon_budget": null,
+  "carbon_budget_resirf": null,
+  "district_heating": false,
+  "district_heating_potential": null,
+  "dict_configs": null,
+  "cap_MWh": 1000,
+  "cap_tCO2": 2000
+}

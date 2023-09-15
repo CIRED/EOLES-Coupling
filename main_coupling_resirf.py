@@ -474,6 +474,7 @@ if __name__ == '__main__':
     parser.add_argument("--configpath", type=str, help="config json file", default=None)
     parser.add_argument("--configdir", type=str, help="config directory", default=None)
     parser.add_argument("--patterns", nargs="+", type=str, default=["S*.json"], help="Patterns to filter files in the directory.")
+    parser.add_argument("--exclude-patterns", nargs="+", type=str, default=["base.json"],help="Patterns to exclude files.")
 
     args = parser.parse_args()
     cpu = args.cpu  # we select the config we are interested in
@@ -502,8 +503,13 @@ if __name__ == '__main__':
         config_files = []
         for pattern in args.patterns:
             pattern_path = configdir / pattern
-            config_files.extend(glob.glob(str(pattern_path)))
-        print(config_files)
+            matching_files = glob.glob(str(pattern_path))
+            # config_files.extend(glob.glob(str(pattern_path)))
+
+            # Loop through the matching files and exclude those that match any exclude pattern
+            for file in matching_files:
+                if all(file_match not in file for file_match in args.exclude_patterns):
+                    config_files.append(file)
         # config_files = [file for file in configdir.glob("*.json") if file.name != "base.json"]
 
         DICT_CONFIGS = {}

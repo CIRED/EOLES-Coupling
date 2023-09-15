@@ -16,19 +16,19 @@
         "maximum_capacity_scenario": "N1"
     },
     "subsidy": {
-        "policy": "subsidy_ad_valorem",
-        "proportional_uniform": null,
-        "heater": {
-            "rational_behavior": false,
-            "proportional": null,
-            "cap": null
-        },
-        "insulation": {
-            "rational_behavior": false,
-            "target": null,
-            "proportional": null,
-            "cap": null
-        }
+            "proportional_uniform": null,
+            "heater": {
+                "policy": "subsidy_ad_valorem",
+                "proportional": null,
+                "cap": null
+            },
+            "insulation": {
+                "policy": "subsidy_ad_valorem",
+                "rational_behavior": false,
+                "target": null,
+                "proportional": null,
+                "cap": null
+            }
     },
     "scenario_cost_eoles": {
         "fix_capacities": {
