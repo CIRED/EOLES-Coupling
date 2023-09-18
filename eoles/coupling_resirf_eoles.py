@@ -1771,6 +1771,7 @@ def update_energy_prices(energy_prices, price_elec_ht, price_gas_ht, energy_taxe
     energy_vta_with_year.index = anticipated_energy_prices.index
     energy_vta_with_year.columns = vta[["Electricity", "Natural gas"]].columns
     energy_vta = anticipated_energy_prices * energy_vta_with_year
+    # TODO: vérifier si la TVA se calcule avant ou après les taxes
 
     anticipated_energy_prices = anticipated_energy_prices.add(energy_taxes.loc[start:end-1, ["Electricity", "Natural gas"]], fill_value=0)  # we add exogenous taxes, as we would in ResIRF
     anticipated_energy_prices = anticipated_energy_prices.add(energy_vta, fill_value=0)  # we add VTA

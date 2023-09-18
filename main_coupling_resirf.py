@@ -493,7 +493,14 @@ if __name__ == '__main__':
             config_coupling = json.load(file)
 
         list_design = ['uniform', 'centralized_insulation', 'DR']
-        list_design = None
+        list_design = ['uniform']
+
+        # Cas spécifique où on vient extraire la valeur de subventions qui ont été optimisées au préalable
+        config_coupling['subsidies_specified'] = True  # we specify that subsidies are given
+        subsidies_heater, subsidies_insulation = extract_subsidy_value(Path('eoles') / Path('outputs') / Path('0910_S3_N1'), name_config='S3_N1')
+        config_additional["subsidies_heater"] = subsidies_heater
+        config_additional["subsidies_insulation"] = subsidies_insulation
+
         DICT_CONFIGS = create_configs_coupling(list_design=list_design, config_coupling=config_coupling,
                                                config_additional=config_additional)
 
@@ -532,9 +539,6 @@ if __name__ == '__main__':
     # configpath = Path('eoles') / Path('inputs') / Path('xps') / configpath
 
 
-    # Cas spécifique où on vient extraire la valeur de subventions qui ont été optimisées au préalable
-    # subsidies_heater, subsidies_insulation = extract_subsidy_value(os.path.join('eoles/outputs', '0511_no_optim_s3'), name_config='greenfield_no_optim_s3')
-    # config_additional["subsidies_heater"] = subsidies_heater
-    # config_additional["subsidies_insulation"] = subsidies_insulation
+
 
 

@@ -3,6 +3,8 @@ import pandas as pd
 import os
 from datetime import datetime
 
+
+############# Extract required years  #############
 ############# Extract required years for renewable data #########
 vre_profiles_initial = pd.read_csv('eoles/inputs/hourly_profiles/vre_profiles_2000-2019.csv', index_col=0).reset_index()
 vre_profiles_initial.columns = ["tec", "hour", "capacity_factor"]

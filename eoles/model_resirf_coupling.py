@@ -344,7 +344,7 @@ class ModelEOLES():
             else:
                 return self.existing_energy_capacity[i], None
 
-            # Hourly energy generation in GWh/h
+        # Hourly energy generation in GW
 
         self.model.gene = \
             Var(((tec, h) for tec in self.model.tec for h in self.model.h), within=NonNegativeReals, initialize=0)
@@ -423,7 +423,7 @@ class ModelEOLES():
             flux = charge - discharge
             return model.stored[storage_tecs, hPOne] == model.stored[storage_tecs, h] + flux
 
-        def storage_constraint_rule(model, storage_tecs):
+        def storage_first_last_constraint_rule(model, storage_tecs):
             """Constraint on stored energy to be equal at the end and at the start."""
             first = model.stored[storage_tecs, self.first_hour]
             last = model.stored[storage_tecs, self.last_hour - 1]
@@ -445,6 +445,20 @@ class ModelEOLES():
             """Constraint on the capacity with hourly charging relationship of storage. Energy entering the battery
             during one hour cannot exceed the charging capacity."""
             return model.storage[storage_tecs, h] <= model.charging_capacity[storage_tecs]
+
+        def hydrogen_discharge_constraint_rule(model, h):
+            """Constraint on discharge capacity of hydrogen. This is a bit ad hoc, based on discussions with Marie-Alix,
+            and some extrapolations for the future capacity of hydrogen.
+            We know that for an energy capacity of 3 TWh, we have a maximum injection capacity of 26 GW. So we adapt this value
+            to the new energy capacity."""
+            return model.gene["hydrogen", h] <= model.energy_capacity['hydrogen'] * 26 / 3000
+
+        def hydrogen_charge_constraint_rule(model, h):
+            """Constraint on charging capacity of hydrogen. This is a bit ad hoc, based on discussions with Marie-Alix,
+            and some extrapolations for the future capacity of hydrogen.
+            We know that for an energy capacity of 3 TWh, we have a maximum injection capacity of 6.4 GW. So we adapt this value
+            to the new energy capacity."""
+            return model.storage["hydrogen", h] <= model.energy_capacity['hydrogen'] * 6.4 / 3000
 
         def battery_capacity_constraint_rule(model, battery):
             """Constraint on battery's capacity: battery charging capacity equals battery discharging capacity."""
@@ -562,7 +576,7 @@ class ModelEOLES():
 
         self.model.storing_constraint = Constraint(self.model.h, self.model.str, rule=storing_constraint_rule)
 
-        self.model.storage_constraint = Constraint(self.model.str, rule=storage_constraint_rule)
+        self.model.storage_constraint = Constraint(self.model.str, rule=storage_first_last_constraint_rule)
 
         self.model.lake_reserve_constraint = Constraint(self.model.months, rule=lake_reserve_constraint_rule)
 
@@ -571,6 +585,11 @@ class ModelEOLES():
 
         self.model.storage_capacity_1_constraint = \
             Constraint(self.model.h, self.model.str, rule=storage_charging_capacity_constraint_rule)
+
+        # TODO: new rule
+        self.model.hydrogen_discharge_constraint = Constraint(self.model.h, rule=hydrogen_discharge_constraint_rule)
+
+        self.model.hydrogen_charge_constraint = Constraint(self.model.h, rule=hydrogen_charge_constraint_rule)
 
         self.model.battery_capacity_constraint = Constraint(self.model.battery, rule=battery_capacity_constraint_rule)
 

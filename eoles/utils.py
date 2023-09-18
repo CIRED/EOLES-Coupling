@@ -1386,7 +1386,7 @@ def create_configs_coupling(list_design, config_coupling: dict, config_additiona
     return dict_configs
 
 
-def extract_subsidy_value(folder: str, name_config: str):
+def extract_subsidy_value(folder, name_config: str):
     """
     Function to extract the value of the subsidies found in the algorithm.
     :param folder: str
