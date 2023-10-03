@@ -1007,8 +1007,6 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
     existing_capacity_historical = existing_capacity_historical.drop(
         ["heat_pump", "resistive", "gas_boiler", "fuel_boiler", "wood_boiler"], axis=0)
 
-    # TODO: il faudra ajouter les capacités pour charging et discharging
-
     # Initialize results dataframes
     new_capacity_tot = pd.Series(0, index=existing_capacity_historical.index, dtype=float)
     new_charging_capacity_tot = pd.Series(0, index=existing_charging_capacity_historical.index, dtype=float)
@@ -1060,8 +1058,10 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
     list_global_annualized_costs = []
     dict_optimizer = {}
 
+    # TODO: à changer si jamais je veux inclure 2025 dans les années à optimiser
     # Run ResIRF for the first 5 years, with current policies and no additional subsidy
-    output_opt, stock_opt, heating_consumption = simu_res_irf(buildings=buildings, start=2019, end=2025,
+    start1, end1 = 2019, 2020  # initially: 2024, 2025
+    output_opt, stock_opt, heating_consumption = simu_res_irf(buildings=buildings, start=2019, end=end1,
                                                               energy_prices=inputs_dynamics['energy_prices'],
                                                               taxes=inputs_dynamics['taxes'],
                                                               cost_heater=inputs_dynamics['cost_heater'], cost_insulation=inputs_dynamics['cost_insulation'],
@@ -1077,7 +1077,7 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
                                                               technical_progress=inputs_dynamics['technical_progress'],
                                                               premature_replacement=inputs_dynamics['premature_replacement'],
                                                               output_options='full', carbon_content=inputs_dynamics['post_inputs']['carbon_emission'])
-    initial_state_budget = output_opt.loc["Balance state (Billion euro)"][2024]  # we get final state budget
+    initial_state_budget = output_opt.loc["Balance state (Billion euro)"][start1]  # we get final state budget
 
     # we add initial values to observe what happens
     output_global_ResIRF = pd.concat([output_global_ResIRF, output_opt], axis=1)
@@ -1088,71 +1088,16 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
     for t, (y, scc) in enumerate(zip(list_year, list_trajectory_scc)):
         # IMPORTANT REMARK: here, list_trajectory_scc is already compiled so that list_trajectory_scc[t] corresponds to the SCC at the END of the period !
         print(f"Year {y}, SCC {scc}")
-        if not couplingparam.anticipated_demand_t10:  # classical setting
-            if y < 2050:
-                year_eoles, anticipated_year_eoles, start_year_resirf, timestep_resirf = y, y + 5, y, 5
-            else:  # specific case for 2050
-                year_eoles, anticipated_year_eoles, start_year_resirf, timestep_resirf = y, y, y, 5
-        else:
-            if y < 2045:
-                year_eoles, anticipated_year_eoles, start_year_resirf, timestep_resirf = y, y + 10, y, 5
-            else:  # specific case for 2050
-                year_eoles, anticipated_year_eoles, start_year_resirf, timestep_resirf = y, 2050, y, 5
+        year_eoles, anticipated_year_eoles, start_year_resirf, timestep_resirf, scc, actual_scc = get_year_scc(t, couplingparam, y, scc, list_trajectory_scc, list_scc_year, config_coupling)
 
-        if couplingparam.anticipated_scc == "t5":  # we modify the scc to consider the scc at t+5
-            if y < 2045:
-                scc = list_trajectory_scc[t+1]
-                actual_scc = list_trajectory_scc[t]
-            else:  # 2045
-                actual_scc = scc
-        elif couplingparam.anticipated_scc == "average":  # we modify the scc to consider the average scc over time period of new system
-            scc = average_scc_discounted(list_scc_year, lifetime=25, initial_time=t, discount_rate=config_coupling['discount_rate'])
-            actual_scc = list_trajectory_scc[t]
-        else:
-            actual_scc = scc  # no difference between anticipated and actual scc
-
-        #### Get existing and maximum capacities
-        existing_capa_historical_y = existing_capacity_historical[
-            [str(anticipated_year_eoles)]].squeeze()  # get historical capacity still installed for year of interest
-        existing_charging_capacity_historical_y = existing_charging_capacity_historical[
-            [str(anticipated_year_eoles)]].squeeze()
-        existing_energy_capacity_historical_y = existing_energy_capacity_historical[
-            [str(anticipated_year_eoles)]].squeeze()
-
-        new_maximum_capacity_y = maximum_capacity_evolution[
-            [str(anticipated_year_eoles)]].squeeze()  # get maximum new capacity to be built
-
-        # Existing capacities at year y
-        existing_capacity = existing_capa_historical_y + new_capacity_tot  # existing capacity are equal to newly built
-        # capacities over the whole time horizon before t + existing capacity (from before 2020)
-        existing_charging_capacity = existing_charging_capacity_historical_y + new_charging_capacity_tot
-        existing_energy_capacity = existing_energy_capacity_historical_y + new_energy_capacity_tot
-
-        if couplingparam.aggregated_potential:  # we do not take into account previously invested capacity
-            maximum_capacity = (existing_capa_historical_y + new_maximum_capacity_y).dropna()
-        else:
-            maximum_capacity = (
-                    existing_capacity + new_maximum_capacity_y).dropna()  # we drop nan values, which correspond to
-            # technologies without any upper bound
-
-        #### Historical annualized costs based on historical costs
-        annualized_costs_capacity_historical, annualized_costs_energy_capacity_historical = eoles.utils.annualized_costs_investment_historical(
-            existing_capa_historical_y, capex_annuity_fOM_historical,
-            existing_energy_capacity_historical_y, storage_annuity_historical)
-
-        annualized_costs_capacity_nofOM_historical = eoles.utils.annualized_costs_investment_historical_nofOM(
-            existing_capa_historical_y, capex_annuity_historical,
-            existing_energy_capacity_historical_y, storage_annuity_historical)
-
-        ### Compile total annualized investment costs from existing capacities (both historical capacities + newly built capacities before t)
-        # Necessary for calculus of LCOE accounting for evolution of capacities
-        annualized_costs_capacity = pd.concat([annualized_costs_capacity_historical.rename(columns={'annualized_costs': 'historical_annualized_costs'}),
-             annualized_costs_new_capacity], axis=1)
-        annualized_costs_capacity['annualized_costs'] = annualized_costs_capacity['historical_annualized_costs'] + annualized_costs_capacity['annualized_costs']
-        annualized_costs_energy_capacity = pd.concat([annualized_costs_energy_capacity_historical.rename(
-            columns={'annualized_costs': 'historical_annualized_costs'}), annualized_costs_new_energy_capacity], axis=1)
-        annualized_costs_energy_capacity['annualized_costs'] = annualized_costs_energy_capacity['historical_annualized_costs'] + \
-                                                               annualized_costs_energy_capacity['annualized_costs']
+        # Calculate evolution of capacities and annualized costs based on previous evolution
+        preprocessing = preprocessing_eoles(anticipated_year_eoles, new_capacity_tot, new_charging_capacity_tot,
+                            new_energy_capacity_tot, annualized_costs_new_capacity, annualized_costs_new_energy_capacity, couplingparam,
+                            existing_capacity_historical, existing_charging_capacity_historical, existing_energy_capacity_historical, maximum_capacity_evolution,
+                            capex_annuity_fOM_historical, storage_annuity_historical, capex_annuity_historical)
+        existing_capacity, existing_charging_capacity, existing_energy_capacity, maximum_capacity = preprocessing['existing_capacity'], preprocessing['existing_charging_capacity'], preprocessing['existing_energy_capacity'], preprocessing['maximum_capacity']
+        annualized_costs_capacity, annualized_costs_energy_capacity = preprocessing['annualized_costs_capacity'], preprocessing['annualized_costs_energy_capacity']
+        annualized_costs_capacity_nofOM_historical, annualized_costs_energy_capacity_historical = preprocessing['annualized_costs_capacity_nofOM_historical'], preprocessing['annualized_costs_energy_capacity_historical']
 
         existing_annualized_costs_elec, existing_annualized_costs_CH4, existing_annualized_costs_CH4_naturalgas, existing_annualized_costs_CH4_biogas, \
         existing_annualized_costs_H2 = eoles.utils.process_annualized_costs_per_vector(
@@ -1252,18 +1197,18 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
             list_sub_insulation.append(opt_sub_insulation_value)
         else:
             opt_sub_heater_value, opt_sub_insulation_value = list_sub_heater[t], list_sub_insulation[t]
-            if grad_descent and year_eoles == 2045:  # NOT USED, TEST
-                print("Doing gradient descent...")
-                opt_res = gradient_descent(x0=[0.964, 0.09], bounds=((0.96, 0.97), (0.05, 0.15)), buildings=buildings, inputs_dynamics=inputs_dynamics, policies_heater=policies_heater,
-                                 policies_insulation=policies_insulation, start_year_resirf=start_year_resirf, timestep_resirf=timestep_resirf,
-                                 config_eoles=config_eoles, year_eoles=year_eoles, anticipated_year_eoles=anticipated_year_eoles, scc=scc, hourly_gas_exogeneous=hourly_exogeneous_CH4,
-                                 existing_capacity=existing_capacity, existing_charging_capacity=existing_charging_capacity,
-                                 existing_energy_capacity=existing_energy_capacity, maximum_capacity=maximum_capacity,
-                                 method_hourly_profile="valentin", scenario_cost=scenario_cost,
-                                 existing_annualized_costs_elec=existing_annualized_costs_elec, existing_annualized_costs_CH4=existing_annualized_costs_CH4,
-                                 existing_annualized_costs_H2=existing_annualized_costs_H2, lifetime_insulation=50, lifetime_heater=20, discount_rate=0.045,
-                                 max_iter=3, sub_design=config_coupling["sub_design"], health=config_coupling["health"],
-                                           carbon_constraint=config_coupling["carbon_constraint"], rebound=config_coupling["rebound"])
+            # if grad_descent and year_eoles == 2045:  # NOT USED, TEST
+            #     print("Doing gradient descent...")
+            #     opt_res = gradient_descent(x0=[0.964, 0.09], bounds=((0.96, 0.97), (0.05, 0.15)), buildings=buildings, inputs_dynamics=inputs_dynamics, policies_heater=policies_heater,
+            #                      policies_insulation=policies_insulation, start_year_resirf=start_year_resirf, timestep_resirf=timestep_resirf,
+            #                      config_eoles=config_eoles, year_eoles=year_eoles, anticipated_year_eoles=anticipated_year_eoles, scc=scc, hourly_gas_exogeneous=hourly_exogeneous_CH4,
+            #                      existing_capacity=existing_capacity, existing_charging_capacity=existing_charging_capacity,
+            #                      existing_energy_capacity=existing_energy_capacity, maximum_capacity=maximum_capacity,
+            #                      method_hourly_profile="valentin", scenario_cost=scenario_cost,
+            #                      existing_annualized_costs_elec=existing_annualized_costs_elec, existing_annualized_costs_CH4=existing_annualized_costs_CH4,
+            #                      existing_annualized_costs_H2=existing_annualized_costs_H2, lifetime_insulation=50, lifetime_heater=20, discount_rate=0.045,
+            #                      max_iter=3, sub_design=config_coupling["sub_design"], health=config_coupling["health"],
+            #                                carbon_constraint=config_coupling["carbon_constraint"], rebound=config_coupling["rebound"])
 
         # Rerun ResIRF with optimal subvention parameters
         endyear_resirf = start_year_resirf + timestep_resirf
@@ -1639,8 +1584,8 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
                     {"Transport and distribution price": list_transport_distribution_lcoe}, index=list_anticipated_year)
             })
 
-        if grad_descent:
-            return output, buildings, opt_res
+        # if grad_descent:
+        #     return output, buildings, opt_res
     else:
         resirf_subsidies_df = pd.DataFrame({'Heater': list_sub_heater, 'Insulation': list_sub_insulation},
                                            index=list_anticipated_year)
@@ -1696,6 +1641,97 @@ def average_scc_discounted(list_scc, lifetime, initial_time, discount_rate):  # 
     discounted_scc = [scc*discount_factor for (scc, discount_factor) in zip(list_scc[initial_time_yearly:final_time_yearly], discount_rate_list)]
     return np.array(discounted_scc).mean()
 
+
+#### Some functions to simplify the code of the coupling
+
+def get_year_scc(t, couplingparam: CouplingParam, y, scc, list_trajectory_scc, list_scc_year, config_coupling):
+    if not couplingparam.anticipated_demand_t10:  # classical setting
+        if y < 2050:
+            year_eoles, anticipated_year_eoles, start_year_resirf, timestep_resirf = y, y + 5, y, 5
+        else:  # specific case for 2050
+            year_eoles, anticipated_year_eoles, start_year_resirf, timestep_resirf = y, y, y, 5
+    else:
+        if y < 2045:
+            year_eoles, anticipated_year_eoles, start_year_resirf, timestep_resirf = y, y + 10, y, 5
+        else:  # specific case for 2050
+            year_eoles, anticipated_year_eoles, start_year_resirf, timestep_resirf = y, 2050, y, 5
+
+    if couplingparam.anticipated_scc == "t5":  # we modify the scc to consider the scc at t+5
+        if y < 2045:
+            scc = list_trajectory_scc[t + 1]
+            actual_scc = list_trajectory_scc[t]
+        else:  # 2045
+            actual_scc = scc
+    elif couplingparam.anticipated_scc == "average":  # we modify the scc to consider the average scc over time period of new system
+        scc = average_scc_discounted(list_scc_year, lifetime=25, initial_time=t,
+                                     discount_rate=config_coupling['discount_rate'])
+        actual_scc = list_trajectory_scc[t]
+    else:
+        actual_scc = scc  # no difference between anticipated and actual scc
+    return year_eoles, anticipated_year_eoles, start_year_resirf, timestep_resirf, scc, actual_scc
+
+
+def preprocessing_eoles(anticipated_year_eoles, new_capacity_tot, new_charging_capacity_tot, new_energy_capacity_tot,
+                        annualized_costs_new_capacity, annualized_costs_new_energy_capacity, couplingparam,
+                        existing_capacity_historical, existing_charging_capacity_historical,
+                        existing_energy_capacity_historical, maximum_capacity_evolution, capex_annuity_fOM_historical,
+                        storage_annuity_historical, capex_annuity_historical):
+    #### Get existing and maximum capacities
+    existing_capa_historical_y = existing_capacity_historical[
+        [str(anticipated_year_eoles)]].squeeze()  # get historical capacity still installed for year of interest
+    existing_charging_capacity_historical_y = existing_charging_capacity_historical[
+        [str(anticipated_year_eoles)]].squeeze()
+    existing_energy_capacity_historical_y = existing_energy_capacity_historical[[str(anticipated_year_eoles)]].squeeze()
+
+    new_maximum_capacity_y = maximum_capacity_evolution[
+        [str(anticipated_year_eoles)]].squeeze()  # get maximum new capacity to be built
+
+    # Existing capacities at year y
+    existing_capacity = existing_capa_historical_y + new_capacity_tot  # existing capacity are equal to newly built
+    # capacities over the whole time horizon before t + existing capacity (from before 2020)
+    existing_charging_capacity = existing_charging_capacity_historical_y + new_charging_capacity_tot
+    existing_energy_capacity = existing_energy_capacity_historical_y + new_energy_capacity_tot
+
+    if couplingparam.aggregated_potential:  # we do not take into account previously invested capacity
+        maximum_capacity = (existing_capa_historical_y + new_maximum_capacity_y).dropna()
+    else:
+        maximum_capacity = (
+                existing_capacity + new_maximum_capacity_y).dropna()  # we drop nan values, which correspond to
+        # technologies without any upper bound
+
+    #### Historical annualized costs based on historical costs
+    annualized_costs_capacity_historical, annualized_costs_energy_capacity_historical = eoles.utils.annualized_costs_investment_historical(
+        existing_capa_historical_y, capex_annuity_fOM_historical, existing_energy_capacity_historical_y,
+        storage_annuity_historical)
+
+    annualized_costs_capacity_nofOM_historical = eoles.utils.annualized_costs_investment_historical_nofOM(
+        existing_capa_historical_y, capex_annuity_historical, existing_energy_capacity_historical_y,
+        storage_annuity_historical)
+
+    ### Compile total annualized investment costs from existing capacities (both historical capacities + newly built capacities before t)
+    # Necessary for calculus of LCOE accounting for evolution of capacities
+    annualized_costs_capacity = pd.concat(
+        [annualized_costs_capacity_historical.rename(columns={'annualized_costs': 'historical_annualized_costs'}),
+         annualized_costs_new_capacity], axis=1)
+    annualized_costs_capacity['annualized_costs'] = annualized_costs_capacity['historical_annualized_costs'] + \
+                                                    annualized_costs_capacity['annualized_costs']
+    annualized_costs_energy_capacity = pd.concat([annualized_costs_energy_capacity_historical.rename(
+        columns={'annualized_costs': 'historical_annualized_costs'}), annualized_costs_new_energy_capacity], axis=1)
+    annualized_costs_energy_capacity['annualized_costs'] = annualized_costs_energy_capacity[
+                                                               'historical_annualized_costs'] + \
+                                                           annualized_costs_energy_capacity['annualized_costs']
+
+    preprocessing = {
+        'existing_capacity': existing_capacity,
+        'existing_charging_capacity': existing_charging_capacity,
+        'existing_energy_capacity': existing_energy_capacity,
+        'maximum_capacity': maximum_capacity,
+        'annualized_costs_capacity': annualized_costs_capacity,
+        'annualized_costs_energy_capacity': annualized_costs_energy_capacity,
+        'annualized_costs_capacity_nofOM_historical': annualized_costs_capacity_nofOM_historical,
+        'annualized_costs_energy_capacity_historical': annualized_costs_energy_capacity_historical
+    }
+    return preprocessing
 
 def electricity_price_ht(system_lcoe, system_transport_and_distrib, calib_elec, year):
     """Estimates electricity price without tax in €/MWh."""

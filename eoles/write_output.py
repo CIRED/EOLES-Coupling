@@ -1123,7 +1123,11 @@ def process_total_costs(annualized_new_investment_df, annualized_new_energy_capa
     annualized_new_investment_df_copy = annualized_new_investment_df.copy()
     annualized_new_energy_capacity_df_copy = annualized_new_energy_capacity_df.copy()
     functionment_costs_df_copy = functionment_costs_df.copy()
-    dict_count = {2030: 5 * 5, 2035: 4 * 5, 2040: 3 * 5, 2045: 2 * 5, 2050: 5}
+    # TODO: j'ai changé avec le fait d'ajouter l'année 2025
+    if 2025 in annualized_new_investment_df_copy.columns:
+        dict_count = {2025: 6 * 5, 2030: 5 * 5, 2035: 4 * 5, 2040: 3 * 5, 2045: 2 * 5, 2050: 5}
+    else:
+        dict_count = {2030: 5 * 5, 2035: 4 * 5, 2040: 3 * 5, 2045: 2 * 5, 2050: 5}
     for col in annualized_new_investment_df_copy.columns:  # attention à vérifier que les colonnes sont des int
         annualized_new_investment_df_copy[col] = annualized_new_investment_df_copy[col] * dict_count[col]
         if not annualized_new_energy_capacity_df_copy.empty:

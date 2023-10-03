@@ -557,7 +557,8 @@ class ModelEOLES():
 
         def carbon_budget_constraint_rule(model, y):
             """Constraint on carbon budget in MtCO2."""
-            return sum(model.gene["natural_gas", h] for h in range(8760*y,8760*(y+1)-1)) * 0.2295 / 1000 + self.oil_consumption * 0.271 / 1000 <= self.carbon_budget
+            # TODO: vérifier la valeur utilisée pour l'intensité carbone du fioul
+            return sum(model.gene["natural_gas", h] for h in range(8760*y,8760*(y+1)-1)) * 0.2295 / 1000 + self.oil_consumption * 0.324 / 1000 <= self.carbon_budget
 
 
         self.model.generation_vre_constraint = \

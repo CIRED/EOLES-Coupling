@@ -252,7 +252,7 @@ def run_optimization_scenario(config_coupling, name_config_coupling="default"):
         if config_coupling["greenfield"]:
             list_sub_heater, list_sub_insulation = [0.0], [0.0]
         else:
-            list_sub_heater, list_sub_insulation = [0.0 for i in range(5)], [0.0 for i in range(5)]
+            list_sub_heater, list_sub_insulation = [0.0 for i in range(len(config_coupling["list_year"]))], [0.0 for i in range(len(config_coupling["list_year"]))]
 
     if config_coupling['subsidies_specified']:  # on donne des subventions spécifiées
         print('Subsidies specified')

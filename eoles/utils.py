@@ -270,11 +270,11 @@ def define_month_hours(first_month, nb_years, months_hours, hours_by_months):
 
 ### Processing output
 
-def get_technical_cost(model, objective, scc, heat_fuel, nb_years):
+def get_technical_cost(model, objective, scc, heat_fuel, nb_years, intensity_gas=0.2295, intensity_fuel=0.324):
     """Returns technical cost (social cost without CO2 emissions-related cost"""
     gene_ngas = sum(value(model.gene["natural_gas", hour]) for hour in model.h)   # GWh
-    net_emissions = gene_ngas * 0.2295 / 1000 + heat_fuel * 0.271 / 1000  # MtCO2
-    emissions = pd.Series({"natural_gas": gene_ngas * 0.2295 / 1000 / nb_years, "Oil fuel": heat_fuel * 0.271 / 1000 / nb_years})
+    net_emissions = gene_ngas * intensity_gas / 1000 + heat_fuel * intensity_fuel / 1000  # MtCO2
+    emissions = pd.Series({"natural_gas": gene_ngas * intensity_gas / 1000 / nb_years, "Oil fuel": heat_fuel * intensity_fuel / 1000 / nb_years})
     technical_cost = objective - net_emissions * scc / 1000
     return technical_cost, emissions
 
@@ -1459,6 +1459,7 @@ def create_multiple_coupling_configs(dict_config_resirf, config_coupling):
         new_config["config_resirf"] = dict_config_resirf[scenario]
         dict_config_coupling[scenario] = new_config
     return dict_config_coupling
+
 
 
 if __name__ == '__main__':
