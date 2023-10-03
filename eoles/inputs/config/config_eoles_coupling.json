@@ -6,7 +6,7 @@
   "construction_time": "eoles/inputs/technology_characteristics/construction_time.csv",
   "capacity_factor_nuclear": 0.8,
   "capex": "eoles/inputs/technology_characteristics/overnight_capex_evolution.csv",
-  "carbon_budget": "eoles/inputs/technical/carbon_budget.csv",
+  "carbon_budget": "eoles/inputs/technical/carbon_budget_tight.csv",
   "carbon_budget_resirf": "eoles/inputs/technical/carbon_budget_resirf.csv",
   "conversion_efficiency": "eoles/inputs/technology_characteristics/conversion_efficiency.csv",
   "demand": "eoles/inputs/demand/demand2050_RTE.csv",

@@ -1,5 +1,5 @@
 {
-    "name_config": "S3_N1_restrictiongas_scc",
+    "name_config": "S3_N1_restrictiongas_scc_pricefeedback",
     "policies": {
         "file": "project/input/policies/current/policies_ref.json",
         "restriction_gas": {
@@ -10,7 +10,7 @@
         }
     },
     "greenfield": false,
-    "prices_constant": true,
+    "prices_constant": false,
     "price_feedback": true,
     "biomass_potential_scenario": "S3",
     "aggregated_potential": true,

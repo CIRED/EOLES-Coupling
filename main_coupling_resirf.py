@@ -495,11 +495,11 @@ if __name__ == '__main__':
         list_design = ['uniform', 'centralized_insulation', 'DR']
         list_design = ['uniform']
 
-        # Cas spécifique où on vient extraire la valeur de subventions qui ont été optimisées au préalable
-        config_coupling['subsidies_specified'] = True  # we specify that subsidies are given
-        subsidies_heater, subsidies_insulation = extract_subsidy_value(Path('eoles') / Path('outputs') / Path('0910_S3_N1'), name_config='S3_N1')
-        config_additional["subsidies_heater"] = subsidies_heater
-        config_additional["subsidies_insulation"] = subsidies_insulation
+        # # Cas spécifique où on vient extraire la valeur de subventions qui ont été optimisées au préalable
+        # config_coupling['subsidies_specified'] = True  # we specify that subsidies are given
+        # subsidies_heater, subsidies_insulation = extract_subsidy_value(Path('eoles') / Path('outputs') / Path('0910_S3_N1'), name_config='S3_N1')
+        # config_additional["subsidies_heater"] = subsidies_heater
+        # config_additional["subsidies_insulation"] = subsidies_insulation
 
         DICT_CONFIGS = create_configs_coupling(list_design=list_design, config_coupling=config_coupling,
                                                config_additional=config_additional)
@@ -529,7 +529,7 @@ if __name__ == '__main__':
                     "base.json")) as file:  # load reference configuration for coupling
                 config_coupling = json.load(file)
 
-            list_design = ['DR']  # TODO: a changer si on veut spécifier un design en particulier
+            list_design = None  # TODO: a changer si on veut spécifier un design en particulier
             DICT_CONFIGS = create_configs_coupling(list_design=list_design, config_coupling=config_coupling,
                                                    config_additional=config_additional, dict_configs=DICT_CONFIGS)
 

@@ -1,10 +1,10 @@
 {
-    "name_config": "S2_N1_ref_cc",
+    "name_config": "S2_N1_ref_cc_pricefeedback",
     "policies": {
         "file": "project/input/policies/current/policies_ref.json"
     },
     "greenfield": false,
-    "prices_constant": true,
+    "prices_constant": false,
     "price_feedback": true,
     "biomass_potential_scenario": "S2",
     "aggregated_potential": true,
