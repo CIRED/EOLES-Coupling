@@ -150,7 +150,7 @@ def process_RTE_demand(config, year, demand, method):
     demand_residential_heating = demand_residential_heating_RTE_timesteps[year]  # in TWh
 
     assert math.isclose(demand.sum(), 580 * 1e3), "Total yearly demand is not correctly calculated."
-    adjust_demand = (demand_noP2G_RTE * 1e3 - 580 * 1e3) / 8760  # 580TWh is the total of the profile we use as basis for electricity hourly demand (from RTE)
+    adjust_demand = (demand_noP2G_RTE * 1e3 - 580 * 1e3) / 8760  # 580TWh is the total of the profile we use as basis for electricity hourly demand (from RTE), c'est bien vérifié
     demand_elec_RTE_noP2G = demand + adjust_demand  # we adjust demand profile to obtain the correct total amount of demand based on RTE projections without P2G
 
     hourly_residential_heating_RTE = create_hourly_residential_demand_profile(demand_residential_heating * 1e3,
@@ -390,10 +390,48 @@ def extract_hourly_generation(model, elec_demand, CH4_demand, H2_demand, convers
         hourly_generation[str_in] = value(model.storage[str, :])  # GWh
     for str, str_charge in zip(list(model.str), list_storage_charge):
         hourly_generation[str_charge] = value(model.stored[str, :])  # GWh
-    # We add technologies which include a conversion parameter, to express their hourly generation in TWh-e
+    # We add technologies which include a conversion parameter, to express their hourly generation in GWh-e
     hourly_generation["electrolysis_elec"] = value(model.gene["electrolysis", :]) / conversion_efficiency["electrolysis"]
     hourly_generation["methanation_elec"] = value(model.gene["methanation", :]) / conversion_efficiency["methanation"]
     return hourly_generation  # GWh
+
+
+def get_carbon_content(hourly_generation, conversion, emission_rate=0.2295, climate=2006, nb_years=1):
+    """Estimates the carbon content of gas and of electric heating, based on methodology by ADEME and RTE (méthode moyenne horaire).
+    Returns the result in gCO2/kWh"""
+    assert 'heat_elec' in hourly_generation.columns, "Column heat_elec should be included to estimate carbon content of electric heating"
+
+    # Estimate carbon content of gas
+    gas_carbon_content = (hourly_generation['natural_gas'].sum() * emission_rate) / (hourly_generation['natural_gas'] +
+                                                                                     hourly_generation['methanization'] + hourly_generation['pyrogazification']).sum()
+    elec_gene = ["offshore_f", "offshore_g", "onshore", "pv_g", "pv_c", "river", "lake", "nuclear", "phs", "battery1",
+                 "battery4", "ocgt", "ccgt", "h2_ccgt"]
+    tot_cols = elec_gene + ['heat_elec']
+    # hourly_generation = hourly_generation[tot_cols]
+
+    hourly_generation['carbon_content'] = hourly_generation.apply(lambda row: (row['ocgt'] / conversion['ocgt'] * gas_carbon_content + row['ccgt'] /  conversion['ccgt'] * gas_carbon_content) / sum(
+            row[tec] for tec in elec_gene), axis=1)
+    tot_heat_elec = hourly_generation.heat_elec.sum()
+    hourly_generation['carbon_content_heat'] = hourly_generation.apply(lambda row: row['carbon_content'] * row['heat_elec'] / tot_heat_elec, axis=1)
+    heat_elec_carbon_content = hourly_generation.carbon_content_heat.sum()
+
+    if nb_years <= 1:
+        hourly_generation["date"] = hourly_generation.apply(lambda row: datetime.datetime(climate, 1, 1, 0) + datetime.timedelta(hours=row["hour"]),
+            axis=1)
+        hourly_generation["date_only"] = hourly_generation["date"].apply(lambda x: x.date())
+
+        hourly_generation_day = hourly_generation.copy().groupby("date_only")[
+            elec_gene + ['heat_elec']].sum().reset_index()
+        hourly_generation_day['carbon_content'] = hourly_generation_day.apply(
+            lambda row: (row['ocgt'] / 0.4 * gas_carbon_content + row['ccgt'] / 0.57 * gas_carbon_content) / sum(row[tec] for tec in elec_gene), axis=1)
+
+        hourly_generation_day['carbon_content_heat'] = hourly_generation_day.apply(lambda row: row['carbon_content'] * row['heat_elec'] / tot_heat_elec, axis=1)
+
+        heat_elec_carbon_content_day = hourly_generation_day.carbon_content_heat.sum()
+    else:
+        heat_elec_carbon_content_day = 0
+
+    return gas_carbon_content * 1e3, heat_elec_carbon_content * 1e3, heat_elec_carbon_content_day * 1e3
 
 
 def extract_peak_load(hourly_generation:pd.DataFrame, conversion_efficiency, input_years):
@@ -1369,7 +1407,7 @@ def create_configs_coupling(list_design, config_coupling: dict, config_additiona
         for design in list_design:
             name_config = config_additional['name_config']
             name_config = f"{design}_{name_config}"
-            if config_additional['subsidies_heater'] is not None:  # in this case, we have specified the value for the subsidies in the configuration file, for each design.
+            if config_additional['subsidies_heater'] is not None:  # in this case, we have specified the value for the subsidies in the configuration file, for each design, as a dictionary. There should be a function to extract those values.
                 sub_heater = config_additional['subsidies_heater'][design]
             else:
                 sub_heater = None

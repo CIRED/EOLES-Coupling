@@ -1024,9 +1024,9 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
     conversion_generation_df = pd.DataFrame(index=index_conversion_prod, dtype=float)
     charging_capacity_df = pd.DataFrame(index=existing_charging_capacity_historical.index, dtype=float)
     energy_capacity_df = pd.DataFrame(index=existing_energy_capacity_historical.index, dtype=float)
-    spot_price_df = pd.DataFrame(dtype=float)
+    spot_price_df, hourly_generation_2050 = pd.DataFrame(dtype=float), pd.DataFrame()
     peak_electricity_load_df, peak_heat_load_df = pd.DataFrame(dtype=float), pd.DataFrame(dtype=float)
-    hourly_generation_2050 = pd.DataFrame()
+    carbon_content_df = pd.DataFrame(dtype=float)
 
     weighted_average_elec_price, weighted_average_CH4_price, weighted_average_H2_price = [], [], []
     list_lcoe_elec, list_lcoe_elec_volume, list_lcoe_elec_value, list_lcoe_CH4, list_lcoe_CH4_volume, list_lcoe_CH4_value, list_lcoe_CH4_noSCC, list_lcoe_CH4_volume_noSCC = [], [], [], [], [], [], [], []
@@ -1405,6 +1405,13 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
             if anticipated_year_eoles == 2050:
                 hourly_generation_2050 = m_eoles.hourly_generation
 
+            # Carbon content
+            gas_carbon_content, heat_elec_carbon_content, heat_elec_carbon_content_day = m_eoles.gas_carbon_content, m_eoles.heat_elec_carbon_content, m_eoles.heat_elec_carbon_content_day
+            carbon_content = pd.Series(data=[gas_carbon_content, heat_elec_carbon_content, heat_elec_carbon_content_day], index=['Gas carbon content', 'Electric heating carbon content', 'Electric heating carbon content daily'])
+            carbon_content_df = pd.concat([carbon_content_df, carbon_content.to_frame().rename(columns={0: anticipated_year_eoles})], axis=1)
+            # new_capacity_df = pd.concat(
+            #     [new_capacity_df, new_capacity.to_frame().rename(columns={0: anticipated_year_eoles})], axis=1)
+
             #### Get annuity and functionment cost corresponding to each technology
             new_capacity_annualized_costs_nofOM = m_eoles.new_capacity_annualized_costs_nofOM / 1000  # 1e9 € / yr
             new_capacity_annualized_costs_nofOM = pd.concat([new_capacity_annualized_costs_nofOM,
@@ -1573,7 +1580,8 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
             "Stock global ResIRF ()": stock_global_ResIRF,
             "Spot price EOLES (€ / MWh)": spot_price_df,
             "Hourly generation 2050 (GWh)": hourly_generation_2050,
-            "Energy prices (€/kWh)": inputs_dynamics['energy_prices']
+            "Energy prices (€/kWh)": inputs_dynamics['energy_prices'],
+            "Carbon content (gC02/kWh)": carbon_content_df
         }
 
         if couplingparam.price_feedback:

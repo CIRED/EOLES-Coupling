@@ -493,7 +493,7 @@ if __name__ == '__main__':
             config_coupling = json.load(file)
 
         list_design = ['uniform', 'centralized_insulation', 'DR']
-        list_design = ['uniform']
+        list_design = None
 
         # # Cas spécifique où on vient extraire la valeur de subventions qui ont été optimisées au préalable
         # config_coupling['subsidies_specified'] = True  # we specify that subsidies are given
@@ -513,7 +513,7 @@ if __name__ == '__main__':
             matching_files = glob.glob(str(pattern_path))
             # config_files.extend(glob.glob(str(pattern_path)))
 
-            # Loop through the matching files and exclude those that match any exclude pattern
+            # Loop through the matching files and exclude those that match any exclude pattern, notably the base.json file
             for file in matching_files:
                 if all(file_match not in file for file_match in args.exclude_patterns):
                     config_files.append(file)

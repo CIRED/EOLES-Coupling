@@ -14,7 +14,7 @@ from eoles.utils import get_pandas, process_RTE_demand, calculate_annuities_cape
     extract_use_elec, extract_renovation_rates, extract_heat_gene, calculate_LCOE_gene_tec, calculate_LCOE_conv_tec, \
     extract_charging_capacity, extract_annualized_costs_investment_new_capa, extract_CH4_to_power, extract_power_to_CH4, \
     extract_power_to_H2, extract_peak_load, extract_peak_heat_load, extract_annualized_costs_investment_new_capa_nofOM, \
-    extract_functionment_cost, extract_carbon_value, extract_H2_to_power
+    extract_functionment_cost, extract_carbon_value, extract_H2_to_power, get_carbon_content
 from pyomo.environ import (
     ConcreteModel,
     RangeSet,
@@ -446,19 +446,27 @@ class ModelEOLES():
             during one hour cannot exceed the charging capacity."""
             return model.storage[storage_tecs, h] <= model.charging_capacity[storage_tecs]
 
-        def hydrogen_discharge_constraint_rule(model, h):
+        def hydrogen_discharge_constraint_rule(model):
             """Constraint on discharge capacity of hydrogen. This is a bit ad hoc, based on discussions with Marie-Alix,
             and some extrapolations for the future capacity of hydrogen.
             We know that for an energy capacity of 3 TWh, we have a maximum injection capacity of 26 GW. So we adapt this value
             to the new energy capacity."""
-            return model.gene["hydrogen", h] <= model.energy_capacity['hydrogen'] * 26 / 3000
+            return model.capacity["hydrogen"] <= model.energy_capacity['hydrogen'] * 26 / 3000
 
-        def hydrogen_charge_constraint_rule(model, h):
+        def hydrogen_charge_constraint_rule(model):
             """Constraint on charging capacity of hydrogen. This is a bit ad hoc, based on discussions with Marie-Alix,
             and some extrapolations for the future capacity of hydrogen.
             We know that for an energy capacity of 3 TWh, we have a maximum injection capacity of 6.4 GW. So we adapt this value
             to the new energy capacity."""
-            return model.storage["hydrogen", h] <= model.energy_capacity['hydrogen'] * 6.4 / 3000
+            return model.charging_capacity["hydrogen"] <= model.energy_capacity['hydrogen'] * 6.4 / 3000
+
+        def phs_charging_constraint_rule(model):
+            """We model a constraint on the charging capacity of PHS. Indeed, since we only have a CAPEX associated with the discharging
+            capacity, there is no limit to the discharging capacity. The only constraint is that the charging capacity
+            should be lower than the discharging capacity. We impose here something slightly more constraining for PHS. The value
+            is based on data from annex in RTE (p.898), where we calculate the ratio between the projected charging and
+            discharging capacity."""
+            return model.charging_capacity['phs'] <= model.capacity['phs'] * 0.91
 
         def battery_capacity_constraint_rule(model, battery):
             """Constraint on battery's capacity: battery charging capacity equals battery discharging capacity."""
@@ -588,9 +596,11 @@ class ModelEOLES():
             Constraint(self.model.h, self.model.str, rule=storage_charging_capacity_constraint_rule)
 
         # TODO: new rule
-        self.model.hydrogen_discharge_constraint = Constraint(self.model.h, rule=hydrogen_discharge_constraint_rule)
+        self.model.hydrogen_discharge_constraint = Constraint(rule=hydrogen_discharge_constraint_rule)
 
-        self.model.hydrogen_charge_constraint = Constraint(self.model.h, rule=hydrogen_charge_constraint_rule)
+        self.model.hydrogen_charge_constraint = Constraint(rule=hydrogen_charge_constraint_rule)
+
+        self.model.phs_charging_constraint = Constraint(rule=phs_charging_constraint_rule)
 
         self.model.battery_capacity_constraint = Constraint(self.model.battery, rule=battery_capacity_constraint_rule)
 
@@ -700,6 +710,8 @@ class ModelEOLES():
         self.hourly_generation = extract_hourly_generation(self.model, elec_demand=self.elec_demand,  CH4_demand=list(self.CH4_demand.values()),
                                                            H2_demand=list(self.H2_demand.values()), conversion_efficiency=self.conversion_efficiency,
                                                            hourly_heat_elec=self.hourly_heat_elec, hourly_heat_gas=self.hourly_heat_gas)
+        self.gas_carbon_content, self.heat_elec_carbon_content, self.heat_elec_carbon_content_day = \
+            get_carbon_content(self.hourly_generation, self.conversion_efficiency)
         self.peak_electricity_load_info = extract_peak_load(self.hourly_generation, self.conversion_efficiency, self.input_years)
         self.peak_heat_load_info = extract_peak_heat_load(self.hourly_generation, self.input_years)
         self.spot_price = extract_spot_price(self.model, self.last_hour)

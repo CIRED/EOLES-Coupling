@@ -8,7 +8,7 @@
     "fix_sub_heater": false,
     "fix_sub_insulation": false,
     "list_year": [2020, 2025, 2030, 2035, 2040, 2045],
-    "list_trajectory_scc": [100, 250, 350, 500, 650, 775],
+    "list_trajectory_scc": [0, 250, 350, 500, 650, 775],
     "acquisition_jitter": 0.02,
     "eoles": {
         "biomass_potential_scenario": "S3",
