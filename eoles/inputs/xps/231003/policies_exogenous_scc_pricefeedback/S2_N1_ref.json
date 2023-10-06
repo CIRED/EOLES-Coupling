@@ -21,5 +21,6 @@
     "district_heating_potential": null,
     "dict_configs": null,
     "cap_MWh": 1000,
-    "cap_tCO2": 2000
+    "cap_tCO2": 2000,
+    "demand_scenario": "Reference"
 }

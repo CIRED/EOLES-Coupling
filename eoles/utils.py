@@ -1216,6 +1216,9 @@ def modif_config_eoles(config_eoles, config_coupling):
     assert config_coupling["eoles"]["biomass_potential_scenario"] in ["S3", "S2", "S2p"], "Biomass potential scenario is not specified correctly in config_coupling."
     config_eoles_update["biomass_potential_scenario"] = config_coupling["eoles"]["biomass_potential_scenario"]
 
+    assert config_coupling["eoles"]["demand_scenario"] in ["Reference", "Reindustrialisation", "Sobriete", "Electrification+"], "Demand scenario is not specified correctly in config_coupling."
+    config_eoles_update["demand_scenario"] = config_coupling["eoles"]["demand_scenario"]
+
     if 'carbon_budget' in config_coupling['eoles'].keys():
         carbon_budget_spec = config_coupling["eoles"]['carbon_budget']
         config_eoles_update["carbon_budget"] = f"eoles/inputs/technical/{carbon_budget_spec}.csv"
@@ -1340,7 +1343,7 @@ def check_required_keys_additional(config_additional):
     """
     required_keys = ['greenfield', 'prices_constant', 'price_feedback', 'lifetime_insulation', 'optim_eoles',
                      'electricity_constant', 'carbon_emissions_resirf', 'carbon_budget', 'carbon_budget_resirf', 'district_heating',
-                     'district_heating_potential', 'biomass_potential_scenario', 'aggregated_potential', 'maximum_capacity_scenario']
+                     'district_heating_potential', 'biomass_potential_scenario', 'demand_scenario', 'aggregated_potential', 'maximum_capacity_scenario']
     assert set(required_keys).issubset(config_additional.keys()), "Some required keys in config_additional are missing"
 
 
@@ -1369,6 +1372,7 @@ def create_configs_coupling(list_design, config_coupling: dict, config_additiona
     config_coupling_update['price_feedback'] = config_additional['price_feedback']
     config_coupling_update['lifetime_insulation'] = config_additional['lifetime_insulation']
     config_coupling_update['eoles']['biomass_potential_scenario'] = config_additional['biomass_potential_scenario']
+    config_coupling_update['eoles']['demand_scenario'] = config_additional['demand_scenario']
     config_coupling_update['eoles']['aggregated_potential'] = config_additional['aggregated_potential']
     config_coupling_update['eoles']['maximum_capacity_scenario'] = config_additional['maximum_capacity_scenario']
     config_coupling_update['optim_eoles'] = config_additional['optim_eoles']

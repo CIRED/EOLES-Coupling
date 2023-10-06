@@ -9,25 +9,25 @@
             "policy": "restriction_energy"
         },
         "obligation_po": {
-          "start": 2022,
-          "end": 2051,
-          "value": "project/input/policies/current/agenda_obligation_pb.csv",
-          "frequency": {
-            "value": [
-              0.1,
-              0,
-              0
-            ],
-            "index": [
-              "Owner-occupied",
-              "Privately rented",
-              "Social-housing"
-            ],
-            "name": "Occupancy status"
-          },
-          "intensive": "market_share",
-          "minimum_performance": "D",
-          "policy": "obligation"
+            "start": 2022,
+            "end": 2051,
+            "value": "project/input/policies/current/agenda_obligation_pb.csv",
+            "frequency": {
+                "value": [
+                    0.1,
+                    0,
+                    0
+                ],
+                "index": [
+                    "Owner-occupied",
+                    "Privately rented",
+                    "Social-housing"
+                ],
+                "name": "Occupancy status"
+            },
+            "intensive": "market_share",
+            "minimum_performance": "D",
+            "policy": "obligation"
         }
     },
     "greenfield": false,
@@ -48,5 +48,6 @@
     "district_heating_potential": null,
     "dict_configs": null,
     "cap_MWh": 1000,
-    "cap_tCO2": 2000
+    "cap_tCO2": 2000,
+    "demand_scenario": "Reference"
 }
