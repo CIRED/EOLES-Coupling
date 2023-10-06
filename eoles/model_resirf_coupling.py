@@ -755,12 +755,12 @@ class ModelEOLES():
                         'supply_elec': self.electricity_generation, 'primary_generation': self.primary_generation}
 
 
-def read_hourly_data(config, year, method="valentin"):
+def read_hourly_data(config, year, scenario='Reference', method="valentin"):
     """Reads data defined at the hourly scale"""
     load_factors = get_pandas(config["load_factors"],
                               lambda x: pd.read_csv(x, index_col=[0, 1], header=None).squeeze("columns"))
     demand = get_pandas(config["demand"], lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # GW
-    demand_no_residential = process_RTE_demand(config, year, demand, method=method)
+    demand_no_residential = process_RTE_demand(config, year, demand, scenario, method=method)
 
     lake_inflows = get_pandas(config["lake_inflows"],
                               lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # GWh

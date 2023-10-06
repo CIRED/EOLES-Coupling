@@ -10,6 +10,7 @@
   "carbon_budget_resirf": "eoles/inputs/technical/carbon_budget_resirf.csv",
   "conversion_efficiency": "eoles/inputs/technology_characteristics/conversion_efficiency.csv",
   "demand": "eoles/inputs/demand/demand2050_RTE.csv",
+  "demand_scenario": "Reindustrialisation",
   "demand_noP2G_RTE_timesteps": "eoles/inputs/demand/demand_noP2G_timesteps.csv",
   "demand_residential_heating_RTE_timesteps": "eoles/inputs/demand/demand_residential_heating_timesteps.csv",
   "demand_H2_timesteps": "eoles/inputs/demand/demand_H2_timesteps.csv",

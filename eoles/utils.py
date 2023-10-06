@@ -138,16 +138,20 @@ def load_evolution_data(config):
 
 ### Defining the model
 
-def process_RTE_demand(config, year, demand, method):
+def process_RTE_demand(config, year, demand, scenario, method):
+    """Create electricity demand profile, where we have excluded the residential heating demand, based on RTE projections."""
     demand_noP2G_RTE_timesteps = get_pandas(config["demand_noP2G_RTE_timesteps"],
-                                            lambda x: pd.read_csv(x, index_col=0).squeeze())
+                                            lambda x: pd.read_csv(x, index_col=[0,1]).squeeze())
+    # demand_noP2G_RTE = demand_noP2G_RTE_timesteps[year]  # in TWh
+    demand_noP2G_RTE = demand_noP2G_RTE_timesteps.loc[config["demand_scenario"]]
+    demand_noP2G_RTE = demand_noP2G_RTE[year]  # get specific potential for year of interest
+
     demand_residential_heating_RTE_timesteps = get_pandas(config["demand_residential_heating_RTE_timesteps"],
-                                                          lambda x: pd.read_csv(x, index_col=0).squeeze())
-    percentage_hourly_residential_heating_profile = get_pandas(config["percentage_hourly_residential_heating_profile"],
-                                                               lambda x: pd.read_csv(x, index_col=0,
-                                                                                     header=None).squeeze())
-    demand_noP2G_RTE = demand_noP2G_RTE_timesteps[year]  # in TWh
-    demand_residential_heating = demand_residential_heating_RTE_timesteps[year]  # in TWh
+                                                          lambda x: pd.read_csv(x, index_col=[0,1]).squeeze())
+
+    # demand_residential_heating = demand_residential_heating_RTE_timesteps[year]  # in TWh
+    demand_residential_heating = demand_residential_heating_RTE_timesteps.loc[config["demand_scenario"]]
+    demand_residential_heating = demand_residential_heating[year]  # get specific potential for year of interest
 
     assert math.isclose(demand.sum(), 580 * 1e3), "Total yearly demand is not correctly calculated."
     adjust_demand = (demand_noP2G_RTE * 1e3 - 580 * 1e3) / 8760  # 580TWh is the total of the profile we use as basis for electricity hourly demand (from RTE), c'est bien vérifié
