@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # List of config paths you want to iterate over
-config_dirs=("eoles/inputs/xps/231003/policies_exogenous_scc" "eoles/inputs/xps/231003/policies_exogenous_scc_priceconstant" "eoles/inputs/xps/231003/policies_exogenous_scc_pricefeedback")
+config_dirs=("eoles/inputs/xps/231003/policies_exogenous_cc_pricefeedback" "eoles/inputs/xps/231003/policies_exogenous_scc_pricefeedback")
 
 # Iterate over each config directory
 for config_dir in "${config_dirs[@]}"; do

@@ -1,4 +1,7 @@
 import matplotlib
+import seaborn as sns
+
+color_palette = sns.color_palette("colorblind", n_colors=10)
 
 resources_data = dict()
 
@@ -92,6 +95,20 @@ colors_resirf = {
     "Consumption saving insulation cumulated (TWh)": '#FBAFE4'
 }
 
+new_colors_eoles = {
+    'onshore': color_palette[2],
+    'offshore': color_palette[0],
+    'pv': color_palette[8],
+    'peaking plants': color_palette[5],
+    'nuclear': color_palette[7],
+    'hydro': color_palette[9],
+    'battery': color_palette[6],
+    'ocgt': color_palette[5],
+    'ccgt': color_palette[3],
+    'h2_ccgt': color_palette[1],
+    'phs': color_palette[4]
+}
+
 colors_eoles = {
     "electricity demand": 'red',
     "offshore_f": '#0173B2',
@@ -114,13 +131,15 @@ colors_eoles = {
     "phs charging": '#CC78BC',
     "battery1": "blue",
     "battery4": "blue",
-    "battery": "blue",
+    "battery": "pink",
     "battery_in": "blue",
     "battery charging": "blue",
     "battery_discharge": "#ECE133",
     "battery discharging": "#ECE133",
-    "ocgt": "#D55E00",
-    "ccgt": "#ECE133",
+    # "ocgt": "#D55E00",
+    "ocgt": "sandybrown",
+    "ccgt": "bisque",
+    # "ccgt": "#ECE133",
     "peaking plants": "saddlebrown",
     "methane": "black",
     "peaking_plants": "brown",
@@ -128,7 +147,8 @@ colors_eoles = {
     "natural_gas": "#949494",
     "methanization": "#CA9161",
     "biogas": "#CA9161",
-    "nuclear": "#D55E00",
+    # "nuclear": "#D55E00",
+    "nuclear": "gold",
     "electrolysis": "#0173B2",
     "methanation": "purple",
     "pyrogazification": "#0173B2",
@@ -183,3 +203,4 @@ colors_eoles = {
 
 resources_data["colors_resirf"] = colors_resirf
 resources_data["colors_eoles"] = colors_eoles
+resources_data["new_colors_eoles"] = new_colors_eoles
