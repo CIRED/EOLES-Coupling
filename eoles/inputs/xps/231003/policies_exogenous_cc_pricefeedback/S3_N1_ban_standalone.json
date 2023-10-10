@@ -1,5 +1,5 @@
 {
-    "name_config": "S3_N1_ban_cc_pricefeedback",
+    "name_config": "S3_N1_ban_standalone_cc_pricefeedback",
     "policies": {
         "file": "project/input/policies/current/policies_ref.json",
         "restriction_standalone_gas": {
