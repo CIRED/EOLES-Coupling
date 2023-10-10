@@ -1,5 +1,5 @@
 {
-    "name_config": "S2p_N1_ref_cc_pricefeedback",
+    "name_config": "S2p_N1_reindus_ref_cc_pricefeedback",
     "policies": {
         "file": "project/input/policies/current/policies_ref.json"
     },

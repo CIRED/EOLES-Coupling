@@ -1,5 +1,5 @@
 {
-    "name_config": "S2p_N1_restrictiongas_cc_pricefeedback",
+    "name_config": "S2p_N1_reindus_ban_cc_pricefeedback",
     "policies": {
         "file": "project/input/policies/current/policies_ref.json",
         "restriction_gas": {
@@ -28,5 +28,5 @@
     "dict_configs": null,
     "cap_MWh": 1000,
     "cap_tCO2": 2000,
-    "demand_scenario": "Reference"
+    "demand_scenario": "Reindustrialisation"
 }

@@ -1,5 +1,5 @@
 {
-    "name_config": "S2p_N1_restrictiongas_restrictionreno_cc_pricefeedback",
+    "name_config": "S3_N1_ban_cc_pricefeedback",
     "policies": {
         "file": "project/input/policies/current/policies_ref.json",
         "restriction_gas": {
@@ -7,33 +7,12 @@
             "end": 2051,
             "value": "Natural gas",
             "policy": "restriction_energy"
-        },
-        "obligation_po": {
-            "start": 2022,
-            "end": 2051,
-            "value": "project/input/policies/current/agenda_obligation_pb.csv",
-            "frequency": {
-                "value": [
-                    0.1,
-                    0,
-                    0
-                ],
-                "index": [
-                    "Owner-occupied",
-                    "Privately rented",
-                    "Social-housing"
-                ],
-                "name": "Occupancy status"
-            },
-            "intensive": "market_share",
-            "minimum_performance": "D",
-            "policy": "obligation"
         }
     },
     "greenfield": false,
     "prices_constant": false,
     "price_feedback": true,
-    "biomass_potential_scenario": "S2p",
+    "biomass_potential_scenario": "S3",
     "aggregated_potential": true,
     "maximum_capacity_scenario": "N1",
     "lifetime_insulation": 5,

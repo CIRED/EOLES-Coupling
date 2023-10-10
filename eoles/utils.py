@@ -1285,6 +1285,9 @@ def modif_config_resirf(config_resirf, config_coupling):
         assert Path(config_coupling['carbon_emissions_resirf']).is_file(), "Carbon emissions as specified are not a correct file"
         config_resirf_update['energy']['carbon_emission'] = config_coupling['carbon_emissions_resirf']
 
+    if 'method_health_cost' in config_coupling.keys():  # in that case, we specify the method to estimate health costs
+        config_resirf_update['method_health_cost'] = config_coupling['method_health_cost']
+
     if 'policies' in config_coupling.keys():
         config_resirf_update['policies'] = config_coupling['policies']
 
@@ -1382,6 +1385,9 @@ def create_configs_coupling(list_design, config_coupling: dict, config_additiona
     carbon_budget_resirf = config_additional['carbon_budget_resirf']
     district_heating = config_additional['district_heating']
     district_heating_potential = config_additional['district_heating_potential']
+
+    if 'method_health_cost' in config_additional.keys():
+        config_coupling_update['method_health_cost'] = config_additional['method_health_cost']
 
     if "policies" in config_additional.keys():  # we update the default policies in ResIRF
         policies = config_additional["policies"]

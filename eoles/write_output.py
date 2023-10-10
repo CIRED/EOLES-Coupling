@@ -229,6 +229,7 @@ def plot_comparison_savings(df, x, y, save, col_for_size, smallest_size=100, big
     relative_size = list(df[col_for_size])
     s_min, s_max = min(relative_size), max(relative_size)
     size = [smallest_size + (biggest_size - smallest_size)/(s_max - s_min) * (s - s_min) for s in relative_size]
+    x_max, y_max = df[x].max() * 1.1, df[y].max() * 1.1
 
     scatter = ax.scatter(x=df[x], y=df[y], s=size, c=sns.color_palette(n_colors=len(df.index)))
     # for scenario, v in df.iterrows():
@@ -409,7 +410,6 @@ def comparison_simulations_new(dict_output: dict, ref, greenfield=False, health=
                     # selected_capacities = ["offshore_f", "offshore_g", "onshore", "pv_g", "pv_c", "battery1", "battery4"]
                     # capacities_df = capacities_df[selected_capacities]
                     capacities_df.loc["offshore"] = capacities_df.loc["offshore_f"] + capacities_df.loc["offshore_g"]
-                    capacities_df
                     capacities_df.loc["pv"] = capacities_df.loc["pv_g"] + capacities_df.loc["pv_c"]
                     capacities_df.loc["battery"] = capacities_df.loc["battery1"] + capacities_df.loc["battery4"]
                     capacities_df.loc['hydro'] = capacities_df.loc['river'] + capacities_df.loc['lake']
@@ -727,108 +727,111 @@ def comparison_simulations_new(dict_output: dict, ref, greenfield=False, health=
                                 ranking_policy_scenario=ranking_policy_scenario)
 
     # Energy generation
-    if save_path is None:
-        save_path_plot = None
-    else:
-        save_path_plot = os.path.join(save_path, f"electricity_generation.{extension}")
+    try:  # those graphs cannot be made if we have multiple exogenous scenarios in addition
+        if save_path is None:
+            save_path_plot = None
+        else:
+            save_path_plot = os.path.join(save_path, f"electricity_generation.{extension}")
 
-    make_clusterstackedbar_plot(generation_evolution_df, groupby='Technology', subset=elec_gene,
-                                y_label="Electricity generation (TWh)",
-                                colors=resources_data["new_colors_eoles"], format_y=lambda y, _: '{:.0f}'.format(y),
-                                dict_legend=DICT_TRANSFORM_LEGEND, save=save_path_plot,
-                                ranking_policy_scenario=ranking_policy_scenario
-                                )
+        make_clusterstackedbar_plot(generation_evolution_df, groupby='Technology', subset=elec_gene,
+                                    y_label="Electricity generation (TWh)",
+                                    colors=resources_data["new_colors_eoles"], format_y=lambda y, _: '{:.0f}'.format(y),
+                                    dict_legend=DICT_TRANSFORM_LEGEND, save=save_path_plot,
+                                    ranking_policy_scenario=ranking_policy_scenario
+                                    )
 
-    if save_path is None:
-        save_path_plot = None
-    else:
-        save_path_plot = os.path.join(save_path, f"gas_generation.{extension}")
+        if save_path is None:
+            save_path_plot = None
+        else:
+            save_path_plot = os.path.join(save_path, f"gas_generation.{extension}")
 
-    make_clusterstackedbar_plot(generation_evolution_df, groupby='Technology', subset=gas_gene,
-                                y_label="Gas generation (TWh)",
-                                colors=resources_data["colors_eoles"], format_y=lambda y, _: '{:.0f}'.format(y),
-                                dict_legend=DICT_TRANSFORM_LEGEND, save=save_path_plot,
-                                ranking_policy_scenario=ranking_policy_scenario
-                                )
+        make_clusterstackedbar_plot(generation_evolution_df, groupby='Technology', subset=gas_gene,
+                                    y_label="Gas generation (TWh)",
+                                    colors=resources_data["colors_eoles"], format_y=lambda y, _: '{:.0f}'.format(y),
+                                    dict_legend=DICT_TRANSFORM_LEGEND, save=save_path_plot,
+                                    ranking_policy_scenario=ranking_policy_scenario
+                                    )
 
-    reference_rows = generation_evolution_df.loc[generation_evolution_df.index.get_level_values('Policy scenario') == ref]
-    generation_elec_diff_df = generation_evolution_df.subtract(reference_rows.reset_index(level=1, drop=True), level=0)
+        reference_rows = generation_evolution_df.loc[generation_evolution_df.index.get_level_values('Policy scenario') == ref]
+        generation_elec_diff_df = generation_evolution_df.subtract(reference_rows.reset_index(level=1, drop=True), level=0)
 
-    if save_path is None:
-        save_path_plot = None
-    else:
-        save_path_plot = os.path.join(save_path, f"electricity_generation_difference.{extension}")
+        if save_path is None:
+            save_path_plot = None
+        else:
+            save_path_plot = os.path.join(save_path, f"electricity_generation_difference.{extension}")
 
-    make_clusterstackedbar_plot(generation_elec_diff_df, groupby='Technology', subset=elec_gene,
-                                y_label="Electricity generation (TWh)",
-                                colors=resources_data["new_colors_eoles"], format_y=lambda y, _: '{:.0f}'.format(y),
-                                dict_legend=DICT_TRANSFORM_LEGEND, save=save_path_plot, ref=ref,
-                                drop=True, hline=True, ranking_policy_scenario=ranking_policy_scenario)
+        make_clusterstackedbar_plot(generation_elec_diff_df, groupby='Technology', subset=elec_gene,
+                                    y_label="Electricity generation (TWh)",
+                                    colors=resources_data["new_colors_eoles"], format_y=lambda y, _: '{:.0f}'.format(y),
+                                    dict_legend=DICT_TRANSFORM_LEGEND, save=save_path_plot, ref=ref,
+                                    drop=True, hline=True, ranking_policy_scenario=ranking_policy_scenario)
 
-    if save_path is None:
-        save_path_plot = None
-    else:
-        save_path_plot = os.path.join(save_path, f"gas_generation_difference.{extension}")
+        if save_path is None:
+            save_path_plot = None
+        else:
+            save_path_plot = os.path.join(save_path, f"gas_generation_difference.{extension}")
 
-    make_clusterstackedbar_plot(generation_elec_diff_df, groupby='Technology', subset=gas_gene,
-                                y_label="Gas generation (TWh)",
-                                colors=resources_data["colors_eoles"], format_y=lambda y, _: '{:.0f}'.format(y),
-                                dict_legend=DICT_TRANSFORM_LEGEND, save=save_path_plot, ref=ref,
-                                drop=True, hline=True, ranking_policy_scenario=ranking_policy_scenario)
+        make_clusterstackedbar_plot(generation_elec_diff_df, groupby='Technology', subset=gas_gene,
+                                    y_label="Gas generation (TWh)",
+                                    colors=resources_data["colors_eoles"], format_y=lambda y, _: '{:.0f}'.format(y),
+                                    dict_legend=DICT_TRANSFORM_LEGEND, save=save_path_plot, ref=ref,
+                                    drop=True, hline=True, ranking_policy_scenario=ranking_policy_scenario)
 
-    # Capacity evolution
-    if save_path is None:
-        save_path_plot = None
-    else:
-        save_path_plot = os.path.join(save_path, f"electricity_capacity.{extension}")
+        # Capacity evolution
+        if save_path is None:
+            save_path_plot = None
+        else:
+            save_path_plot = os.path.join(save_path, f"electricity_capacity.{extension}")
 
-    subset_elec = ['onshore', 'offshore', 'pv', 'nuclear', 'hydro', 'peaking plants']
-    make_clusterstackedbar_plot(capacities_evolution_df, groupby='Technology', subset=subset_elec,
-                                y_label="Electricity capacity (GW)",
-                                colors=resources_data["new_colors_eoles"], format_y=lambda y, _: '{:.0f}'.format(y),
-                                dict_legend=DICT_TRANSFORM_LEGEND, save=save_path_plot,
-                                ranking_policy_scenario=ranking_policy_scenario
-                                )
+        subset_elec = ['onshore', 'offshore', 'pv', 'nuclear', 'hydro', 'peaking plants']
+        make_clusterstackedbar_plot(capacities_evolution_df, groupby='Technology', subset=subset_elec,
+                                    y_label="Electricity capacity (GW)",
+                                    colors=resources_data["new_colors_eoles"], format_y=lambda y, _: '{:.0f}'.format(y),
+                                    dict_legend=DICT_TRANSFORM_LEGEND, save=save_path_plot,
+                                    ranking_policy_scenario=ranking_policy_scenario
+                                    )
 
-    reference_rows = capacities_evolution_df.loc[capacities_evolution_df.index.get_level_values('Policy scenario') == ref]
-    capacities_evolution_diff_df = capacities_evolution_df.subtract(reference_rows.reset_index(level=1, drop=True), level=0)
+        reference_rows = capacities_evolution_df.loc[capacities_evolution_df.index.get_level_values('Policy scenario') == ref]
+        capacities_evolution_diff_df = capacities_evolution_df.subtract(reference_rows.reset_index(level=1, drop=True), level=0)
 
-    if save_path is None:
-        save_path_plot = None
-    else:
-        save_path_plot = os.path.join(save_path, f"electricity_capacity_difference.{extension}")
+        if save_path is None:
+            save_path_plot = None
+        else:
+            save_path_plot = os.path.join(save_path, f"electricity_capacity_difference.{extension}")
 
-    make_clusterstackedbar_plot(capacities_evolution_diff_df, groupby='Technology', subset=subset_elec,
-                                y_label="Electricity capacity (GW)",
-                                colors=resources_data["new_colors_eoles"], format_y=lambda y, _: '{:.0f}'.format(y),
-                                dict_legend=DICT_TRANSFORM_LEGEND, save=save_path_plot, ref=ref,
-                                drop=True, hline=True, ranking_policy_scenario=ranking_policy_scenario)
+        make_clusterstackedbar_plot(capacities_evolution_diff_df, groupby='Technology', subset=subset_elec,
+                                    y_label="Electricity capacity (GW)",
+                                    colors=resources_data["new_colors_eoles"], format_y=lambda y, _: '{:.0f}'.format(y),
+                                    dict_legend=DICT_TRANSFORM_LEGEND, save=save_path_plot, ref=ref,
+                                    drop=True, hline=True, ranking_policy_scenario=ranking_policy_scenario)
 
-    # Flexible capacity evolution
-    if save_path is None:
-        save_path_plot = None
-    else:
-        save_path_plot = os.path.join(save_path, f"flexible_capacity.{extension}")
+        # Flexible capacity evolution
+        if save_path is None:
+            save_path_plot = None
+        else:
+            save_path_plot = os.path.join(save_path, f"flexible_capacity.{extension}")
 
-    subset_flex = ['nuclear', "phs", 'battery', 'ocgt', 'ccgt', 'h2_ccgt']
-    make_clusterstackedbar_plot(capacities_evolution_df, groupby='Technology', subset=subset_flex,
-                                y_label="Flexible capacity (GW)",
-                                colors=resources_data["new_colors_eoles"], format_y=lambda y, _: '{:.0f}'.format(y),
-                                dict_legend=DICT_TRANSFORM_LEGEND, save=save_path_plot,
-                                ranking_policy_scenario=ranking_policy_scenario
-                                )
+        subset_flex = ['nuclear', "phs", 'battery', 'ocgt', 'ccgt', 'h2_ccgt']
+        make_clusterstackedbar_plot(capacities_evolution_df, groupby='Technology', subset=subset_flex,
+                                    y_label="Flexible capacity (GW)",
+                                    colors=resources_data["new_colors_eoles"], format_y=lambda y, _: '{:.0f}'.format(y),
+                                    dict_legend=DICT_TRANSFORM_LEGEND, save=save_path_plot,
+                                    ranking_policy_scenario=ranking_policy_scenario
+                                    )
 
-    if save_path is None:
-        save_path_plot = None
-    else:
-        save_path_plot = os.path.join(save_path, f"flexible_capacity_difference.{extension}")
+        if save_path is None:
+            save_path_plot = None
+        else:
+            save_path_plot = os.path.join(save_path, f"flexible_capacity_difference.{extension}")
 
-    make_clusterstackedbar_plot(capacities_evolution_diff_df, groupby='Technology', subset=subset_flex,
-                                y_label="Flexible capacity (GW)",
-                                colors=resources_data["new_colors_eoles"], format_y=lambda y, _: '{:.0f}'.format(y),
-                                dict_legend=DICT_TRANSFORM_LEGEND, save=save_path_plot, ref=ref,
-                                drop=True, hline=True, ranking_policy_scenario=ranking_policy_scenario)
+        make_clusterstackedbar_plot(capacities_evolution_diff_df, groupby='Technology', subset=subset_flex,
+                                    y_label="Flexible capacity (GW)",
+                                    colors=resources_data["new_colors_eoles"], format_y=lambda y, _: '{:.0f}'.format(y),
+                                    dict_legend=DICT_TRANSFORM_LEGEND, save=save_path_plot, ref=ref,
+                                    drop=True, hline=True, ranking_policy_scenario=ranking_policy_scenario)
 
+    except:
+        pass
     # Total consumption savings
     if save_path is None:
         save_path_plot = None

@@ -1,14 +1,24 @@
 {
-    "name_config": "S2p_N1_reindus_ambitious_cc_pricefeedback",
+    "name_config": "S2p_Opt_ban_cc_pricefeedback",
     "policies": {
-        "file": "project/input/policies/current/policies_ambitious.json"
+        "file": "project/input/policies/current/policies_ref.json",
+        "restriction_standalone_gas": {
+            "start": 2025,
+            "end": 2051,
+            "value": [
+                "Natural gas-Standard boiler",
+                "Natural gas-Performance boiler"
+            ],
+            "policy": "restriction_heater",
+            "target": "Single-family"
+        }
     },
     "greenfield": false,
     "prices_constant": false,
     "price_feedback": true,
     "biomass_potential_scenario": "S2p",
     "aggregated_potential": true,
-    "maximum_capacity_scenario": "N1",
+    "maximum_capacity_scenario": "Opt",
     "lifetime_insulation": 5,
     "subsidies_heater": null,
     "subsidies_insulation": null,
@@ -22,5 +32,5 @@
     "dict_configs": null,
     "cap_MWh": 1000,
     "cap_tCO2": 2000,
-    "demand_scenario": "Reindustrialisation"
+    "demand_scenario": "Reference"
 }
