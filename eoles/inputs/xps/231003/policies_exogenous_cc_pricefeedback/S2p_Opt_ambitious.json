@@ -1,5 +1,5 @@
 {
-    "name_config": "S2p_Opt_ambitious_cc_pricefeedback",
+    "name_config": "S2p_Opt_ambitious_cc_pricefeedback_hcDPE",
     "policies": {
         "file": "project/input/policies/current/policies_ambitious.json"
     },
@@ -22,5 +22,6 @@
     "dict_configs": null,
     "cap_MWh": 1000,
     "cap_tCO2": 2000,
-    "demand_scenario": "Reference"
+    "demand_scenario": "Reference",
+    "method_health_cost": "epc"
 }

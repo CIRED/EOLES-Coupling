@@ -4,6 +4,23 @@ import os
 from datetime import datetime
 
 
+####### Processing historical data #########
+file_eco2mix = ['eoles/inputs/hourly_profiles/eCO2mix_RTE_Annuel-Definitif_2013.csv',
+                'eoles/inputs/hourly_profiles/eCO2mix_RTE_Annuel-Definitif_2014.csv',
+                'eoles/inputs/hourly_profiles/eCO2mix_RTE_Annuel-Definitif_2015.csv',
+                'eoles/inputs/hourly_profiles/eCO2mix_RTE_Annuel-Definitif_2016.csv',
+                'eoles/inputs/hourly_profiles/eCO2mix_RTE_Annuel-Definitif_2017.csv',
+                'eoles/inputs/hourly_profiles/eCO2mix_RTE_Annuel-Definitif_2018.csv']
+for file in file_eco2mix:
+    eco2mix = pd.read_csv(file, delimiter=';')
+    eco2mix = eco2mix.rename(columns={
+        'PÈrimËtre': 'Perimetre',
+        'NuclÈaire': 'Nucleaire'
+    })
+    eco2mix['capa_nuc'] = (63.1 - 1.6) * 1e3
+    eco2mix['capacity_factor'] = eco2mix['Nucleaire'] / eco2mix['capa_nuc']
+    print(eco2mix.capacity_factor.describe(percentiles=[.1, .25, .5, .75, .9]))  # we display the distribution of capacity factors for nuclear
+
 ############# Extract required years  #############
 ############# Extract required years for renewable data #########
 vre_profiles_initial = pd.read_csv('eoles/inputs/hourly_profiles/vre_profiles_2000-2019.csv', index_col=0).reset_index()

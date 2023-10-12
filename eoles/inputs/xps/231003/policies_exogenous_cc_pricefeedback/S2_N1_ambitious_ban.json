@@ -1,5 +1,5 @@
 {
-    "name_config": "S2_N1_ambitious_ban_cc_pricefeedback",
+    "name_config": "S2_N1_ambitious_ban_cc_pricefeedback_hcDPE",
     "policies": {
         "file": "project/input/policies/current/policies_ambitious.json",
         "restriction_gas": {
@@ -9,7 +9,6 @@
             "policy": "restriction_energy"
         }
     },
-    "method_health_cost": "epc",
     "greenfield": false,
     "prices_constant": false,
     "price_feedback": true,
@@ -29,5 +28,6 @@
     "dict_configs": null,
     "cap_MWh": 1000,
     "cap_tCO2": 2000,
-    "demand_scenario": "Reference"
+    "demand_scenario": "Reference",
+    "method_health_cost": "epc"
 }

@@ -116,90 +116,6 @@ def save_simulation_results(output, buildings, name_config_coupling, config_coup
     return export_results, output["Output global ResIRF ()"]
 
 
-def run_exogenous_scenario(config_coupling, name_config_coupling="default"):
-    """Function used to run the scenario without optimization. We assume here that config_resirf is already a
-    dictionary which was modified before."""
-    config_resirf = config_coupling["config_resirf"]
-    config_eoles = eoles.utils.get_config(spec="eoles_coupling")
-    config_eoles, config_coupling = modif_config_eoles(config_eoles, config_coupling)
-
-    list_year = config_coupling["list_year"]
-    list_trajectory_scc = config_coupling["list_trajectory_scc"]  # SCC trajectory
-
-    anticipated_demand_t10 = False
-    if "anticipated_demand_t10" in config_coupling.keys():
-        anticipated_demand_t10 = config_coupling["anticipated_demand_t10"]
-
-    anticipated_scc = False
-    if "anticipated_scc" in config_coupling.keys():
-        anticipated_scc = config_coupling["anticipated_scc"]
-
-    price_feedback = False
-    if "price_feedback" in config_coupling.keys():
-        price_feedback = config_coupling["price_feedback"]
-
-    aggregated_potential = False
-    if "aggregated_potential" in config_coupling.keys():
-        aggregated_potential = config_coupling["aggregated_potential"]
-
-    cofp = False
-    if "cofp" in config_coupling.keys():
-        cofp = config_coupling["cofp"]
-
-    # initialization ResIRF
-    buildings, inputs_dynamics, policies_heater, policies_insulation = ini_res_irf(
-        path=os.path.join('eoles', 'outputs', 'ResIRF'),
-        config=config_resirf,
-        level_logger=logging.NOTSET
-    )
-
-    energy_taxes, energy_vta = get_energy_prices_and_taxes(config_resirf)
-    calibration_elec_lcoe, calibration_elec_transport_distrib, calibration_gas, m_eoles = calibration_price(
-        config_eoles, scc=100)
-    config_coupling["calibration_elec_lcoe"] = calibration_elec_lcoe
-    config_coupling["calibration_elec_transport_distrib"] = calibration_elec_transport_distrib
-    config_coupling["calibration_naturalgas_lcoe"] = calibration_gas
-    config_coupling["calibration_biogas_lcoe"] = 1.2
-
-    if "greenfield" in config_coupling.keys():  # we optimize in a greenfield manner
-        assert config_coupling[
-            "greenfield"], "Parameter greenfield can only be True for the time being, when specified in config."
-        print("Greenfield")
-        output, buildings, dict_optimizer = resirf_eoles_coupling_greenfield(buildings, inputs_dynamics,
-                                                                             policies_heater, policies_insulation,
-                                                                             scc=775, scenario_cost=config_coupling["scenario_cost_eoles"],
-                                                                             config_eoles=config_eoles,
-                                                                             config_coupling=config_coupling,
-                                                                             add_CH4_demand=False,
-                                                                             optimization=False,
-                                                                             list_sub_heater=[0.0],
-                                                                             list_sub_insulation=[0.0]
-                                                                             )
-    else:
-        output, buildings, dict_optimizer = resirf_eoles_coupling_dynamic(buildings, inputs_dynamics,
-                                                                          policies_heater, policies_insulation,
-                                                                          list_year, list_trajectory_scc,
-                                                                          scenario_cost=config_coupling["scenario_cost_eoles"],
-                                                                          config_eoles=config_eoles,
-                                                                          config_coupling=config_coupling,
-                                                                          add_CH4_demand=False,
-                                                                          anticipated_scc=anticipated_scc,
-                                                                          anticipated_demand_t10=anticipated_demand_t10,
-                                                                          optimization=False,
-                                                                          list_sub_heater=[0.0, 0.0, 0.0, 0.0, 0.0],
-                                                                          list_sub_insulation=[0.0, 0.0, 0.0, 0.0, 0.0],
-                                                                          price_feedback=price_feedback,
-                                                                          energy_taxes=energy_taxes,
-                                                                          energy_vta=energy_vta,
-                                                                          aggregated_potential=aggregated_potential,
-                                                                          cofp=cofp)
-
-    # Save results
-    export_results, output_resirf = save_simulation_results(output, buildings, name_config_coupling, config_coupling, config_eoles, config_resirf,
-                            dict_optimizer, optimization=True)
-    return name_config_coupling, output_resirf, export_results
-
-
 def run_optimization_scenario(config_coupling, name_config_coupling="default"):
     """
     Runs an optimization scenario.
@@ -425,20 +341,16 @@ def run_optimization_scenario(config_coupling, name_config_coupling="default"):
     return name_config_coupling, output_resirf, export_results
 
 
-def run_multiple_configs(dict_config, cpu: int, exogenous=True, reference=None, greenfield=False, health=True,
+def run_multiple_configs(dict_config, cpu: int, reference=None, greenfield=False, health=True,
                          carbon_constraint=True, folder_comparison=os.path.join("eoles/outputs/comparison")):
     """Run multiple configs in parallel"""
     logger.info('Scenarios: {}'.format(', '.join(dict_config.keys())))
     try:
         logger.info('Launching processes')
-        if not exogenous:
-            with Pool(cpu) as pool:
-                results = pool.starmap(run_optimization_scenario,
-                                       zip(dict_config.values(), [n for n in dict_config.keys()]))
-        else:
-            with Pool(cpu) as pool:
-                results = pool.starmap(run_exogenous_scenario,
-                                       zip(dict_config.values(), [n for n in dict_config.keys()]))
+        with Pool(cpu) as pool:
+
+            results = pool.starmap(run_optimization_scenario,
+                                   zip(dict_config.values(), [n for n in dict_config.keys()]))
         results_resirf = {i[0]: i[1] for i in results}
         results_general = {i[0]: i[2] for i in results}
 
@@ -533,7 +445,7 @@ if __name__ == '__main__':
             DICT_CONFIGS = create_configs_coupling(list_design=list_design, config_coupling=config_coupling,
                                                    config_additional=config_additional, dict_configs=DICT_CONFIGS)
 
-    results = run_multiple_configs(DICT_CONFIGS, cpu=cpu, exogenous=False, reference=None, greenfield=True,
+    results = run_multiple_configs(DICT_CONFIGS, cpu=cpu,reference=None, greenfield=True,
                                    health=True, carbon_constraint=True)
 
     # configpath = Path('eoles') / Path('inputs') / Path('xps') / configpath

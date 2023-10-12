@@ -156,10 +156,12 @@ def process_RTE_demand(config, year, demand, scenario, method):
     assert math.isclose(demand.sum(), 580 * 1e3), "Total yearly demand is not correctly calculated."
     adjust_demand = (demand_noP2G_RTE * 1e3 - 580 * 1e3) / 8760  # 580TWh is the total of the profile we use as basis for electricity hourly demand (from RTE), c'est bien vérifié
     demand_elec_RTE_noP2G = demand + adjust_demand  # we adjust demand profile to obtain the correct total amount of demand based on RTE projections without P2G
-
+    # TODO: ajuster la valeur de demand_noP2G_RTE pour augmenter de 2 TWh la demande en résidentiel
     hourly_residential_heating_RTE = create_hourly_residential_demand_profile(demand_residential_heating * 1e3,
                                                                               method=method)  # TODO: a changer a priori, ce n'est plus le bon profil
 
+    # TODO: a changer !! test pour l'impact sur le carbon content
+    # demand_elec_RTE_no_residential_heating = demand_elec_RTE_noP2G - hourly_residential_heating_RTE * 38.5/43  # we remove residential electric demand
     demand_elec_RTE_no_residential_heating = demand_elec_RTE_noP2G - hourly_residential_heating_RTE  # we remove residential electric demand
     return demand_elec_RTE_no_residential_heating
 

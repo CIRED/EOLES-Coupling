@@ -20,4 +20,4 @@ module load gurobi
 export GRB_LICENSE_FILE="/mnt/beegfs/softs/opt/core/gurobi/9.5.2/linux64/gurobi.19.lic"
 conda activate envCoupling
 
-python main_coupling_resirf.py --cpu 40 --configdir "eoles/inputs/xps/10032023/optim_pricefeedback"
+python main_coupling_resirf.py --cpu 40 --configdir "eoles/inputs/xps/231003/optim_pricefeedback"

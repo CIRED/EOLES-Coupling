@@ -94,6 +94,7 @@ class ModelEOLES():
         self.year = year
         self.carbon_constraint = carbon_constraint
         self.capacity_factor_nuclear = self.config["capacity_factor_nuclear"]
+        self.capacity_factor_nuclear_hourly = self.config['capacity_factor_nuclear_hourly']  # capacity factor which applies for all hours and not only total
         self.anticipated_year = anticipated_year
         self.existing_annualized_costs_elec = existing_annualized_costs_elec
         self.existing_annualized_costs_CH4 = existing_annualized_costs_CH4
@@ -397,6 +398,11 @@ class ModelEOLES():
             capacity factor inferior to 1."""
             return sum(model.gene["nuclear", h] for h in range(8760*y,8760*(y+1)-1)) <= self.capacity_factor_nuclear * model.capacity["nuclear"] * 8760
 
+        def generation_nuclear_constraint_hourly_rule(model, h):
+            """Constraint on nuclear production which cannot be superior to nuclear capacity times a given capacity factor.
+            This holds for all hours."""
+            return model.capacity['nuclear'] * self.capacity_factor_nuclear_hourly >= model.gene['nuclear', h]
+
         def generation_capacity_constraint_rule(model, h, tec):
             """Constraint on maximum power for non-VRE technologies."""
             return model.capacity[tec] >= model.gene[tec, h]
@@ -573,6 +579,8 @@ class ModelEOLES():
             Constraint(self.model.h, self.model.vre, rule=generation_vre_constraint_rule)
 
         self.model.generation_nuclear_constraint = Constraint(self.model.years, rule=generation_nuclear_constraint_rule)
+
+        self.model.generation_nuclear_hourly_constraint = Constraint(self.model.years, rule=generation_nuclear_constraint_hourly_rule)
 
         self.model.generation_capacity_constraint = \
             Constraint(self.model.h, self.model.tec, rule=generation_capacity_constraint_rule)

@@ -5,6 +5,7 @@
   "biomass_potential_scenario": "S3",
   "construction_time": "eoles/inputs/technology_characteristics/construction_time.csv",
   "capacity_factor_nuclear": 0.8,
+  "capacity_factor_nuclear_hourly": 1.0,
   "capex": "eoles/inputs/technology_characteristics/overnight_capex_evolution.csv",
   "carbon_budget": "eoles/inputs/technical/carbon_budget_tight.csv",
   "carbon_budget_resirf": "eoles/inputs/technical/carbon_budget_resirf.csv",
