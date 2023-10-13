@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 from matplotlib import pyplot as plt
+import datetime
 
 from eoles.utils import get_pandas
 
@@ -105,6 +106,49 @@ if __name__ == '__main__':
     percentage_hourly_residential_profile_valentin = pd.Series(percentage_hourly_residential_profile_valentin)
     # percentage_hourly_residential_profile_valentin.to_csv("inputs/hourly_profiles/percentage_hourly_residential_heating_profile_valentin.csv",
     #                                              header=False)
+
+    total_residential_heating_RTE = 33 * 1e3
+    hourly_residential_heating_valentin = total_residential_heating_RTE * percentage_hourly_residential_profile_valentin
+
+    #####  Comparison profile RTE et Valentin
+    hourly_residential_heating_valentin = hourly_residential_heating_valentin.reset_index().rename(columns={'index': 'hour', 0: 'demand'})
+    hourly_residential_heating_valentin["date"] = hourly_residential_heating_valentin.apply(
+        lambda row: datetime.datetime(2006, 1, 1, 0) + datetime.timedelta(hours=row["hour"]),
+        axis=1)
+
+    hourly_residential_heating_RTE = hourly_residential_heating_RTE.reset_index().rename(columns={'index': 'hour', 0: 'demand'})
+    hourly_residential_heating_RTE["date"] = hourly_residential_heating_RTE.apply(
+        lambda row: datetime.datetime(2006, 1, 1, 0) + datetime.timedelta(hours=row["hour"]),
+        axis=1)
+
+    def plot_subset_residential_demand(demand1, demand2, date_start, date_end):
+        """ Allows comparison of the two methodologies."""
+        demand1 = demand1.set_index("date").copy()
+        demand1 = demand1.loc[date_start: date_end, :]
+
+        demand2 = demand2.set_index("date").copy()
+        demand2 = demand2.loc[date_start: date_end, :]
+        fig, ax = plt.subplots(1, 1)
+
+        demand1[['demand']].squeeze().plot(ax=ax, style='-', c='red', label='1')
+        demand2[['demand']].squeeze().plot(ax=ax, style='-', c='blue', label='2')
+
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.spines['bottom'].set_visible(True)
+        ax.spines['left'].set_visible(True)
+        ax.set_title("Hourly production and demand (GW)", loc='left', color='black')
+        ax.set_xlabel('')
+
+        box = ax.get_position()
+        ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
+        ax.legend(loc='center left', bbox_to_anchor=(1, 0.5), frameon=False)
+
+        plt.show()
+
+
+    date_start, date_end = datetime.datetime(2006, 1, 1, 0, 0), datetime.datetime(2006, 1, 7, 0, 0)
+    plot_subset_residential_demand(hourly_residential_heating_RTE, hourly_residential_heating_valentin, date_start, date_end)
 
 
     ####### Fifth method: hourly profile from BDEW, Zeyen #######

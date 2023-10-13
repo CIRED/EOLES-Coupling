@@ -1044,7 +1044,7 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
     output_dynamics['stock_global_ResIRF'] = pd.concat([output_dynamics['stock_global_ResIRF'], stock_opt], axis=1)
 
     ### Calibration
-    if calibration:  # we calibrate the model for year 2020
+    if config_coupling['calibration']:  # we calibrate the model for year 2020
         assert end1 == 2020, "Calibration process is used but not intended for that purpose. It only works when run in 2020."
         heating_consumption = heating_consumption.sort_index(ascending=True)
 
@@ -1055,10 +1055,10 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
 
         annuity_health_cost = output_opt.loc["Health cost (Billion euro)"][end1 - 1]
 
+        # Save results for the calibration of the EOLES model
         output_dynamics = post_processing_resirf_output(output_dynamics, output_opt, heating_consumption,
                                                         annuity_investment_heater_cost, annuity_investment_insulation_cost, annuity_health_cost, hourly_exogeneous_CH4=0)
 
-        hourly_heat_elec, hourly_heat_gas, hourly_heat_district = None, None, None
         preprocessing = preprocessing_eoles(2020, output_dynamics['new_capacity_tot'], output_dynamics['new_charging_capacity_tot'],
                             output_dynamics['new_energy_capacity_tot'], output_dynamics['annualized_costs_new_capacity'], output_dynamics['annualized_costs_new_energy_capacity'], couplingparam,
                             existing_capacity_historical, existing_charging_capacity_historical, existing_energy_capacity_historical, maximum_capacity_evolution,
@@ -1071,8 +1071,18 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
         existing_annualized_costs_H2 = eoles.utils.process_annualized_costs_per_vector(
             annualized_costs_capacity[["annualized_costs"]].squeeze(), annualized_costs_energy_capacity[["annualized_costs"]].squeeze())
 
-        m_eoles = ModelEOLES(name="trajectory", config=config_eoles, path="eoles/outputs", logger=logger,
-                             hourly_heat_elec=hourly_heat_elec, hourly_heat_gas=hourly_heat_gas, hourly_heat_district=hourly_heat_district,
+        config_eoles_calib = config_eoles.copy()
+        config_eoles_calib['capacity_factor_nuclear_hourly'] = 0.9  # we constrain functionment of nuclear fleet in the calibration year
+        config_eoles_calib['capacity_factor_nuclear'] = 0.7  # we modify the capacity factor for nuclear
+        config_eoles_calib['hourly_ramping_nuclear'] = 0.08  # we constrain more the functionment of the nuclear plants
+        config_eoles_calib['load_factors'] = "eoles/inputs/hourly_profiles/vre_profiles_2017.csv"  # we calibrate against year 2017
+        config_eoles_calib['demand'] = "eoles/inputs/demand_data_other/demand2017_RTE.csv"  # we calibrate against year 2017
+        # hourly_heat_elec = pd.Series(0, index=output_dynamics['hourly_heat_gas'].index)
+        hourly_heat_elec = output_dynamics['hourly_heat_elec']
+        adjust_demand = (43 * 1e3 - hourly_heat_elec.sum()) / 8760
+        hourly_heat_elec = hourly_heat_elec + adjust_demand
+        m_eoles = ModelEOLES(name="trajectory", config=config_eoles_calib, path="eoles/outputs", logger=logger,
+                             hourly_heat_elec=hourly_heat_elec, hourly_heat_gas=output_dynamics['hourly_heat_gas'], hourly_heat_district=output_dynamics['hourly_heat_district'],
                              wood_consumption=output_dynamics['wood_consumption'] * 1e3,  # GWh
                              oil_consumption=output_dynamics['oil_consumption'] * 1e3,
                              existing_capacity=existing_capacity, existing_charging_capacity=existing_charging_capacity,
@@ -1083,16 +1093,17 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
                              existing_annualized_costs_CH4=existing_annualized_costs_CH4, existing_annualized_costs_CH4_naturalgas=existing_annualized_costs_CH4_naturalgas,
                              existing_annualized_costs_CH4_biogas=existing_annualized_costs_CH4_biogas,
                              existing_annualized_costs_H2=existing_annualized_costs_H2, carbon_constraint=config_coupling["carbon_constraint"],
-                             discount_rate=config_coupling["discount_rate"])
+                             discount_rate=config_coupling["discount_rate"], calibration=True)
 
-        output_dynamics = post_processing_eoles_output(output_dynamics, m_eoles, 2020,
-                                                       annuity_investment_heater_cost,
+        m_eoles.build_model()
+        solver_results, status, termination_condition = m_eoles.solve(solver_name="gurobi")
+
+        output_dynamics = post_processing_eoles_output(output_dynamics, m_eoles, 2020, annuity_investment_heater_cost,
                                                        annuity_investment_insulation_cost, annuity_health_cost,
                                                        annualized_costs_energy_capacity_historical,
                                                        annualized_costs_capacity_nofOM_historical, existing_capacity,
-                                                       existing_charging_capacity,
-                                                       existing_energy_capacity)
-    else:
+                                                       existing_charging_capacity, existing_energy_capacity)
+    else:  # in this case, we only run the ResIRF module to save the first outputs, but we do not implement a calibration and do not save corresponding values.
         pass
 
     list_anticipated_year = [y+5 for y in list_year]  # we create list of years used for supply = demand

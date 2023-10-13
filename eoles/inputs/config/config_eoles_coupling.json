@@ -27,6 +27,7 @@
   "fix_charging_capacities": "eoles/inputs/fix_charging_capacities.csv",
   "fix_energy_capacities": "eoles/inputs/fix_energy_capacities.csv",
   "fOM": "eoles/inputs/technology_characteristics/fOM_evolution.csv",
+  "hourly_ramping_nuclear": 0.25,
   "lake_inflows": "eoles/inputs/hourly_profiles/lake_2006.csv",
   "load_factors": "eoles/inputs/hourly_profiles/vre_profiles_2006.csv",
   "maximum_capacity": "eoles/inputs/technology_potential/maximum_capacity.csv",

@@ -1,6 +1,7 @@
 {
     "no_subsidies": false,
     "subsidies_specified": false,
+    "calibration": false,
     "max_iter": 100,
     "health": true,
     "discount_rate": 0.032,

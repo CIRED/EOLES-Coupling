@@ -138,31 +138,40 @@ def load_evolution_data(config):
 
 ### Defining the model
 
-def process_RTE_demand(config, year, demand, scenario, method):
-    """Create electricity demand profile, where we have excluded the residential heating demand, based on RTE projections."""
-    demand_noP2G_RTE_timesteps = get_pandas(config["demand_noP2G_RTE_timesteps"],
-                                            lambda x: pd.read_csv(x, index_col=[0,1]).squeeze())
-    # demand_noP2G_RTE = demand_noP2G_RTE_timesteps[year]  # in TWh
-    demand_noP2G_RTE = demand_noP2G_RTE_timesteps.loc[config["demand_scenario"]]
-    demand_noP2G_RTE = demand_noP2G_RTE[year]  # get specific potential for year of interest
+def process_RTE_demand(config, year, demand, scenario, method, calibration=False, hourly_residential_heating_RTE=None):
+    """Create electricity demand profile, where we have excluded the residential heating demand, based on RTE projections.
+    """
+    if not calibration:  # classical setting, we get projected values from RTE scenarios.
+        demand_noP2G_RTE_timesteps = get_pandas(config["demand_noP2G_RTE_timesteps"],
+                                                lambda x: pd.read_csv(x, index_col=[0,1]).squeeze())
+        # demand_noP2G_RTE = demand_noP2G_RTE_timesteps[year]  # in TWh
+        demand_noP2G_RTE = demand_noP2G_RTE_timesteps.loc[config["demand_scenario"]]
+        demand_noP2G_RTE = demand_noP2G_RTE[year]  # get specific potential for year of interest
 
-    demand_residential_heating_RTE_timesteps = get_pandas(config["demand_residential_heating_RTE_timesteps"],
-                                                          lambda x: pd.read_csv(x, index_col=[0,1]).squeeze())
+        assert math.isclose(demand.sum(), 580 * 1e3), "Total yearly demand is not correctly calculated."
+        adjust_demand = (demand_noP2G_RTE * 1e3 - 580 * 1e3) / 8760  # 580TWh is the total of the profile we use as basis for electricity hourly demand (from RTE), c'est bien vérifié
+        demand_elec_RTE_noP2G = demand + adjust_demand  # we adjust demand profile to obtain the correct total amount of demand based on RTE projections without P2G
 
-    # demand_residential_heating = demand_residential_heating_RTE_timesteps[year]  # in TWh
-    demand_residential_heating = demand_residential_heating_RTE_timesteps.loc[config["demand_scenario"]]
-    demand_residential_heating = demand_residential_heating[year]  # get specific potential for year of interest
+        # TODO: ajuster la valeur de demand_noP2G_RTE pour augmenter de 2 TWh la demande en résidentiel
+        demand_residential_heating_RTE_timesteps = get_pandas(config["demand_residential_heating_RTE_timesteps"],
+                                                              lambda x: pd.read_csv(x, index_col=[0, 1]).squeeze())
 
-    assert math.isclose(demand.sum(), 580 * 1e3), "Total yearly demand is not correctly calculated."
-    adjust_demand = (demand_noP2G_RTE * 1e3 - 580 * 1e3) / 8760  # 580TWh is the total of the profile we use as basis for electricity hourly demand (from RTE), c'est bien vérifié
-    demand_elec_RTE_noP2G = demand + adjust_demand  # we adjust demand profile to obtain the correct total amount of demand based on RTE projections without P2G
-    # TODO: ajuster la valeur de demand_noP2G_RTE pour augmenter de 2 TWh la demande en résidentiel
-    hourly_residential_heating_RTE = create_hourly_residential_demand_profile(demand_residential_heating * 1e3,
-                                                                              method=method)  # TODO: a changer a priori, ce n'est plus le bon profil
+        # demand_residential_heating = demand_residential_heating_RTE_timesteps[year]  # in TWh
+        demand_residential_heating = demand_residential_heating_RTE_timesteps.loc[config["demand_scenario"]]
+        demand_residential_heating = demand_residential_heating[year]  # get specific potential for year of interest
 
-    # TODO: a changer !! test pour l'impact sur le carbon content
-    # demand_elec_RTE_no_residential_heating = demand_elec_RTE_noP2G - hourly_residential_heating_RTE * 38.5/43  # we remove residential electric demand
-    demand_elec_RTE_no_residential_heating = demand_elec_RTE_noP2G - hourly_residential_heating_RTE  # we remove residential electric demand
+        hourly_residential_heating_RTE = create_hourly_residential_demand_profile(demand_residential_heating * 1e3,
+                                                                                  method=method)  # TODO: a changer a priori, ce n'est plus le bon profil
+
+        # TODO: a changer !! test pour l'impact sur le carbon content
+        # demand_elec_RTE_no_residential_heating = demand_elec_RTE_noP2G - hourly_residential_heating_RTE * 38.5/43  # we remove residential electric demand
+        demand_elec_RTE_no_residential_heating = demand_elec_RTE_noP2G - hourly_residential_heating_RTE  # we remove residential electric demand
+
+    else:  # in this case, we take a historical demand chronic, so we do not need to readjust. Moreover, there is no power to gas for now.
+        demand_elec_RTE_no_residential_heating = demand
+        if hourly_residential_heating_RTE is not None:  # in this case, we also give a profile for electric residential heating (which is necessary to calculate carbon content)
+            demand_elec_RTE_no_residential_heating = demand_elec_RTE_no_residential_heating - hourly_residential_heating_RTE
+
     return demand_elec_RTE_no_residential_heating
 
 
@@ -1353,7 +1362,7 @@ def check_required_keys_additional(config_additional):
 
 
 def check_required_keys_base(config_coupling):
-    required_keys = ['no_subsidies', 'subsidies_specified', 'eoles', 'subsidy', 'discount_rate', 'max_iter', 'fix_sub_heater',
+    required_keys = ['no_subsidies', 'subsidies_specified', 'calibration', 'eoles', 'subsidy', 'discount_rate', 'max_iter', 'fix_sub_heater',
                      'fix_sub_insulation', 'health', 'carbon_constraint', 'list_year', 'list_trajectory_scc']
     assert set(required_keys).issubset(config_coupling.keys()), "Some required keys in config_coupling are missing"
 

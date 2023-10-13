@@ -41,7 +41,7 @@ class ModelEOLES():
                  method_hourly_profile="valentin", anticipated_social_cost_of_carbon=0, actual_social_cost_of_carbon=0, year=2050, anticipated_year=2050,
                  scenario_cost=None, existing_annualized_costs_elec=0,
                  existing_annualized_costs_CH4=0, existing_annualized_costs_H2=0, existing_annualized_costs_CH4_naturalgas=0,
-                 existing_annualized_costs_CH4_biogas=0, carbon_constraint=False, discount_rate=0.045):
+                 existing_annualized_costs_CH4_biogas=0, carbon_constraint=False, discount_rate=0.045, calibration=False):
         """
 
         :param name: str
@@ -95,18 +95,23 @@ class ModelEOLES():
         self.carbon_constraint = carbon_constraint
         self.capacity_factor_nuclear = self.config["capacity_factor_nuclear"]
         self.capacity_factor_nuclear_hourly = self.config['capacity_factor_nuclear_hourly']  # capacity factor which applies for all hours and not only total
+        self.hourly_ramping_nuclear = self.config['hourly_ramping_nuclear']
         self.anticipated_year = anticipated_year
         self.existing_annualized_costs_elec = existing_annualized_costs_elec
         self.existing_annualized_costs_CH4 = existing_annualized_costs_CH4
         self.existing_annualized_costs_CH4_naturalgas = existing_annualized_costs_CH4_naturalgas
         self.existing_annualized_costs_CH4_biogas = existing_annualized_costs_CH4_biogas
         self.existing_annualized_costs_H2 = existing_annualized_costs_H2
+        self.calibration = calibration  # whether we rely on the coupling for the forecast of electricity demand or not
 
         assert hourly_heat_elec is not None, "Hourly electricity heat profile should be provided to the model"
         assert hourly_heat_gas is not None, "Hourly gas heat profile should be provided to the model"
 
         # loading exogeneous variable data
-        data_hourly_and_anticipated = read_hourly_data(config, self.anticipated_year, method=method_hourly_profile)
+        if self.calibration:
+            data_hourly_and_anticipated = read_hourly_data(config, self.anticipated_year, method=method_hourly_profile, calibration=self.calibration, hourly_heat_elec=hourly_heat_elec)
+        else:  # classical setting
+            data_hourly_and_anticipated = read_hourly_data(config, self.anticipated_year, method=method_hourly_profile, calibration=self.calibration)
         self.load_factors = data_hourly_and_anticipated["load_factors"]
         self.elec_demand1y = data_hourly_and_anticipated["demand"]
         self.lake_inflows = data_hourly_and_anticipated["lake_inflows"]
@@ -115,7 +120,7 @@ class ModelEOLES():
         self.hourly_heat_elec = hourly_heat_elec
 
         if self.nb_years == 1:
-            self.elec_demand1y = self.elec_demand1y + self.hourly_heat_elec  # we add electricity demand from heating
+            self.elec_demand1y = self.elec_demand1y + self.hourly_heat_elec  # we add electricity demand from residential heating
             self.elec_demand = self.elec_demand1y
             for i in range(self.nb_years - 1):  # plus nécessaire avec la condition if /else
                 self.elec_demand = pd.concat([self.elec_demand, self.elec_demand1y], ignore_index=True)
@@ -550,17 +555,15 @@ class ModelEOLES():
             """Constraint setting an upper ramping limit for nuclear flexibility"""
             previous_h = model.h.last() if h == 0 else h - 1
             return model.gene['nuclear', h] - model.gene['nuclear', previous_h] + model.reserve['nuclear', h] - \
-                   model.reserve[
-                       'nuclear', previous_h] <= \
-                   self.miscellaneous['hourly_ramping_nuclear'] * model.capacity['nuclear']
+                   model.reserve['nuclear', previous_h] <= \
+                   self.hourly_ramping_nuclear * model.capacity['nuclear']
 
         def ramping_nuclear_down_constraint_rule(model, h):
             """Constraint setting a lower ramping limit for nuclear flexibility"""
             previous_h = model.h.last() if h == 0 else h - 1
             return model.gene['nuclear', previous_h] - model.gene['nuclear', h] + model.reserve['nuclear', previous_h] - \
-                   model.reserve[
-                       'nuclear', h] <= \
-                   self.miscellaneous['hourly_ramping_nuclear'] * model.capacity['nuclear']
+                   model.reserve['nuclear', h] <= \
+                   self.hourly_ramping_nuclear * model.capacity['nuclear']
 
         def methanation_CO2_constraint_rule(model, y):
             """Constraint on CO2 balance from methanization, summing over all hours of the year"""
@@ -580,7 +583,7 @@ class ModelEOLES():
 
         self.model.generation_nuclear_constraint = Constraint(self.model.years, rule=generation_nuclear_constraint_rule)
 
-        self.model.generation_nuclear_hourly_constraint = Constraint(self.model.years, rule=generation_nuclear_constraint_hourly_rule)
+        self.model.generation_nuclear_hourly_constraint = Constraint(self.model.h, rule=generation_nuclear_constraint_hourly_rule)
 
         self.model.generation_capacity_constraint = \
             Constraint(self.model.h, self.model.tec, rule=generation_capacity_constraint_rule)
@@ -763,12 +766,16 @@ class ModelEOLES():
                         'supply_elec': self.electricity_generation, 'primary_generation': self.primary_generation}
 
 
-def read_hourly_data(config, year, scenario='Reference', method="valentin"):
+def read_hourly_data(config, year, scenario='Reference', method="valentin", calibration=False, hourly_heat_elec=None):
     """Reads data defined at the hourly scale"""
     load_factors = get_pandas(config["load_factors"],
                               lambda x: pd.read_csv(x, index_col=[0, 1], header=None).squeeze("columns"))
     demand = get_pandas(config["demand"], lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # GW
-    demand_no_residential = process_RTE_demand(config, year, demand, scenario, method=method)
+
+    # if calibration:  #  we do not want to consider coupling (we only rely on historical RTE data)
+    #     demand_no_residential = demand
+    # else:
+    demand_no_residential = process_RTE_demand(config, year, demand, scenario, method=method, calibration=calibration, hourly_residential_heating_RTE=hourly_heat_elec)
 
     lake_inflows = get_pandas(config["lake_inflows"],
                               lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))  # GWh
