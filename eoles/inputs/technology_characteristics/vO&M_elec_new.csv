@@ -21,6 +21,7 @@ methane,0.002
 methanation,0.005
 pyrogazification,0.032
 natural_gas,0.02354
+coal,0.0066
 heat_pump,0
 resistive,0
 gas_boiler,0

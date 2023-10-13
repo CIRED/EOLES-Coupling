@@ -285,11 +285,13 @@ def define_month_hours(first_month, nb_years, months_hours, hours_by_months):
 
 ### Processing output
 
-def get_technical_cost(model, objective, scc, heat_fuel, nb_years, intensity_gas=0.2295, intensity_fuel=0.324):
+def get_technical_cost(model, objective, scc, heat_oil, nb_years, emission_rate_gas=0.2295, emission_rate_oil=0.324, emission_rate_coal=0.986):
     """Returns technical cost (social cost without CO2 emissions-related cost"""
     gene_ngas = sum(value(model.gene["natural_gas", hour]) for hour in model.h)   # GWh
-    net_emissions = gene_ngas * intensity_gas / 1000 + heat_fuel * intensity_fuel / 1000  # MtCO2
-    emissions = pd.Series({"natural_gas": gene_ngas * intensity_gas / 1000 / nb_years, "Oil fuel": heat_fuel * intensity_fuel / 1000 / nb_years})
+    gene_coal = sum(value(model.gene['coal', hour]) for hour in model.h)  # GWh
+    net_emissions = gene_ngas * emission_rate_gas / 1000 + heat_oil * emission_rate_oil / 1000  + gene_coal * emission_rate_coal / 1000  # MtCO2
+    emissions = pd.Series({"natural_gas": gene_ngas * emission_rate_gas / 1000 / nb_years, "Oil fuel": heat_oil * emission_rate_oil / 1000 / nb_years,
+                           'Coal': gene_coal * emission_rate_coal / 1000 / nb_years})
     technical_cost = objective - net_emissions * scc / 1000
     return technical_cost, emissions
 
@@ -411,20 +413,22 @@ def extract_hourly_generation(model, elec_demand, CH4_demand, H2_demand, convers
     return hourly_generation  # GWh
 
 
-def get_carbon_content(hourly_generation, conversion, emission_rate=0.2295, climate=2006, nb_years=1):
+def get_carbon_content(hourly_generation, conversion, emission_rate_gas=0.2295, emission_rate_coal=0.986, climate=2006, nb_years=1):
     """Estimates the carbon content of gas and of electric heating, based on methodology by ADEME and RTE (méthode moyenne horaire).
     Returns the result in gCO2/kWh"""
     assert 'heat_elec' in hourly_generation.columns, "Column heat_elec should be included to estimate carbon content of electric heating"
 
     # Estimate carbon content of gas
-    gas_carbon_content = (hourly_generation['natural_gas'].sum() * emission_rate) / (hourly_generation['natural_gas'] +
+    gas_carbon_content = (hourly_generation['natural_gas'].sum() * emission_rate_gas) / (hourly_generation['natural_gas'] +
                                                                                      hourly_generation['methanization'] + hourly_generation['pyrogazification']).sum()
     elec_gene = ["offshore_f", "offshore_g", "onshore", "pv_g", "pv_c", "river", "lake", "nuclear", "phs", "battery1",
-                 "battery4", "ocgt", "ccgt", "h2_ccgt"]
+                 "battery4", "ocgt", "ccgt", 'coal', "h2_ccgt"]
     tot_cols = elec_gene + ['heat_elec']
     # hourly_generation = hourly_generation[tot_cols]
 
-    hourly_generation['carbon_content'] = hourly_generation.apply(lambda row: (row['ocgt'] / conversion['ocgt'] * gas_carbon_content + row['ccgt'] /  conversion['ccgt'] * gas_carbon_content) / sum(
+    hourly_generation['carbon_content'] = hourly_generation.apply(lambda row: (row['ocgt'] / conversion['ocgt'] * gas_carbon_content +
+                                                                               row['ccgt'] /  conversion['ccgt'] * gas_carbon_content +
+                                                                               row['coal'] * emission_rate_coal) / sum(
             row[tec] for tec in elec_gene), axis=1)
     tot_heat_elec = hourly_generation.heat_elec.sum()
     hourly_generation['carbon_content_heat'] = hourly_generation.apply(lambda row: row['carbon_content'] * row['heat_elec'] / tot_heat_elec, axis=1)
@@ -438,7 +442,7 @@ def get_carbon_content(hourly_generation, conversion, emission_rate=0.2295, clim
         hourly_generation_day = hourly_generation.copy().groupby("date_only")[
             elec_gene + ['heat_elec']].sum().reset_index()
         hourly_generation_day['carbon_content'] = hourly_generation_day.apply(
-            lambda row: (row['ocgt'] / 0.4 * gas_carbon_content + row['ccgt'] / 0.57 * gas_carbon_content) / sum(row[tec] for tec in elec_gene), axis=1)
+            lambda row: (row['ocgt'] / conversion['ocgt'] * gas_carbon_content + row['ccgt'] / conversion['ccgt'] * gas_carbon_content + row['coal'] * emission_rate_coal) / sum(row[tec] for tec in elec_gene), axis=1)
 
         hourly_generation_day['carbon_content_heat'] = hourly_generation_day.apply(lambda row: row['carbon_content'] * row['heat_elec'] / tot_heat_elec, axis=1)
 

@@ -212,9 +212,8 @@ class ModelEOLES():
         self.total_H2_demand = data_static["demand_H2_RTE"]
         self.energy_prices = data_static["energy_prices"]
         self.carbon_budget = data_static["carbon_budget"]
-        self.vOM["wood"], self.vOM["oil"] = self.energy_prices["wood"] * 1e-3, self.energy_prices[
-            "oil"] * 1e-3  # €/kWh
-        self.vOM["natural_gas"] = self.energy_prices["natural_gas"] * 1e-3
+        self.vOM["wood"], self.vOM["oil"] = self.energy_prices["wood"] * 1e-3, self.energy_prices["oil"] * 1e-3  # €/kWh
+        self.vOM["natural_gas"], self.vOM['coal'] = self.energy_prices["natural_gas"] * 1e-3, self.energy_prices["coal"] * 1e-3
 
         # calculate annuities
         self.annuities = calculate_annuities_capex(self.discount_rate, self.capex, self.construction_time,
@@ -226,8 +225,8 @@ class ModelEOLES():
             # Update natural gaz vOM based on social cost of carbon
             self.vOM.loc["natural_gas"] = update_ngas_cost(self.vOM.loc["natural_gas"], scc=self.anticipated_scc, emission_rate=0.2295)  # €/kWh
             self.vOM["oil"] = update_ngas_cost(self.vOM["oil"], scc=self.anticipated_scc, emission_rate=0.324)  # to check !!
-            self.vOM["wood"] = update_ngas_cost(self.vOM["wood"], scc=self.anticipated_scc,
-                                                       emission_rate=0)  # to check !!
+            self.vOM["coal"] = update_ngas_cost(self.vOM["coal"], scc=self.anticipated_scc, emission_rate=0.986)
+            self.vOM["wood"] = update_ngas_cost(self.vOM["wood"], scc=self.anticipated_scc, emission_rate=0)  # to check !!
 
         # defining needed time steps
         self.first_hour = 0
@@ -258,7 +257,7 @@ class ModelEOLES():
         self.model.tec = \
             Set(initialize=["offshore_f", "offshore_g", "onshore", "pv_g", "pv_c", "river", "lake", "methanization",
                             "ocgt", "ccgt", "nuclear", "h2_ccgt", "phs", "battery1", "battery4",
-                            "methanation", "pyrogazification", "electrolysis", "natural_gas", "hydrogen", "methane",
+                            "methanation", "pyrogazification", "electrolysis", "natural_gas", "coal", "hydrogen", "methane",
                             "geothermal", "central_gas_boiler", "central_wood_boiler", "uiom", "CTES"])
         # Variables Technologies
         self.model.vre = \
@@ -266,7 +265,7 @@ class ModelEOLES():
         # Electricity generating technologies
         self.model.elec_balance = \
             Set(initialize=["offshore_f", "offshore_g", "onshore", "pv_g", "pv_c", "river", "lake", "nuclear", "phs",
-                            "battery1", "battery4", "ocgt", "ccgt", "h2_ccgt"])
+                            "battery1", "battery4", "ocgt", "ccgt", "h2_ccgt", "coal"])
 
         # Technologies for upward FRR
         self.model.frr = Set(initialize=["lake", "phs", "ocgt", "ccgt", "nuclear", "h2_ccgt"])
