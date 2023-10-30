@@ -1080,7 +1080,7 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
         # hourly_heat_elec = pd.Series(0, index=output_dynamics['hourly_heat_gas'].index)
         hourly_heat_elec = output_dynamics['hourly_heat_elec']
         adjust_demand = (43 * 1e3 - hourly_heat_elec.sum()) / 8760
-        hourly_heat_elec = hourly_heat_elec + adjust_demand
+        hourly_heat_elec = hourly_heat_elec + adjust_demand  # we calibrate electricity demand to 43 TWh, which is historical demand in 2017
         m_eoles = ModelEOLES(name="trajectory", config=config_eoles_calib, path="eoles/outputs", logger=logger,
                              hourly_heat_elec=hourly_heat_elec, hourly_heat_gas=output_dynamics['hourly_heat_gas'], hourly_heat_district=output_dynamics['hourly_heat_district'],
                              wood_consumption=output_dynamics['wood_consumption'] * 1e3,  # GWh

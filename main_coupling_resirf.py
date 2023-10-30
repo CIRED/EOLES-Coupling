@@ -404,7 +404,7 @@ if __name__ == '__main__':
         with open(configpath.resolve().parent / Path("base.json")) as file:  # load reference configuration for coupling
             config_coupling = json.load(file)
 
-        list_design = ['uniform', 'centralized_insulation', 'DR']
+        list_design = ['uniform', 'centralized_insulation', 'DR', 'DR_FGE', 'proportional']
         list_design = None
 
         # # Cas spécifique où on vient extraire la valeur de subventions qui ont été optimisées au préalable
@@ -441,7 +441,8 @@ if __name__ == '__main__':
                     "base.json")) as file:  # load reference configuration for coupling
                 config_coupling = json.load(file)
 
-            list_design = None  # TODO: a changer si on veut spécifier un design en particulier
+            list_design = ['proportional']
+            # list_design = None  # TODO: a changer si on veut spécifier un design en particulier
             DICT_CONFIGS = create_configs_coupling(list_design=list_design, config_coupling=config_coupling,
                                                    config_additional=config_additional, dict_configs=DICT_CONFIGS)
 

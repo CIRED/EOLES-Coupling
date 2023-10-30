@@ -1,4 +1,6 @@
 ﻿Scenario,Technology,2020,2025,2030,2035,2040,2045,2050
+S0,methanization,0,0,0,0,0,0,0
+S0,pyrogazification,0,0,0,0,0,0,0
 S1,methanization,0,0,14,19.25,24.5,29.75,35
 S1,pyrogazification,0,0,0,0,0,0,0
 S2,methanization,0,0,14,19.25,24.5,29.75,35

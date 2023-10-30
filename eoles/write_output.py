@@ -33,7 +33,7 @@ DICT_TRANSFORM_LEGEND = {
     "Investment insulation costs": "Investment insulation",
     "Carbon cost": "Carbon cost",
     "Health costs": "Health costs",
-    "Total costs HC excluded": "Total system costs",
+    "Total costs HC excluded": "Total system costs (Billion EUR)",
     "Total costs": "Total system costs (Billion EUR)",
     "Consumption saving insulation (TWh/year)": "insulation",
     "Consumption saving heater (TWh/year)": "heater",
@@ -302,9 +302,16 @@ def comparison_simulations_new(dict_output: dict, ref, greenfield=False, health=
                 name_config_tot = scenario + ' ' + name_config
                 output = load(file)
 
+                # Total system costs
                 annualized_new_investment_df = output["Annualized new investments (1e9€/yr)"]
+                if 2020 in annualized_new_investment_df.columns:
+                    annualized_new_investment_df = annualized_new_investment_df.drop(columns=[2020])
                 annualized_new_energy_capacity_df = output["Annualized costs new energy capacity (1e9€/yr)"]
+                if 2020 in annualized_new_energy_capacity_df.columns:
+                    annualized_new_energy_capacity_df = annualized_new_energy_capacity_df.drop(columns=[2020])
                 functionment_costs_df = output["System functionment (1e9€/yr)"]
+                if 2020 in functionment_costs_df.columns:
+                    functionment_costs_df = functionment_costs_df.drop(columns=[2020])
                 total_system_costs_2050 = process_total_costs(annualized_new_investment_df, annualized_new_energy_capacity_df,
                                                          functionment_costs_df, carbon_constraint=carbon_constraint,
                                                          eoles=eoles, year=2050)
@@ -323,9 +330,16 @@ def comparison_simulations_new(dict_output: dict, ref, greenfield=False, health=
                 total_system_costs_2030.columns = second_level_index
                 total_system_costs_2030_df = pd.concat([total_system_costs_2030_df, total_system_costs_2030], axis=1)
 
+                # Complete system costs
                 annualized_new_investment_df = output["Annualized new investments (1e9€/yr)"]
+                if 2020 in annualized_new_investment_df.columns:
+                    annualized_new_investment_df = annualized_new_investment_df.drop(columns=[2020])
                 annualized_new_energy_capacity_df = output["Annualized costs new energy capacity (1e9€/yr)"]
+                if 2020 in annualized_new_energy_capacity_df.columns:
+                    annualized_new_energy_capacity_df = annualized_new_energy_capacity_df.drop(columns=[2020])
                 functionment_costs_df = output["System functionment (1e9€/yr)"]
+                if 2020 in functionment_costs_df.columns:
+                    functionment_costs_df = functionment_costs_df.drop(columns=[2020])
                 complete_system_costs_2050 = process_complete_system_cost_2050(annualized_new_investment_df,
                                                                                annualized_new_energy_capacity_df,
                                                                                functionment_costs_df,
@@ -337,9 +351,6 @@ def comparison_simulations_new(dict_output: dict, ref, greenfield=False, health=
                 second_level_index = pd.MultiIndex.from_product([complete_system_costs_2050.columns, [name_config]], names=["Gas scenario", "Policy scenario"])
                 complete_system_costs_2050.columns = second_level_index
                 complete_system_costs_2050_df = pd.concat([complete_system_costs_2050_df, complete_system_costs_2050], axis=1)
-
-                # complete_system_costs_2050 = complete_system_costs_2050.to_frame().rename(columns={0: name_config})
-                # complete_system_costs_2050_df = pd.concat([complete_system_costs_2050_df, complete_system_costs_2050], axis=1)
 
                 consumption_savings = output["ResIRF consumption savings (TWh)"]
                 consumption_savings = consumption_savings.rename(
@@ -480,12 +491,6 @@ def comparison_simulations_new(dict_output: dict, ref, greenfield=False, health=
         gas_generation_demand = pd.concat([generation_df[['biogas', 'methanation', 'electrolysis', 'Gas for heating']],
              conversion_generation_df[['peaking plants']]], axis=1)
         gas_generation_demand[demand_gas] = - gas_generation_demand[demand_gas]
-        # TODO: ajouter la demande en hydrogène
-        # TODO: ajouter une option en différence par rapport à une ref
-        # gas_generation_demand = gas_generation_demand.T
-        # for col in gas_generation_demand.columns:
-        #     if col != ref:
-        #         gas_generation_demand[col] = gas_generation_demand[col] - gas_generation_demand[ref]
         make_stacked_bar_plot(gas_generation_demand, subset=supply_gas + demand_gas,
                               y_label="Gas demand balance (TWh)",
                               colors=resources_data["colors_eoles"], format_y=lambda y, _: '{:.0f}'.format(y),
@@ -567,6 +572,7 @@ def comparison_simulations_new(dict_output: dict, ref, greenfield=False, health=
     total_system_costs_diff_df = total_system_costs_2050_df.subtract(reference_rows.reset_index(level=1, drop=True), level=0)
 
     if health:
+        scatter = 'Total costs'
         if carbon_constraint:
             subset_costs = ["Investment electricity costs", "Investment heater costs",
                             "Investment insulation costs", "Functionment costs", "Health costs"]
@@ -574,6 +580,7 @@ def comparison_simulations_new(dict_output: dict, ref, greenfield=False, health=
             subset_costs = ["Investment electricity costs", "Investment heater costs",
                             "Investment insulation costs", "Functionment costs", "Carbon cost", "Health costs"]
     else:
+        scatter = 'Total costs HC excluded'
         if carbon_constraint:
             subset_costs = ["Investment electricity costs", "Investment heater costs",
                             "Investment insulation costs", "Functionment costs"]
@@ -592,7 +599,7 @@ def comparison_simulations_new(dict_output: dict, ref, greenfield=False, health=
     make_clusterstackedbar_plot(total_system_costs_diff_df, groupby='Costs', subset=subset_costs,
                                 y_label="Total system costs (Md€)",
                                 colors=resources_data["colors_eoles"], format_y=lambda y, _: '{:.0f}'.format(y),
-                                dict_legend=DICT_TRANSFORM_LEGEND, save=save_path_plot, scatter='Total costs', ref=ref,
+                                dict_legend=DICT_TRANSFORM_LEGEND, save=save_path_plot, scatter=scatter, ref=ref,
                                 drop=True, hline=True, ranking_exogenous_scenario=ranking_exogenous_scenario,
                                 ranking_policy_scenario=ranking_policy_scenario)
 
@@ -611,7 +618,7 @@ def comparison_simulations_new(dict_output: dict, ref, greenfield=False, health=
     make_clusterstackedbar_plot(total_system_costs_diff_2030_df, groupby='Costs', subset=subset_costs,
                                 y_label="Total system costs (Md€)",
                                 colors=resources_data["colors_eoles"], format_y=lambda y, _: '{:.0f}'.format(y),
-                                dict_legend=DICT_TRANSFORM_LEGEND, save=save_path_plot, scatter='Total costs', ref=ref,
+                                dict_legend=DICT_TRANSFORM_LEGEND, save=save_path_plot, scatter=scatter, ref=ref,
                                 drop=True, hline=True, ranking_exogenous_scenario=ranking_exogenous_scenario,
                                 ranking_policy_scenario=ranking_policy_scenario)
 

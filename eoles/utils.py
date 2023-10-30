@@ -148,6 +148,15 @@ def process_RTE_demand(config, year, demand, scenario, method, calibration=False
         demand_noP2G_RTE = demand_noP2G_RTE_timesteps.loc[config["demand_scenario"]]
         demand_noP2G_RTE = demand_noP2G_RTE[year]  # get specific potential for year of interest
 
+        # # Demand for EV
+        # demand_ev_timesteps = get_pandas(config["demand_ev_timesteps"],
+        #                                                       lambda x: pd.read_csv(x, index_col=[0, 1]).squeeze())
+        #
+        # # TODO: ajouter ce profile de demande EV dans le preprocessing de la demande
+        # demand_ev = demand_ev_timesteps.loc[config["demand_scenario"]]
+        # demand_ev = demand_ev[year]  # get specific potential for year of interest
+        # demand_ev_ref = demand_ev[2035]  # get reference value for 2035 which is the year of reference for the demand profile
+
         assert math.isclose(demand.sum(), 580 * 1e3), "Total yearly demand is not correctly calculated."
         adjust_demand = (demand_noP2G_RTE * 1e3 - 580 * 1e3) / 8760  # 580TWh is the total of the profile we use as basis for electricity hourly demand (from RTE), c'est bien vérifié
         demand_elec_RTE_noP2G = demand + adjust_demand  # we adjust demand profile to obtain the correct total amount of demand based on RTE projections without P2G
@@ -173,6 +182,22 @@ def process_RTE_demand(config, year, demand, scenario, method, calibration=False
             demand_elec_RTE_no_residential_heating = demand_elec_RTE_no_residential_heating - hourly_residential_heating_RTE
 
     return demand_elec_RTE_no_residential_heating
+
+
+def profile_ev(total_consumption):
+    """Rescale profile for electric vehicule demand to match total consumption. Parameter total_consumption is in TWh."""
+    demand_ev = pd.read_csv('eoles/inputs/demand_data_other/demand_transport2050.csv', index_col=0,
+                            header=None).reset_index().rename(columns={0: 'vehicule', 1: 'hour', 2: 'demand'})
+
+    # plot the demand profile for vehicule = 'light'
+
+    demand_ev_light = demand_ev.loc[demand_ev.vehicule == 'light']
+    demand_ev_light = demand_ev_light.drop(columns=['vehicule'])
+    demand_ev_light = demand_ev_light.set_index('hour')
+
+    tot = demand_ev_light.sum()
+    demand_ev_light = demand_ev_light + (total_consumption * 1e3 - tot) / 8760 * demand_ev_light
+    return demand_ev_light
 
 
 def calculate_annuities_capex(discount_rate, capex, construction_time, lifetime):
@@ -937,6 +962,22 @@ def modif_config_coupling(design, config_coupling, max_iter_single_iteration=50,
                 'cap': None
             }
         }
+    elif design == "DR_FGE":
+        config_coupling_update["subsidy"] = {
+            'proportional_uniform': None,
+            'heater': {
+                'policy': 'subsidy_ad_valorem',
+                'proportional': None,
+                'cap': None
+            },
+            'insulation': {
+                'policy': 'subsidy_ad_valorem',
+                'rational_behavior': False,
+                'target': "deep_renovation_fge",
+                'proportional': None,
+                'cap': None
+            }
+        }
     elif design == "GR_low_income":  # TODO: nom a changer
         config_coupling_update["subsidy"] = {
             'proportional_uniform': None,
@@ -1122,7 +1163,7 @@ def modif_config_coupling(design, config_coupling, max_iter_single_iteration=50,
                 'cap': cap_MWh
             }
         }
-    elif design == "MWh_insulation":
+    elif design == "proportional":  # we changed name to be more explicit
         config_coupling_update["subsidy"] = {
             'proportional_uniform': False,
             'heater': {
