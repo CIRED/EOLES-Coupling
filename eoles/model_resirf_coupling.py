@@ -720,7 +720,7 @@ class ModelEOLES():
         self.hourly_generation = extract_hourly_generation(self.model, elec_demand=self.elec_demand,  CH4_demand=list(self.CH4_demand.values()),
                                                            H2_demand=list(self.H2_demand.values()), conversion_efficiency=self.conversion_efficiency,
                                                            hourly_heat_elec=self.hourly_heat_elec, hourly_heat_gas=self.hourly_heat_gas)
-        self.gas_carbon_content, self.heat_elec_carbon_content, self.heat_elec_carbon_content_day = \
+        self.gas_carbon_content, self.dh_carbon_content, self.heat_elec_carbon_content, self.heat_elec_carbon_content_day = \
             get_carbon_content(self.hourly_generation, self.conversion_efficiency)
         self.peak_electricity_load_info = extract_peak_load(self.hourly_generation, self.conversion_efficiency, self.input_years)
         self.peak_heat_load_info = extract_peak_heat_load(self.hourly_generation, self.input_years)

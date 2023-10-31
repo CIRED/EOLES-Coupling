@@ -10,6 +10,16 @@ from matplotlib import pyplot as plt
 # Process csv file to get the demand profile
 # First column is the type of vehicule, second is the hour, last is the demand value in MW
 demand_ev = pd.read_csv('eoles/inputs/demand_data_other/demand_transport2050.csv', index_col=0, header=None).reset_index().rename(columns={0: 'vehicule', 1: 'hour', 2: 'demand'})
+demand_rte = pd.read_csv("eoles/inputs/demand/demand2050_RTE.csv", index_col=0, header=None).squeeze("columns")
+
+adjust_demand = (530 * 1e3 - 580 * 1e3) / 8760  # 580TWh is the total of the profile we use as basis for electricity hourly demand (from RTE), c'est bien vérifié
+demand_rte_rescaled_1 = demand_rte + adjust_demand
+demand_rte_rescaled_2 = demand_rte * (530 / 580)
+
+plt.plot(demand_rte_rescaled_1[0:150], c='red')
+plt.plot(demand_rte_rescaled_2[0:150], c='blue')
+# plt.plot(demand_rte[0:1000], c='green')
+plt.show()
 
 # plot the demand profile for vehicule = 'light'
 
@@ -25,8 +35,8 @@ demand_ev_bus = demand_ev.loc[demand_ev.vehicule == 'bus']
 demand_ev_bus = demand_ev_bus.drop(columns=['vehicule'])
 demand_ev_bus = demand_ev_bus.set_index('hour')
 # plot only for a subset of hours
-demand_ev_light.loc[0:100].plot()
-plt.show()
+# demand_ev_light.loc[0:100].plot()
+# plt.show()
 
 
 

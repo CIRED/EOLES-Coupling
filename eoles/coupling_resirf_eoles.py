@@ -2008,10 +2008,10 @@ def post_processing_eoles_output(output_dynamics, m_eoles: ModelEOLES, anticipat
         output_dynamics['hourly_generation_2050'] = m_eoles.hourly_generation
 
     # Carbon content
-    gas_carbon_content, heat_elec_carbon_content, heat_elec_carbon_content_day = m_eoles.gas_carbon_content, m_eoles.heat_elec_carbon_content, m_eoles.heat_elec_carbon_content_day
+    gas_carbon_content, dh_carbon_content, heat_elec_carbon_content, heat_elec_carbon_content_day = m_eoles.gas_carbon_content, m_eoles.dh_carbon_content, m_eoles.heat_elec_carbon_content, m_eoles.heat_elec_carbon_content_day
     carbon_content = pd.Series(data=[gas_carbon_content, heat_elec_carbon_content, heat_elec_carbon_content_day],
-                               index=['Gas carbon content', 'Electric heating carbon content',
-                                      'Electric heating carbon content daily'])
+                               index=['Emission content Gas (gCO2/kWh)', 'Emission content District heating (gCO2/kWh)',
+                                      'Emission content Electricity heating (gCO2/kWh)', 'Emission content Electricity heating daily (gCO2/kWh)'])
     output_dynamics['carbon_content_df'] = pd.concat(
         [output_dynamics['carbon_content_df'], carbon_content.to_frame().rename(columns={0: anticipated_year})], axis=1)
     # new_capacity_df = pd.concat(

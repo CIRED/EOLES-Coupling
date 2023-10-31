@@ -442,7 +442,7 @@ if __name__ == '__main__':
                 config_coupling = json.load(file)
 
             list_design = ['proportional']
-            # list_design = None  # TODO: a changer si on veut spécifier un design en particulier
+            list_design = None  # TODO: a changer si on veut spécifier un design en particulier
             DICT_CONFIGS = create_configs_coupling(list_design=list_design, config_coupling=config_coupling,
                                                    config_additional=config_additional, dict_configs=DICT_CONFIGS)
 
