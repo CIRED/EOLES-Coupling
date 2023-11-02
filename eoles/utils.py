@@ -13,6 +13,7 @@ from copy import deepcopy
 from typing import Union
 from pickle import load
 import numpy as np
+import plotly.graph_objects as go
 
 
 def get_pandas(path, func=lambda x: pd.read_csv(x)):
@@ -1580,14 +1581,15 @@ def ldmi_method(output_global, efficiency, carbon_content):
     """Estimates emissions reduction attribution across different channels with the LDMI method."""
     # TODO: attention, dans les anciennes simulations, le contenu carbone du DH est exogène alors qu'il est endogène dans nos simulations. A prendre en compte dans les analyses.
     # TODO: attention, il est possible qu'il y ait un bug lié à l'utilisation d'un facteur de conversion exogène (typiquement trop bas pour les PAC ?), qui expliquerait la différence en terme d'émissions finales.
+    # TODO: bug actuel. On n'obtient pas une égalité de la décomposition. Cela pourrait venir de l'intensité de chauffage ??
     output = output_global.copy()
     energy_vector = ["Natural gas", "District heating", "Wood fuel", "Oil fuel", "Heat pump", "Direct electric"]
 
     # Create new rows in the dataframe
     for energy in energy_vector:
-
-        output.loc[f"Consumption useful {energy} (TWh)"] = output.loc[f"Consumption {energy} (TWh)"] * efficiency.loc[energy]  # useful energy
-        output.loc[f"Efficiency {energy} ()"] = output.loc[f"Consumption useful {energy} (TWh)"] / output.loc[f"Consumption {energy} (TWh)"] # efficiency for a given technology
+        output.loc[f"Consumption standard {energy} (TWh)"] = output.loc[f"Consumption {energy} (TWh)"] / output.loc["Heating intensity (%)"] # standard energy consumption
+        output.loc[f"Consumption useful {energy} (TWh)"] = output.loc[f"Consumption standard {energy} (TWh)"] * efficiency.loc[energy]  # useful energy
+        output.loc[f"Efficiency {energy} ()"] = output.loc[f"Consumption useful {energy} (TWh)"] / output.loc[f"Consumption standard {energy} (TWh)"] # efficiency for a given technology
         output.loc[f"Heating intensity {energy} (%)"] = output.loc["Heating intensity (%)"]  # heating intensity is assumed to be the same for all energy vectors
     output.loc["Consumption useful (TWh)"] = sum(output.loc[f"Consumption useful {energy} (TWh)"] for energy in energy_vector)  # total useful energy consumption
     output.loc["Consumption useful (TWh/m2)"] = output.loc["Consumption useful (TWh)"] / output.loc["Surface (Million m2)"]  # useful energy consumption per m2
@@ -1597,7 +1599,7 @@ def ldmi_method(output_global, efficiency, carbon_content):
 
     # select subset of output, for subset of rows and columns
     # subset of rows is a list subset_rows, and subset of columns is a list subset_columns
-    subset_rows = ["Surface (Million m2)", "Consumption useful (TWh/m2)", "Consumption useful (TWh)"]
+    subset_rows = ["Surface (Million m2)", "Consumption useful (TWh/m2)"]
     subset_rows = subset_rows + [f"Efficiency {energy} ()" for energy in energy_vector] + \
                   [f"Consumption useful {energy} (TWh)" for energy in energy_vector] + [f"Share {energy} (%)" for energy in energy_vector] + [f"Heating intensity {energy} (%)" for energy in energy_vector]
     subset_columns = [2020, 2049]
@@ -1627,7 +1629,7 @@ def ldmi_method(output_global, efficiency, carbon_content):
     output = pd.concat([output, carbon_content.loc[:,[2020, 2050]]], axis=0)
 
     for energy in energy_vector:
-        output.loc[f'CO2 emissions {energy} (MtCO2)'] = output.loc["Surface (Million m2)"] * output.loc[f"Consumption useful (TWh/m2)"] * output.loc[f"Share {energy} (%)"] * 1 / output.loc[f"Efficiency {energy} ()"] * output.loc[f'Heating intensity {energy} (%)'] * output.loc[f'Emission content {energy} (gCO2/kWh)'] / 1000
+        output.loc[f'CO2 emissions {energy} (MtCO2)'] = output.loc["Surface (Million m2)"] * output.loc[f"Consumption useful (TWh/m2)"] * output.loc[f"Share {energy} (%)"] * (1 / output.loc[f"Efficiency {energy} ()"]) * output.loc[f'Heating intensity {energy} (%)'] * output.loc[f'Emission content {energy} (gCO2/kWh)'] / 1000
 
     output.loc['CO2 emissions (MtCO2)'] = sum(output.loc[f'CO2 emissions {energy} (MtCO2)'] for energy in energy_vector)
 
@@ -1645,17 +1647,16 @@ def ldmi_method(output_global, efficiency, carbon_content):
     output_channel.loc[:,'Ratio log'] = np.log(output_channel.loc[:,2050] / output_channel.loc[:,2020])
 
     output_CO2.loc[:,'Delta CO2 emissions'] = output_CO2.loc[:,2050] - output_CO2.loc[:,2020]
-    output_CO2.loc[:, 'log Delta CO2 emissions'] = np.log(output_CO2.loc[:, 2050]) - np.log(output_CO2.loc[:, 2020])
-    output_CO2 = output_CO2.loc[:,['Delta CO2 emissions', 'log Delta CO2 emissions']]
-    # output_CO2.index = pd.MultiIndex.from_tuples([(label,) for label in output_CO2.index], names=output_CO2.index.names)
-    # second_level_index = pd.MultiIndex.from_product([output_channel.index.get_level_values(0).unique(), [name_config]],
-    #                                                 names=["Gas scenario", "Policy scenario"])
-    output_channel.loc[:, ['Delta CO2 emissions', 'log Delta CO2 emissions']] = 0
-    for key in output_channel.index.get_level_values(0).unique():
-        output_channel.loc[key, ['Delta CO2 emissions', 'log Delta CO2 emissions']] = output_CO2.values
-    output_channel.loc[:, 'Total channel'] = output_channel.loc[:,'Delta CO2 emissions'] / output_channel.loc[:,'log Delta CO2 emissions'] * output_channel.loc[:,'Ratio log']
+    output_CO2.loc[:, 'log Delta CO2 emissions'] = np.log(output_CO2.loc[:, 2050] / output_CO2.loc[:, 2020])
+
+    multiindex = pd.MultiIndex.from_product([output_channel.index.get_level_values(0).unique(),output_CO2.index])
+    tmp = pd.concat([output_CO2.loc[:,['Delta CO2 emissions', 'log Delta CO2 emissions']]]*len(output_channel.index.get_level_values(0).unique()))
+    tmp.index = multiindex
+    output_channel = pd.concat([output_channel, tmp], axis=1)
+
+    output_channel.loc[:, 'Total channel'] = output_channel.loc[:,'Ratio log'] * output_channel.loc[:,'Delta CO2 emissions'] / output_channel.loc[:,'log Delta CO2 emissions']
     output_channel = output_channel.loc[:,"Total channel"].to_frame().T.stack().unstack(0).T.sum(axis=1).droplevel(1)  # we get the channels
-    output_channel = output_channel[['Emission content', 'Heating intensity', 'Share']]
+    output_channel = output_channel[['Emission content', 'Heating intensity', 'Share', 'Efficiency']]
 
     output = output.loc[['Surface (Million m2)', 'Consumption useful (TWh/m2)']]
     output.loc[:, 'Ratio log'] = np.log(output.loc[:, 2050] / output.loc[:, 2020])
@@ -1666,7 +1667,7 @@ def ldmi_method(output_global, efficiency, carbon_content):
     channel_insulation = output.loc['Consumption useful (TWh/m2)', 'Ratio log'] * output_CO2.sum(axis=0)['Ratio']
     output_channel = pd.concat([output_channel, pd.Series(data=[channel_m2, channel_insulation], index=['Surface', 'Insulation'])])
 
-    return output_channel
+    return output_channel, output_CO2
 
 
 if __name__ == '__main__':
@@ -1682,7 +1683,54 @@ if __name__ == '__main__':
         carbon_content = output["Carbon content (gC02/kWh)"]
         efficiency = pd.read_csv('inputs/technology_characteristics/efficiency_resirf.csv', index_col=0, header=None).squeeze()
 
-    output_channel1 = ldmi_method(output_resirf, efficiency, carbon_content)
+    output_channel1, output_CO21 = ldmi_method(output_resirf, efficiency, carbon_content)
+    tmp = pd.concat([output_channel1, output_CO21.sum()[[2020, 2050]]])
+    tmp = tmp.reindex([2020, 'Surface', 'Insulation', 'Share', 'Heating intensity', 'Emission content', 2050])
+    # blank = tmp.cumsum().shift(1).fillna(0)  # will be used as start point for the bar plot
+    #
+    # fig, ax = plt.subplots(1, 1, figsize=figsize)
+    #
+    # blank = data.cumsum().shift(1).fillna(0)
+    #
+    # # Get the net total number for the final element in the waterfall
+    # total = data.sum()
+    # blank.loc["Social NPV"] = total
+    # data.loc["Social NPV"] = total
+    # # The steps graphically show the levels as well as used for label placement
+    # step = blank.reset_index(drop=True).repeat(3).shift(-1)
+    # step[1::3] = np.nan
+    #
+    # # When plotting the last element, we want to show the full bar,
+    # # Set the blank to 0
+    # blank.loc["Social NPV"] = 0
+    #
+    # # Plot and label
+    # if colors is None:
+    #     data.plot(kind='bar', stacked=True, bottom=blank, legend=None,
+    #               title=title, ax=ax, edgecolor=None)
+    # else:
+    #     data.plot(kind='bar', stacked=True, bottom=blank, legend=None,
+    #           title=title, ax=ax, color=color, edgecolor=None)
+    # plt.plot(step.index, step.values, 'k', linewidth=0.5, linestyle='--')
+    # plt.axhline(y=0, color='black', linewidth=0.3)
+
+    # # Fix this figure
+    # fig = go.Figure(go.Waterfall(
+    #     name="20", orientation="v",
+    #     measure=["total", "relative", "relative", "relative", "relative", "relative", "total"],
+    #     x=["2020", "Surface", "Insulation", "Share", "Heating intensity", "Emission content", "2050"],
+    #     textposition="outside",
+    #     text=["+60", "+80", "", "-40", "-20", "Total"],
+    #     y=[60, 80, 0, -40, -20, 1, 0],
+    #     connector={"line": {"color": "rgb(63, 63, 63)"}},
+    # ))
+    #
+    # fig.update_layout(
+    #     title="Profit and loss statement 2018",
+    #     showlegend=True
+    # )
+    #
+    # fig.show()
 
     path = "outputs/1016_policies_exogenous_cc_pricefeedback_hcDPE/1013_213834_S2p_N1_ambitious_cc_pricefeedback_hcDPE"
     with open(os.path.join(path, 'coupling_results.pkl'), "rb") as file:
@@ -1691,4 +1739,4 @@ if __name__ == '__main__':
         carbon_content = output["Carbon content (gC02/kWh)"]
         efficiency = pd.read_csv('inputs/technology_characteristics/efficiency_resirf.csv', index_col=0, header=None).squeeze()
 
-    output_channel2 = ldmi_method(output_resirf, efficiency, carbon_content)
+    output_channel2, output_CO22 = ldmi_method(output_resirf, efficiency, carbon_content)
