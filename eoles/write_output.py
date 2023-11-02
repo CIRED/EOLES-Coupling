@@ -2666,3 +2666,63 @@ def plot_blackbox_optimization(dict_optimizer, save_path, two_stage_optim=False)
                 optimizer = dict_optimizer[key][stage]
                 optimizer.plot_convergence(filename=os.path.join(save_path, "plots", f"optimizer_{key}_{stage}_convergence.png"))
                 optimizer.plot_acquisition(filename=os.path.join(save_path, "plots", f"optimizer_{key}_{stage}_acquisition.png"))
+
+
+def plot_ldmi_method(channel, CO2, start, end, colors=None, rotation=0, save=None, format_y=lambda y, _: '{:.0f}'.format(y)):
+    """Plots LDMI decomposition method."""
+    channel = channel.reindex(['Surface', 'Insulation', 'Share', 'Heating intensity', 'Emission content'])
+    tmp = pd.concat([channel, CO2.sum()[[start, end]]])
+    tmp = tmp.reindex([start, 'Surface', 'Insulation', 'Share', 'Heating intensity', 'Emission content', end])
+    tmp.index = tmp.index.astype(str)
+    blank = tmp.cumsum().shift(1).fillna(0)  # will be used as start point for the bar plot
+    blank[-1] = 0
+    fig, ax = plt.subplots(1, 1, figsize=(12.8, 9.6))
+    if colors is not None:
+        tmp.plot(kind='bar', stacked=True, bottom=blank, title=None, ax=ax, color=[colors[i] for i in tmp.index])
+    else:
+        tmp.plot(kind='bar', stacked=True, bottom=blank, title=None, ax=ax)
+
+    # for p in ax.patches:
+    #     ax.annotate(format(p.get_height(), '.2f'), (p.get_x() + p.get_width() / 2., p.get_height()), ha='center',
+    #                 va='center', xytext=(0, 10), textcoords='offset points')
+
+    y_height = tmp.cumsum().shift(1).fillna(0)
+    max = tmp.max()
+    neg_offset, pos_offset = max / 20, max / 50
+
+    # Start label loop
+    loop = 0
+    for index, val in tmp.iteritems():
+        # For the last item in the list, we don't want to double count
+        if val == tmp.iloc[-1]:
+            y = y_height[loop]
+        else:
+            y = y_height[loop] + val
+        # Determine if we want a neg or pos offset
+        if val > 0:
+            y += pos_offset
+        else:
+            y -= neg_offset
+        ax.annotate("{:,.1f}".format(val), (loop, y), ha="center")
+        loop += 1
+
+    y_max = blank.max() * 1.1
+    y_min = blank.min() * 1.1
+    ax.spines['left'].set_visible(False)
+    ax.set_ylim(ymax=y_max)
+    ax.set_ylim(ymin=y_min)
+    ax.set_xlabel('')
+    ax = format_ax_new(ax, format_y=format_y, xinteger=True)
+
+    plt.setp(ax.xaxis.get_majorticklabels(), rotation=rotation)
+    ax.tick_params(axis='both', which='major', labelsize=14)
+
+    # current_labels = ax.get_legend_handles_labels()[1]
+    # if dict_legend is not None:
+    #     new_labels = [dict_legend[e] if e in dict_legend.keys() else e for e in current_labels]
+    # else:
+    #     new_labels = current_labels
+    #
+    # ax.legend(loc='lower center', bbox_to_anchor=(0.5, -0.1), labels=new_labels, frameon=False)
+
+    save_fig(fig, save=save)

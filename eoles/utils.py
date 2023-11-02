@@ -3,6 +3,10 @@ import math
 from importlib import resources
 from pathlib import Path
 import pandas as pd
+
+from eoles.write_output import plot_ldmi_method
+from eoles.inputs.resources import resources_data
+
 pd.options.mode.chained_assignment = None  # default='warn'
 import os
 import json
@@ -1684,55 +1688,10 @@ if __name__ == '__main__':
         efficiency = pd.read_csv('inputs/technology_characteristics/efficiency_resirf.csv', index_col=0, header=None).squeeze()
 
     output_channel1, output_CO21 = ldmi_method(output_resirf, efficiency, carbon_content)
-    tmp = pd.concat([output_channel1, output_CO21.sum()[[2020, 2050]]])
-    tmp = tmp.reindex([2020, 'Surface', 'Insulation', 'Share', 'Heating intensity', 'Emission content', 2050])
-    # blank = tmp.cumsum().shift(1).fillna(0)  # will be used as start point for the bar plot
-    #
-    # fig, ax = plt.subplots(1, 1, figsize=figsize)
-    #
-    # blank = data.cumsum().shift(1).fillna(0)
-    #
-    # # Get the net total number for the final element in the waterfall
-    # total = data.sum()
-    # blank.loc["Social NPV"] = total
-    # data.loc["Social NPV"] = total
-    # # The steps graphically show the levels as well as used for label placement
-    # step = blank.reset_index(drop=True).repeat(3).shift(-1)
-    # step[1::3] = np.nan
-    #
-    # # When plotting the last element, we want to show the full bar,
-    # # Set the blank to 0
-    # blank.loc["Social NPV"] = 0
-    #
-    # # Plot and label
-    # if colors is None:
-    #     data.plot(kind='bar', stacked=True, bottom=blank, legend=None,
-    #               title=title, ax=ax, edgecolor=None)
-    # else:
-    #     data.plot(kind='bar', stacked=True, bottom=blank, legend=None,
-    #           title=title, ax=ax, color=color, edgecolor=None)
-    # plt.plot(step.index, step.values, 'k', linewidth=0.5, linestyle='--')
-    # plt.axhline(y=0, color='black', linewidth=0.3)
 
-    # # Fix this figure
-    # fig = go.Figure(go.Waterfall(
-    #     name="20", orientation="v",
-    #     measure=["total", "relative", "relative", "relative", "relative", "relative", "total"],
-    #     x=["2020", "Surface", "Insulation", "Share", "Heating intensity", "Emission content", "2050"],
-    #     textposition="outside",
-    #     text=["+60", "+80", "", "-40", "-20", "Total"],
-    #     y=[60, 80, 0, -40, -20, 1, 0],
-    #     connector={"line": {"color": "rgb(63, 63, 63)"}},
-    # ))
-    #
-    # fig.update_layout(
-    #     title="Profit and loss statement 2018",
-    #     showlegend=True
-    # )
-    #
-    # fig.show()
+    plot_ldmi_method(output_channel1, output_CO21, 2020, 2050, colors=resources_data['colors_coupling'], rotation=0, save=None)
 
-    path = "outputs/1016_policies_exogenous_cc_pricefeedback_hcDPE/1013_213834_S2p_N1_ambitious_cc_pricefeedback_hcDPE"
+    path = "outputs/1016_policies_exogenous_cc_pricefeedback_hcDPE/1014_013733_S2p_N1_ban_cc_pricefeedback_hcDPE"
     with open(os.path.join(path, 'coupling_results.pkl'), "rb") as file:
         output = load(file)
         output_resirf = output["Output global ResIRF ()"]
@@ -1740,3 +1699,5 @@ if __name__ == '__main__':
         efficiency = pd.read_csv('inputs/technology_characteristics/efficiency_resirf.csv', index_col=0, header=None).squeeze()
 
     output_channel2, output_CO22 = ldmi_method(output_resirf, efficiency, carbon_content)
+    plot_ldmi_method(output_channel2, output_CO22, 2020, 2050, colors=resources_data['colors_coupling'], rotation=0,
+                     save=None)

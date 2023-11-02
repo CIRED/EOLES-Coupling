@@ -95,20 +95,6 @@ colors_resirf = {
     "Consumption saving insulation cumulated (TWh)": '#FBAFE4'
 }
 
-new_colors_eoles = {
-    'onshore': color_palette[2],
-    'offshore': color_palette[0],
-    'pv': color_palette[8],
-    'peaking plants': color_palette[5],
-    'nuclear': color_palette[7],
-    'hydro': color_palette[9],
-    'battery': color_palette[6],
-    'ocgt': color_palette[5],
-    'ccgt': color_palette[3],
-    'h2_ccgt': color_palette[1],
-    'phs': color_palette[4]
-}
-
 colors_eoles = {
     "electricity demand": 'red',
     "offshore_f": '#0173B2',
@@ -201,6 +187,32 @@ colors_eoles = {
 
 }
 
+new_colors_eoles = {
+    'onshore': color_palette[2],
+    'offshore': color_palette[0],
+    'pv': color_palette[8],
+    'peaking plants': color_palette[5],
+    'nuclear': color_palette[7],
+    'hydro': color_palette[9],
+    'battery': color_palette[6],
+    'ocgt': color_palette[5],
+    'ccgt': color_palette[3],
+    'h2_ccgt': color_palette[1],
+    'phs': color_palette[4]
+}
+
+
+colors_coupling = {
+    '2020': 'black',
+    'Surface': color_palette[2],
+    'Insulation': color_palette[0],
+    'Share': color_palette[8],
+    'Heating intensity': color_palette[6],
+    'Emission content': color_palette[5],
+    '2050': color_palette[9]
+}
+
 resources_data["colors_resirf"] = colors_resirf
 resources_data["colors_eoles"] = colors_eoles
 resources_data["new_colors_eoles"] = new_colors_eoles
+resources_data["colors_coupling"] = colors_coupling
