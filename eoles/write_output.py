@@ -2668,11 +2668,19 @@ def plot_blackbox_optimization(dict_optimizer, save_path, two_stage_optim=False)
                 optimizer.plot_acquisition(filename=os.path.join(save_path, "plots", f"optimizer_{key}_{stage}_acquisition.png"))
 
 
-def plot_ldmi_method(channel, CO2, start, end, colors=None, rotation=0, save=None, format_y=lambda y, _: '{:.0f}'.format(y)):
+def plot_ldmi_method(channel, CO2, start, end, colors=None, rotation=0, save=None, format_y=lambda y, _: '{:.0f}'.format(y),
+                     title=None, y_label="Emissions (MtCO2)"):
     """Plots LDMI decomposition method."""
-    channel = channel.reindex(['Surface', 'Insulation', 'Share', 'Heating intensity', 'Emission content'])
+    new_index = []
+    for c in channel.index:
+        if len(c.split(' ')) > 1:  # we have two words
+            new_index.append(c.split(' ')[0] + ' \n ' + c.split(' ')[1])
+        else:
+            new_index.append(c)
+    channel.index = new_index
+    # channel = channel.reindex(['Surface', 'Insulation', 'Share', 'Heating \n intensity', 'Emission content'])
     tmp = pd.concat([channel, CO2.sum()[[start, end]]])
-    tmp = tmp.reindex([start, 'Surface', 'Insulation', 'Share', 'Heating intensity', 'Emission content', end])
+    tmp = tmp.reindex([start] + channel.index.to_list() + [end])
     tmp.index = tmp.index.astype(str)
     blank = tmp.cumsum().shift(1).fillna(0)  # will be used as start point for the bar plot
     blank[-1] = 0
@@ -2713,6 +2721,12 @@ def plot_ldmi_method(channel, CO2, start, end, colors=None, rotation=0, save=Non
     ax.set_ylim(ymin=y_min)
     ax.set_xlabel('')
     ax = format_ax_new(ax, format_y=format_y, xinteger=True)
+
+    if title is not None:
+        ax.set_title(title, fontweight='bold', color='dimgrey', pad=-1.6, fontsize=16)
+
+    if y_label is not None:
+        ax.set_ylabel(y_label, color='dimgrey', fontsize=20)
 
     plt.setp(ax.xaxis.get_majorticklabels(), rotation=rotation)
     ax.tick_params(axis='both', which='major', labelsize=14)
