@@ -1281,7 +1281,7 @@ def modif_config_eoles(config_eoles, config_coupling):
     assert config_coupling["eoles"]['maximum_capacity_scenario'] in ['N1', 'Opt', 'N1nuc', 'N1ren'], "Scenario for capacity evolution is not correctly specified"
     config_eoles_update["maximum_capacity_evolution_scenario"] = config_coupling["eoles"]['maximum_capacity_scenario']
 
-    assert config_coupling["eoles"]["biomass_potential_scenario"] in ["S3", "S2", "S2p"], "Biomass potential scenario is not specified correctly in config_coupling."
+    assert config_coupling["eoles"]["biomass_potential_scenario"] in ["S3", "S2", "S2p", "S0"], "Biomass potential scenario is not specified correctly in config_coupling."
     config_eoles_update["biomass_potential_scenario"] = config_coupling["eoles"]["biomass_potential_scenario"]
 
     assert config_coupling["eoles"]["demand_scenario"] in ["Reference", "Reindustrialisation", "Sobriete", "Electrification+"], "Demand scenario is not specified correctly in config_coupling."
@@ -1632,7 +1632,7 @@ def ldmi_method(output_global, efficiency, carbon_content):
     try:
         output = pd.concat([output, carbon_content.loc[:,[2020, 2050]]], axis=0)
     except:
-        carbon_content.loc[:,2020] = 0  # a modifier pour mettre les bonnes valeurs
+        carbon_content.loc[:,2020] = [229,32,33]  # a modifier pour mettre les bonnes valeurs
         output = pd.concat([output, carbon_content.loc[:, [2020, 2050]]], axis=0)
 
     for energy in energy_vector:
@@ -1772,7 +1772,22 @@ if __name__ == '__main__':
     # hp_cop_behrang = get_pandas(path_cop_behrang, lambda x: pd.read_csv(x, index_col=0, header=0))
     # hp_cop_new = calculate_hp_cop(climate=2006)
     # hp_cop_new.to_csv(Path("eoles") / "inputs" / "hp_cop_2006.csv")
-    print(os.getcwd())
+
+    list_path = {'Centralized': "outputs/1015_optim_pricefeedback/1015_045146_centralized_insulation_S3_N1_pricefeedback",
+                  'Uniform': "outputs/1015_optim_pricefeedback/1015_144041_uniform_S3_N1_pricefeedback",
+                  'DR': "outputs/1015_optim_pricefeedback/1015_140727_DR_S3_N1_pricefeedback",
+                  'Proportiona': "outputs/1015_optim_pricefeedback/1105_153045_proportional_S3_N1_pricefeedback"}
+    for scenario, path in zip(list_path.keys(), list_path.values()):
+        with open(os.path.join(path, 'coupling_results.pkl'), "rb") as file:
+            output = load(file)
+            output_resirf = output["Output global ResIRF ()"]
+            carbon_content = output["Carbon content (gC02/kWh)"]
+            efficiency = pd.read_csv('inputs/technology_characteristics/efficiency_resirf.csv', index_col=0, header=None).squeeze()
+
+        output_channel1, output_CO21 = ldmi_method(output_resirf, efficiency, carbon_content)
+        plot_ldmi_method(output_channel1, output_CO21, 2020, 2050, colors=resources_data['colors_coupling'], rotation=0, save=None,
+                         title=f"LDMI method - {scenario}")
+
     path = "outputs/1016_policies_exogenous_cc_pricefeedback_hcDPE/1013_201614_S2p_N1_ref_cc_pricefeedback_hcDPE"
     with open(os.path.join(path, 'coupling_results.pkl'), "rb") as file:
         output = load(file)
