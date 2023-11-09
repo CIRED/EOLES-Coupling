@@ -2009,7 +2009,7 @@ def post_processing_eoles_output(output_dynamics, m_eoles: ModelEOLES, anticipat
 
     # Carbon content
     gas_carbon_content, dh_carbon_content, heat_elec_carbon_content, heat_elec_carbon_content_day = m_eoles.gas_carbon_content, m_eoles.dh_carbon_content, m_eoles.heat_elec_carbon_content, m_eoles.heat_elec_carbon_content_day
-    carbon_content = pd.Series(data=[gas_carbon_content, heat_elec_carbon_content, heat_elec_carbon_content_day],
+    carbon_content = pd.Series(data=[gas_carbon_content, dh_carbon_content, heat_elec_carbon_content, heat_elec_carbon_content_day],
                                index=['Emission content Gas (gCO2/kWh)', 'Emission content District heating (gCO2/kWh)',
                                       'Emission content Electricity heating (gCO2/kWh)', 'Emission content Electricity heating daily (gCO2/kWh)'])
     output_dynamics['carbon_content_df'] = pd.concat(
