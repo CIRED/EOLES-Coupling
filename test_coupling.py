@@ -336,21 +336,21 @@ if __name__ == '__main__':
 
 
     # # Test plot optimization blackbox
-    # import matplotlib.tri as tri
-    # evaluations = pd.read_csv(os.path.join("eoles/outputs/0309_120024_temoin_simple_premature3/evaluations_optimizer_2045.csv"), sep='\t')
-    # evaluations = evaluations.loc[evaluations.Y < 40.7]
-    #
-    # x = evaluations["var_1"].to_numpy()
-    # y = evaluations["var_2"].to_numpy()
-    # z = evaluations["Y"].to_numpy()
-    #
-    # fig, ax = plt.subplots()
-    # ax.tricontour(x, y, z, levels=14, linewidths=0.5, colors='k')
-    # cntr2 = ax.tricontourf(x, y, z, levels=14, cmap="RdBu_r")
-    #
-    # fig.colorbar(cntr2, ax=ax)
-    # ax.plot(x, y, 'ko', ms=3)
-    # plt.show()
+    import matplotlib.tri as tri
+    evaluations = pd.read_csv(os.path.join("eoles/outputs/0309_120024_temoin_simple_premature3/evaluations_optimizer_2045.csv"), sep='\t')
+    evaluations = evaluations.loc[evaluations.Y < 40.7]
+
+    x = evaluations["var_1"].to_numpy()
+    y = evaluations["var_2"].to_numpy()
+    z = evaluations["Y"].to_numpy()
+
+    fig, ax = plt.subplots()
+    ax.tricontour(x, y, z, levels=14, linewidths=0.5, colors='k')
+    cntr2 = ax.tricontourf(x, y, z, levels=14, cmap="RdBu_r")
+
+    fig.colorbar(cntr2, ax=ax)
+    ax.plot(x, y, 'ko', ms=3)
+    plt.show()
 
     #
     # plot_simulation(output, save_path=os.path.join("eoles/outputs/test_plots", "plots"))

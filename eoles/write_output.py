@@ -818,7 +818,7 @@ def comparison_simulations_new(dict_output: dict, ref, greenfield=False, health=
         else:
             save_path_plot = os.path.join(save_path, f"flexible_capacity.{extension}")
 
-        subset_flex = ['nuclear', "phs", 'battery', 'ocgt', 'ccgt', 'h2_ccgt']
+        subset_flex = ['nuclear', "phs", 'battery', 'peaking plants']
         make_clusterstackedbar_plot(capacities_evolution_df, groupby='Technology', subset=subset_flex,
                                     y_label="Flexible capacity (GW)",
                                     colors=resources_data["new_colors_eoles"], format_y=lambda y, _: '{:.0f}'.format(y),
