@@ -1,5 +1,5 @@
 {
-    "name_config": "S2_N1_pricefeedback_cbconvex",
+    "name_config": "S2_N1_hcDPE_pricefeedback_cbconvex",
     "greenfield": false,
     "prices_constant": false,
     "price_feedback": true,
@@ -19,5 +19,6 @@
     "dict_configs": null,
     "cap_MWh": 1000,
     "cap_tCO2": 2000,
-    "demand_scenario": "Reference"
+    "demand_scenario": "Reference",
+    "method_health_cost": "epc"
 }
