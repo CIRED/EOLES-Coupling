@@ -1506,29 +1506,44 @@ def create_configs_coupling(list_design, config_coupling: dict, config_additiona
     return dict_configs
 
 
-def extract_subsidy_value(folder, name_config: str):
+def extract_subsidy_value(list_folder, name_config: str):
     """
     Function to extract the value of the subsidies found in the algorithm.
     :param folder: str
         Name of folder where we can find the required results
     :param name_config: str
-        Name of configuration used to save the results
+        Name of configuration used to save the results. For example, "S2_N1_pricefeedback_hcDPE" (this is basically the string at the end of the folder file)
     :return:
     """
     subsidies_heater_dict, subsidies_insulation_dict = {}, {}
-    for f in os.listdir(folder):
-        if os.path.isdir(os.path.join(folder, f)):
-            with open(os.path.join(folder, f, 'coupling_results.pkl'), "rb") as file:
+    for folder in list_folder:
+        if os.path.isdir(folder):
+            with open(os.path.join(folder, 'coupling_results.pkl'), "rb") as file:
                 output = load(file)
             subsidies = output["Subsidies (%)"]
             subsidies_insulation = subsidies['Insulation'].tolist()
             subsidies_heater = subsidies['Heater'].tolist()
             len_name_config = len(name_config.split('_'))
-            name_design = f.split('_')
+            name_design = folder.split('/')[-1].split('_')
             name_design = '_'.join(name_design[2:len(name_design) - len_name_config])
             subsidies_heater_dict[name_design] = subsidies_heater
             subsidies_insulation_dict[name_design] = subsidies_insulation
     return subsidies_heater_dict, subsidies_insulation_dict
+
+
+def find_folders(base_folder, target_string):
+    """Gets all files inside a folder which matches a certain pattern"""
+    matching_folders = []
+
+    # Iterate over all items in the base folder
+    for item in os.listdir(base_folder):
+        item_path = os.path.join(base_folder, item)
+
+        # Check if the item is a directory and contains the target string
+        if os.path.isdir(item_path) and target_string in item:
+            matching_folders.append(item_path)
+
+    return matching_folders
 
 
 def config_resirf_exogenous(sensitivity, config_resirf):
@@ -1599,8 +1614,6 @@ def ldmi_method(output_global, efficiency, carbon_content):
     for energy in energy_vector:
         output.loc[f'Share {energy} (%)'] = output.loc[f'Consumption useful {energy} (TWh)'] / output.loc["Consumption useful (TWh)"]  # share of energy in total useful energy consumption
 
-    # select subset of output, for subset of rows and columns
-    # subset of rows is a list subset_rows, and subset of columns is a list subset_columns
     subset_rows = ["Surface (Million m2)", "Consumption useful (TWh/m2)"]
     subset_rows = subset_rows + [f"Efficiency {energy} ()" for energy in energy_vector] + \
                   [f"Consumption useful {energy} (TWh)" for energy in energy_vector] + [f"Share {energy} (%)" for energy in energy_vector] + [f"Heating intensity {energy} (%)" for energy in energy_vector]
@@ -1641,10 +1654,8 @@ def ldmi_method(output_global, efficiency, carbon_content):
     output.loc['CO2 emissions (MtCO2)'] = sum(output.loc[f'CO2 emissions {energy} (MtCO2)'] for energy in energy_vector)
 
     output_energy = output.loc[[row for row in output.index if any(energy in row for energy in energy_vector)], :]  # subset specific to each energy vector
-    # Create a list of new column names
-    new_index = []
 
-    # Split the existing column names to create multiindex
+    new_index = []
     for col in output_energy.index:
         parts = col.split(' (')[0].split(' ')
         new_index.append((' '.join(parts[:-2]), ' '.join(parts[-2:])))

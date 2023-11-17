@@ -19,7 +19,7 @@ from project.model import create_logger, get_config, get_inputs
 from eoles.model_resirf_coupling import ModelEOLES
 from eoles.utils import get_config, get_pandas, calculate_annuities_resirf, modif_config_resirf, \
     modif_config_eoles, modif_config_coupling, create_configs_coupling, create_default_options, create_optimization_param, \
-    create_coupling_param, extract_subsidy_value
+    create_coupling_param, extract_subsidy_value, find_folders
 from eoles.write_output import plot_simulation, plot_blackbox_optimization, save_summary_pdf, comparison_simulations
 import eoles.utils
 from eoles.coupling_resirf_eoles import resirf_eoles_coupling_dynamic, optimize_blackbox_resirf_eoles_coupling, \
@@ -405,7 +405,7 @@ if __name__ == '__main__':
             config_coupling = json.load(file)
 
         list_design = ['uniform', 'centralized_insulation', 'DR', 'DR_FGE', 'proportional']
-        list_design = None
+        list_design = ['centralized_insulation']
 
         # # Cas spécifique où on vient extraire la valeur de subventions qui ont été optimisées au préalable
         # config_coupling['subsidies_specified'] = True  # we specify that subsidies are given
@@ -441,13 +441,24 @@ if __name__ == '__main__':
                     "base.json")) as file:  # load reference configuration for coupling
                 config_coupling = json.load(file)
 
-            list_design = ['proportional']
+            list_design = ['centralized_insulation']
             list_design = None  # TODO: a changer si on veut spécifier un design en particulier
+
             DICT_CONFIGS = create_configs_coupling(list_design=list_design, config_coupling=config_coupling,
                                                    config_additional=config_additional, dict_configs=DICT_CONFIGS)
 
+
     results = run_multiple_configs(DICT_CONFIGS, cpu=cpu,reference=None, greenfield=True,
                                    health=True, carbon_constraint=True)
+
+    # CODE to test specific subsidies
+    # to add if I want to run stuff again with specific subsidies. Maybe to adapt depending on what i want to test
+    # list_folder = find_folders(base_folder="eoles/outputs/1110_optim_pricefeedback", target_string="centralized_insulation_S2_N1_pricefeedback_hcDPE")
+    # subsidies_heater_dict, subsidies_insulation_dict = extract_subsidy_value(list_folder,
+    #                                                                          name_config="S2_N1_pricefeedback_hcDPE")
+    # config_coupling['subsidies_specified'] = True  # we specify that subsidies are given
+    # config_additional['subsidies_heater'] = subsidies_heater_dict
+    # config_additional['subsidies_insulation'] = subsidies_insulation_dict
 
     # configpath = Path('eoles') / Path('inputs') / Path('xps') / configpath
 

@@ -684,9 +684,19 @@ class ModelEOLES():
         """Attention au choix de la infeasible_value: c'est la valeur que l'on donne lorsque le problème n'est pas solvable."""
         self.opt = SolverFactory(solver_name)
         self.logger.info("Solving EOLES model using %s", self.opt.name)
+        # self.solver_results = self.opt.solve(self.model,
+        #                                      options={'Presolve': 2, 'LogFile': self.path + "/logfile_" + self.name})
+
         self.solver_results = self.opt.solve(self.model,
-                                             options={'Presolve': 2, 'LogFile': self.path + "/logfile_" + self.name})
-        # TODO: à modifier pour utiliser un objet Path, ce sera plus propre
+                                             options={'threads': 4,
+                                                      'method': 2, # barrier
+                                                      'crossover': 0,
+                                                      'BarConvTol': 1.e-6,
+                                                       'Seed': 123,
+                                                       'AggFill': 0,
+                                                       'PreDual': 0,
+                                                       'GURO_PAR_BARDENSETHRESH': 200,
+                                                      'LogFile': self.path + "/logfile_" + self.name})
 
         status = self.solver_results["Solver"][0]["Status"]
         termination_condition = self.solver_results["Solver"][0]["Termination condition"]

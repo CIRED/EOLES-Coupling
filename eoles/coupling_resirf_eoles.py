@@ -105,7 +105,7 @@ def resirf_eoles_coupling_static(subsidy, subsidy_policy_heater, subsidy_policy_
                                  scenario_cost, existing_annualized_costs_elec, existing_annualized_costs_CH4,
                                  existing_annualized_costs_CH4_naturalgas, existing_annualized_costs_CH4_biogas,
                                  existing_annualized_costs_H2, lifetime_insulation_annuity=50, lifetime_heater_annuity=20,
-                                 discount_rate=0.045, health=True, carbon_constraint=False,
+                                 discount_rate=0.032, health=True, carbon_constraint=False,
                                  bayesian_optim=True, initial_state_budget=0, cofp=False, optim_eoles=True,
                                  electricity_constant=False):
     """
@@ -254,7 +254,7 @@ def optimize_blackbox_resirf_eoles_coupling(subsidy_policy_heater, subsidy_polic
                                             scenario_cost, existing_annualized_costs_elec,
                                             existing_annualized_costs_CH4, existing_annualized_costs_CH4_naturalgas, existing_annualized_costs_CH4_biogas,
                                             existing_annualized_costs_H2, lifetime_insulation_annuity=50, lifetime_heater_annuity=20,
-                                            discount_rate=0.045,
+                                            discount_rate=0.032,
                                             max_iter=20, initial_design_numdata=3, grid_initialize=False, acquisition_jitter=0.01,
                                             normalize_Y=True, plot=False,
                                             fix_sub_heater=False, fix_sub_insulation=False,
@@ -387,7 +387,7 @@ def gradient_descent(x0, bounds, subsidy_policy, subsidy_target, subsidy_proport
                      existing_capacity, existing_charging_capacity, existing_energy_capacity, maximum_capacity,
                      method_hourly_profile, scenario_cost, existing_annualized_costs_elec, existing_annualized_costs_CH4,
                      existing_annualized_costs_CH4_naturalgas, existing_annualized_costs_CH4_biogas,
-                     existing_annualized_costs_H2, lifetime_insulation_annuity=50, lifetime_heater_annuity=20, discount_rate=0.045,
+                     existing_annualized_costs_H2, lifetime_insulation_annuity=50, lifetime_heater_annuity=20, discount_rate=0.032,
                      max_iter=20, health=True, carbon_constraint=False, rebound=True):
     bfgs_descent = minimize(
         fun=lambda x: resirf_eoles_coupling_static(x, subsidy_policy=subsidy_policy, subsidy_target=subsidy_target, subsidy_proportional=subsidy_proportional, subsidy_cap=subsidy_cap,

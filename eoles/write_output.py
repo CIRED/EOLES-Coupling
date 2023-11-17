@@ -2690,10 +2690,6 @@ def plot_ldmi_method(channel, CO2, start, end, colors=None, rotation=0, save=Non
     else:
         tmp.plot(kind='bar', stacked=True, bottom=blank, title=None, ax=ax)
 
-    # for p in ax.patches:
-    #     ax.annotate(format(p.get_height(), '.2f'), (p.get_x() + p.get_width() / 2., p.get_height()), ha='center',
-    #                 va='center', xytext=(0, 10), textcoords='offset points')
-
     y_height = tmp.cumsum().shift(1).fillna(0)
     max = tmp.max()
     neg_offset, pos_offset = max / 20, max / 50
@@ -2730,13 +2726,5 @@ def plot_ldmi_method(channel, CO2, start, end, colors=None, rotation=0, save=Non
 
     plt.setp(ax.xaxis.get_majorticklabels(), rotation=rotation)
     ax.tick_params(axis='both', which='major', labelsize=14)
-
-    # current_labels = ax.get_legend_handles_labels()[1]
-    # if dict_legend is not None:
-    #     new_labels = [dict_legend[e] if e in dict_legend.keys() else e for e in current_labels]
-    # else:
-    #     new_labels = current_labels
-    #
-    # ax.legend(loc='lower center', bbox_to_anchor=(0.5, -0.1), labels=new_labels, frameon=False)
 
     save_fig(fig, save=save)

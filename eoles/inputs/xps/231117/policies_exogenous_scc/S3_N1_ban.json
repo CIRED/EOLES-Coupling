@@ -1,9 +1,18 @@
 {
-    "name_config": "S2_N1_hcDPE_pricefeedback_cbconvex",
+    "name_config": "S3_N1_ban_hcDPE_scc",
+    "policies": {
+        "file": "project/input/policies/current/policies_ambitious.json",
+        "restriction_gas": {
+            "start": 2025,
+            "end": 2051,
+            "value": "Natural gas",
+            "policy": "restriction_energy"
+        }
+    },
     "greenfield": false,
     "prices_constant": false,
     "price_feedback": true,
-    "biomass_potential_scenario": "S2",
+    "biomass_potential_scenario": "S3",
     "aggregated_potential": true,
     "maximum_capacity_scenario": "N1",
     "lifetime_insulation": 5,
@@ -12,7 +21,7 @@
     "optim_eoles": true,
     "carbon_emissions_resirf": null,
     "electricity_constant": false,
-    "carbon_budget": "carbon_budget_convex",
+    "carbon_budget": "carbon_budget_tight_convex",
     "carbon_budget_resirf": null,
     "district_heating": false,
     "district_heating_potential": null,
