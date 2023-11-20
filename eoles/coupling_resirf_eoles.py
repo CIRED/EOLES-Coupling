@@ -244,7 +244,7 @@ def resirf_eoles_coupling_static(subsidy, subsidy_policy_heater, subsidy_policy_
 
 
 def optimize_blackbox_resirf_eoles_coupling(subsidy_policy_heater, subsidy_policy_insulation, subsidy_proportional_heater, subsidy_proportional_insulation,
-                                            subsidy_proportional_uniform, subsidy_target, subsidy_cap_heater, subsidy_cap_insulation,
+                                            subsidy_proportional_uniform, subsidy_target, subsidy_cap_heater, subsidy_cap_insulation, centralized,
                                             buildings, inputs_dynamics,
                                             policies_heater, policies_insulation,
                                             start_year_resirf, timestep_resirf, config_eoles,
@@ -293,8 +293,12 @@ def optimize_blackbox_resirf_eoles_coupling(subsidy_policy_heater, subsidy_polic
             bounds2d = [{'name': 'sub_heater', 'type': 'continuous', 'domain': (0, 1)},
                         {'name': 'sub_insulation', 'type': 'continuous', 'domain': (0, 0)}]
         else:
-            bounds2d = [{'name': 'sub_heater', 'type': 'continuous', 'domain': (0, 1)},
-                        {'name': 'sub_insulation', 'type': 'continuous', 'domain': (0, 1)}]
+            if centralized:
+                bounds2d = [{'name': 'sub_heater', 'type': 'continuous', 'domain': (0, 0.95)},
+                            {'name': 'sub_insulation', 'type': 'continuous', 'domain': (0, 0.95)}]
+            else:
+                bounds2d = [{'name': 'sub_heater', 'type': 'continuous', 'domain': (0, 1.0)},
+                            {'name': 'sub_insulation', 'type': 'continuous', 'domain': (0, 1.0)}]
     else:  # we want to refine the model around the optimal value
         x_opt_heater = x_opt[0]
         x_opt_insulation = x_opt[1]
@@ -556,7 +560,7 @@ def resirf_eoles_coupling_greenfield(buildings, inputs_dynamics, policies_heater
                                                     config_coupling["subsidy"]["heater"]["proportional"],
                                                     config_coupling["subsidy"]["insulation"]["proportional"], config_coupling["subsidy"]["proportional_uniform"],
                                                     config_coupling["subsidy"]["insulation"]["target"], config_coupling["subsidy"]["heater"]["cap"],
-                                                    config_coupling["subsidy"]["insulation"]["cap"],
+                                                    config_coupling["subsidy"]["insulation"]["cap"], config_coupling["subsidy"]["insulation"]['rational_behavior'],
                                                     buildings, inputs_dynamics, policies_heater,
                                                     policies_insulation,
                                                     start_year_resirf, timestep_resirf,
@@ -1148,7 +1152,7 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
                                                         config_coupling["subsidy"]["heater"]["proportional"],
                                                         config_coupling["subsidy"]["insulation"]["proportional"], config_coupling["subsidy"]["proportional_uniform"],
                                                         config_coupling["subsidy"]["insulation"]["target"], config_coupling["subsidy"]["heater"]["cap"],
-                                                        config_coupling["subsidy"]["insulation"]["cap"],
+                                                        config_coupling["subsidy"]["insulation"]["cap"], config_coupling["subsidy"]["insulation"]['rational_behavior'],
                                                         buildings, inputs_dynamics, policies_heater, policies_insulation,
                                                         start_year_resirf, timestep_resirf,
                                                         config_eoles, year_eoles, anticipated_year_eoles, scc,
@@ -1178,7 +1182,7 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
                                                             config_coupling["subsidy"]["heater"]["proportional"],
                                                             config_coupling["subsidy"]["insulation"]["proportional"], config_coupling["subsidy"]["proportional_uniform"],
                                                             config_coupling["subsidy"]["insulation"]["target"], config_coupling["subsidy"]["heater"]["cap"],
-                                                            config_coupling["subsidy"]["insulation"]["cap"],
+                                                            config_coupling["subsidy"]["insulation"]["cap"], config_coupling["subsidy"]["insulation"]['rational_behavior'],
                                                             buildings, inputs_dynamics, policies_heater,
                                                             policies_insulation,
                                                             start_year_resirf, timestep_resirf,
