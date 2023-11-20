@@ -1,15 +1,15 @@
 #!/bin/bash
 
 ## BEGIN SBATCH directives
-#SBATCH --job-name=batch1
-#SBATCH --output="eoles/outputs/batch1.txt"
-#SBATCH --error="eoles/outputs/error_batch1.txt"
+#SBATCH --job-name=batch2
+#SBATCH --output="eoles/outputs/batch2.txt"
+#SBATCH --error="eoles/outputs/error_batch2.txt"
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=40
 #SBATCH --time=100:00:00
 #SBATCH --partition=cpu_shared
 #SBATCH --account=gennn
-#SBATCH --nodelist=node019
+#SBATCH --nodelist=node018
 #SBATCH --mem=MaxMemPerNode
 ## END SBATCH directives
 
@@ -17,7 +17,7 @@
 module purge
 module load anaconda3/2020.11 #cuda/10.2
 module load gurobi
-export GRB_LICENSE_FILE="/mnt/beegfs/softs/opt/core/gurobi/9.5.2/linux64/gurobi.19.lic"
+export GRB_LICENSE_FILE="/mnt/beegfs/softs/opt/core/gurobi/9.5.2/linux64/gurobi.18.lic"
 conda activate envCoupling
 
-python main_coupling_resirf.py --cpu 40 --configdir "eoles/inputs/xps/231003/optim_pricefeedback"
+python main_coupling_resirf.py --cpu 40 --configdir "eoles/inputs/xps/231117/optim" --patterns "S3_N1ren_hcDPE.json" "S3_Opt_hcDPE.json"
