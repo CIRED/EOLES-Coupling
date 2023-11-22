@@ -404,7 +404,7 @@ if __name__ == '__main__':
         with open(configpath.resolve().parent / Path("base.json")) as file:  # load reference configuration for coupling
             config_coupling = json.load(file)
 
-        list_design = ['uniform', 'centralized_insulation', 'DR', 'DR_FGE', 'proportional']
+        list_design = ['uniform', 'centralized_insulation', 'DR', 'proportional']
         list_design = ['centralized_insulation']
 
         # # Cas spécifique où on vient extraire la valeur de subventions qui ont été optimisées au préalable
@@ -442,11 +442,6 @@ if __name__ == '__main__':
                 config_coupling = json.load(file)
 
             list_design = ['centralized_insulation']
-            config_coupling['subsidies_specified'] = True  # we specify that subsidies are given
-            config_additional['subsidies_heater'] = {'centralized_insulation': [0.5, 0.2, 0.6, 0.8, 0.6] ,
-                                                     'uniform': [0.9, 0.9, 0.9, 0.9, 0.9] }
-            config_additional['subsidies_insulation'] = {'centralized_insulation': [0.97, 0.8, 0.2, 0.2, 0.97],
-                                                         'uniform': [0.5, 0.8, 0.2, 0.5, 0.6]}
 
             DICT_CONFIGS = create_configs_coupling(list_design=list_design, config_coupling=config_coupling,
                                                    config_additional=config_additional, dict_configs=DICT_CONFIGS)
@@ -463,6 +458,12 @@ if __name__ == '__main__':
     # config_coupling['subsidies_specified'] = True  # we specify that subsidies are given
     # config_additional['subsidies_heater'] = subsidies_heater_dict
     # config_additional['subsidies_insulation'] = subsidies_insulation_dict
+
+    # config_coupling['subsidies_specified'] = True  # we specify that subsidies are given
+    # config_additional['subsidies_heater'] = {'centralized_insulation': [0.5, 0.2, 0.6, 0.8, 0.6],
+    #                                          'uniform': [0.9, 0.9, 0.9, 0.9, 0.9]}
+    # config_additional['subsidies_insulation'] = {'centralized_insulation': [0.97, 0.8, 0.2, 0.2, 0.97],
+    #                                              'uniform': [0.5, 0.8, 0.2, 0.5, 0.6]}
 
     # configpath = Path('eoles') / Path('inputs') / Path('xps') / configpath
 
