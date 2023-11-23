@@ -3,6 +3,7 @@ import math
 from importlib import resources
 from pathlib import Path
 import pandas as pd
+from numpy import log
 
 from eoles.write_output import plot_ldmi_method
 from eoles.inputs.resources import resources_data
@@ -1596,60 +1597,135 @@ def create_multiple_coupling_configs(dict_config_resirf, config_coupling):
     return dict_config_coupling
 
 
+def ldmi_method_resirf(output, carbon_content):
+    start, end = 2020, 2049
+
+    heater_vector, energy_vector = ["Electricity-Heat pump water", "Electricity-Performance boiler", "Heating-District heating",
+                     "Natural gas-Performance boiler", "Oil fuel-Performance boiler", "Wood fuel-Performance boiler"], ["Electricity", "Natural gas", "Oil fuel", "Wood fuel", "Heating"]
+    # select only heater_vector that have 'Surface {} (Million m2)' in output index
+    heater_vector = [i for i in heater_vector if 'Surface {} (Million m2)'.format(i) in output.index]
+
+    # Select rows
+    rows = []
+    rows += ['Surface (Million m2)']
+    rows += ['Surface {} (Million m2)'.format(i) for i in heater_vector]
+    rows += ['Consumption standard {} (TWh)'.format(i) for i in heater_vector]
+    rows += ['Consumption {} (TWh)'.format(i) for i in heater_vector]
+    rows += ['Emission content {} (gCO2/kWh)'.format(i) for i in energy_vector]
+    rows = [i for i in rows if i in output.index]
+    data = output.loc[rows, [start, end]]
+    data = data.rename(columns={2049: 2050})
+    end = 2050
+
+    # Prepare indicators
+    for i in heater_vector:
+        data.loc['Share surface {} (%)'.format(i), :] = data.loc['Surface {} (Million m2)'.format(i), :] / data.loc[
+            'Surface (Million m2)', :]
+        data.loc['Consumption standard {} (TWh/m2)'.format(i), :] = data.loc['Consumption standard {} (TWh)'.format(i), :] / data.loc[
+            'Surface {} (Million m2)'.format(i), :]
+        data.loc['Heating intensity {} (%)'.format(i), :] = data.loc['Consumption {} (TWh)'.format(i), :] / data.loc[
+            'Consumption standard {} (TWh)'.format(i), :]
+        data.loc['Emission content {} (gCO2/kWh)'.format(i), :] = data.loc['Emission content {} (gCO2/kWh)'.format(i.split('-')[0]), :]
+        # data.loc['Emission {} (MtCO2)'.format(i), :] = data.loc['Consumption {} (TWh)'.format(i), :] * data.loc[
+        #     'Emission content {} (gCO2/kWh)'.format(i), :] / 1000
+
+    carbon_content = carbon_content.rename(index={'Emission content Gas (gCO2/kWh)': 'Emission content Natural gas-Performance boiler (gCO2/kWh)',
+                                                  'Emission content District heating (gCO2/kWh)': 'Emission content Heating-District heating (gCO2/kWh)'})  # we keep same notations as in Res-IRF (even though it is not natural gas per se)
+    carbon_content.loc['Emission content Electricity-Heat pump water (gCO2/kWh)'] = carbon_content.loc['Emission content Electricity heating (gCO2/kWh)']
+    carbon_content.loc['Emission content Electricity-Performance boiler (gCO2/kWh)'] = carbon_content.loc['Emission content Electricity heating (gCO2/kWh)']
+
+    carbon_content = carbon_content.drop(index=['Emission content Electricity heating (gCO2/kWh)', 'Emission content Electricity heating daily (gCO2/kWh)'])
+    if 2020 not in carbon_content.columns:
+        carbon_content.loc[:, 2020] = [229, 101, 33, 33]
+    carbon_content = carbon_content.sort_index(axis=1, ascending=True)
+
+    list_energy = ["Electricity-Heat pump water", "Electricity-Performance boiler", "Heating-District heating", "Natural gas-Performance boiler"]
+    data = data.drop(index=[f'Emission content {energy} (gCO2/kWh)' for energy in list_energy])
+    data = pd.concat([data, carbon_content.loc[:,[2020, 2050]]], axis=0)
+
+    # in case heating system is not used at the end of the period
+    data.fillna(0, inplace=True)
+
+    for i in heater_vector:
+        data.loc['Emission {} (MtCO2)'.format(i), :] = data.loc['Consumption {} (TWh)'.format(i), :] * data.loc[
+            'Emission content {} (gCO2/kWh)'.format(i), :] / 1000
+
+    # Calculate individual effect
+    channels_heater = ['Surface (Million m2)', 'Share surface {} (%)', 'Consumption standard {} (TWh/m2)',
+                       'Heating intensity {} (%)', 'Emission content {} (gCO2/kWh)']
+    result = {}
+    manual_treatment = []
+    for i in heater_vector:
+        # no more emission if no more surface
+        if data.loc['Surface {} (Million m2)'.format(i), end] == 0:
+            # result['Surface {} (Million m2)'.format(i)] = - data.loc['Emission {} (MtCO2)'.format(i), start]
+            manual_treatment += [i]
+
+    for channel in channels_heater:
+        result[channel.split(' {}')[0]] = sum([log(data.loc[channel.format(i), end] / data.loc[channel.format(i), start]) *
+                         (data.loc['Emission {} (MtCO2)'.format(i), end] - data.loc['Emission {} (MtCO2)'.format(i), start]) /
+                         log(data.loc['Emission {} (MtCO2)'.format(i), end] / data.loc['Emission {} (MtCO2)'.format(i), start]) for i in heater_vector if i not in manual_treatment])
+
+    for i in manual_treatment:  # we attribute effect of emissions to switch
+        result['Share surface'] += data.loc['Emission {} (MtCO2)'.format(i), end] - data.loc['Emission {} (MtCO2)'.format(i), start]
+
+    rename = {'Surface (Million m2)': 'Surface',
+            'Share surface': 'Switch heater',
+            'Consumption standard': 'Insulation',
+            'Heating intensity': 'Heating intensity',
+            'Emission content': 'Carbon content'}
+    result = pd.Series({rename[k]: v for k, v in result.items()})
+    emission = data.loc[[f'Emission {energy} (MtCO2)' for energy in heater_vector],[start,end]].sum()
+    return result, emission
+
 def ldmi_method(output_global, efficiency, carbon_content):
     """Estimates emissions reduction attribution across different channels with the LDMI method."""
     # TODO: attention, dans les anciennes simulations, le contenu carbone du DH est exogène alors qu'il est endogène dans nos simulations. A prendre en compte dans les analyses.
     output = output_global.copy()
-    energy_vector = ["Natural gas", "District heating", "Wood fuel", "Oil fuel", "Heat pump", "Direct electric"]
-
-    # Create new rows in the dataframe
-    for energy in energy_vector:
-        output.loc[f"Consumption standard {energy} (TWh)"] = output.loc[f"Consumption {energy} (TWh)"] / output.loc["Heating intensity (%)"] # standard energy consumption
-        output.loc[f"Consumption useful {energy} (TWh)"] = output.loc[f"Consumption standard {energy} (TWh)"] * efficiency.loc[energy]  # useful energy
-        output.loc[f"Efficiency {energy} ()"] = output.loc[f"Consumption useful {energy} (TWh)"] / output.loc[f"Consumption standard {energy} (TWh)"] # efficiency for a given technology
-        output.loc[f"Heating intensity {energy} (%)"] = output.loc["Heating intensity (%)"]  # heating intensity is assumed to be the same for all energy vectors
-    output.loc["Consumption useful (TWh)"] = sum(output.loc[f"Consumption useful {energy} (TWh)"] for energy in energy_vector)  # total useful energy consumption
-    output.loc["Consumption useful (TWh/m2)"] = output.loc["Consumption useful (TWh)"] / output.loc["Surface (Million m2)"]  # useful energy consumption per m2
+    output = output.fillna(0)  # we fill NA values at 0
+    # energy_vector = ["Natural gas", "District heating", "Wood fuel", "Oil fuel", "Heat pump", "Direct electric"]
+    energy_vector = ["Electricity-Heat pump water", "Electricity-Performance boiler", "Heating-District heating",
+                     "Natural gas-Performance boiler", "Oil fuel-Performance boiler", "Wood fuel-Performance boiler"]
 
     for energy in energy_vector:
-        output.loc[f'Share {energy} (%)'] = output.loc[f'Consumption useful {energy} (TWh)'] / output.loc["Consumption useful (TWh)"]  # share of energy in total useful energy consumption
+        output.loc[f'Share {energy} (%)'] = output.loc[f'Surface {energy} (Million m2)'] / output.loc["Surface (Million m2)"]  # share of energy in total useful energy consumption
+        output.loc[f'Consumption standard {energy} (TWh/m2)'] = output.loc[f'Consumption standard {energy} (TWh)'] / output.loc[f'Surface {energy} (Million m2)']
+        output.loc[f'Heating intensity {energy} (%)'] = output.loc[f'Consumption {energy} (TWh)'] / output.loc[f'Consumption standard {energy} (TWh)']
+        output.loc[f'Emission content {energy} (gCO2/kWh)'] = output.loc['Emission content {} (gCO2/kWh)'.format(energy.split('-')[0])]
 
-    subset_rows = ["Surface (Million m2)", "Consumption useful (TWh/m2)"]
-    subset_rows = subset_rows + [f"Efficiency {energy} ()" for energy in energy_vector] + \
-                  [f"Consumption useful {energy} (TWh)" for energy in energy_vector] + [f"Share {energy} (%)" for energy in energy_vector] + [f"Heating intensity {energy} (%)" for energy in energy_vector]
+    subset_rows = ["Surface (Million m2)", 'Consumption (TWh)']
+    subset_rows = subset_rows + [f"Consumption {energy} (TWh)" for energy in energy_vector]+ [f"Share {energy} (%)" for energy in energy_vector] + [f'Consumption standard {energy} (TWh/m2)' for energy in energy_vector]\
+                  + [f"Heating intensity {energy} (%)" for energy in energy_vector]
     subset_columns = [2020, 2049]
 
-    output = output.rename(index={'Emission content Heating (gCO2/kWh)': 'Emission content District heating (gCO2/kWh)'})  # use same names as in my model
-    output.loc['Emission content Wood fuel (gCO2/kWh)'] = 0  # we impose a zero carbon content for wood (as we do in EOLES)
+    # output = output.rename(index={'Emission content Heating (gCO2/kWh)': 'Emission content District heating (gCO2/kWh)'})  # use same names as in my model
+    output.loc['Emission content Wood fuel-Performance boiler (gCO2/kWh)'] = 0  # we impose a zero carbon content for wood (as we do in EOLES)
 
-    if 'Gas carbon content' in carbon_content.index:  # old rows names
-        carbon_content = carbon_content.rename(index={'Gas carbon content': 'Emission content Gas (gCO2/kWh)',
-                                                      'Electric heating carbon content': 'Emission content Electric heating (gCO2/kWh)',
-                                                      'Electric heating carbon content daily': 'Emission content Electric heating daily (gCO2/kWh)'})
-    carbon_content = carbon_content.rename(index={'Emission content Gas (gCO2/kWh)': 'Emission content Natural gas (gCO2/kWh)'})  # we keep same notations as in Res-IRF (even though it is not natural gas per se)
-    carbon_content.loc['Emission content Heat pump (gCO2/kWh)'] = carbon_content.loc['Emission content Electric heating (gCO2/kWh)']
-    carbon_content.loc['Emission content Direct electric (gCO2/kWh)'] = carbon_content.loc['Emission content Electric heating (gCO2/kWh)']
+    carbon_content = carbon_content.rename(index={'Emission content Gas (gCO2/kWh)': 'Emission content Natural gas-Performance boiler (gCO2/kWh)',
+                                                  'Emission content District heating (gCO2/kWh)': 'Emission content Heating-District heating (gCO2/kWh)'})  # we keep same notations as in Res-IRF (even though it is not natural gas per se)
+    carbon_content.loc['Emission content Electricity-Heat pump water (gCO2/kWh)'] = carbon_content.loc['Emission content Electricity heating (gCO2/kWh)']
+    carbon_content.loc['Emission content Electricity-Performance boiler (gCO2/kWh)'] = carbon_content.loc['Emission content Electricity heating (gCO2/kWh)']
 
-    carbon_content = carbon_content.drop(index=['Emission content Electric heating (gCO2/kWh)', 'Emission content Electric heating daily (gCO2/kWh)'])
+    carbon_content = carbon_content.drop(index=['Emission content Electricity heating (gCO2/kWh)', 'Emission content Electricity heating daily (gCO2/kWh)'])
 
-    if 'Emission content Heating district (gCO2/kWh)' in carbon_content.index:  # new processing
-        additional_rows = ['Emission content Oil fuel (gCO2/kWh)', 'Emission content Wood fuel (gCO2/kWh)']
+    if 'Emission content Heating-District heating (gCO2/kWh)' in carbon_content.index:  # new processing
+        additional_rows = ['Emission content Oil fuel-Performance boiler (gCO2/kWh)', 'Emission content Wood fuel-Performance boiler (gCO2/kWh)']
     else:
-        additional_rows = ['Emission content Oil fuel (gCO2/kWh)', 'Emission content Wood fuel (gCO2/kWh)', 'Emission content District heating (gCO2/kWh)']
+        additional_rows = ['Emission content Oil fuel-Performance boiler (gCO2/kWh)', 'Emission content Wood fuel-Performance boiler (gCO2/kWh)', 'Emission content District heating (gCO2/kWh)']
 
     subset_rows = subset_rows + additional_rows
     output = output.loc[subset_rows, subset_columns].rename(columns={2049: 2050})  # we rename the column 2049 to 2050
 
     # merge with carbon_content, to have the same columns
-    # TODO: carbon content pas fourni pour les simulations endogènes
+    # TODO: carbon content initial pas fourni pour les simulations endogènes
     try:
         output = pd.concat([output, carbon_content.loc[:,[2020, 2050]]], axis=0)
     except:
-        carbon_content.loc[:,2020] = [229,32,33]  # a modifier pour mettre les bonnes valeurs
+        carbon_content.loc[:,2020] = [229, 101, 33, 33]  # a modifier pour mettre les bonnes valeurs
         output = pd.concat([output, carbon_content.loc[:, [2020, 2050]]], axis=0)
 
     for energy in energy_vector:
-        output.loc[f'CO2 emissions {energy} (MtCO2)'] = output.loc["Surface (Million m2)"] * output.loc[f"Consumption useful (TWh/m2)"] * output.loc[f"Share {energy} (%)"] * (1 / output.loc[f"Efficiency {energy} ()"]) * output.loc[f'Heating intensity {energy} (%)'] * output.loc[f'Emission content {energy} (gCO2/kWh)'] / 1000
+        output.loc[f'CO2 emissions {energy} (MtCO2)'] = output.loc[f'Consumption {energy} (TWh)'] * output.loc[f'Emission content {energy} (gCO2/kWh)'] / 1000
 
     output.loc['CO2 emissions (MtCO2)'] = sum(output.loc[f'CO2 emissions {energy} (MtCO2)'] for energy in energy_vector)
 
@@ -1674,18 +1750,18 @@ def ldmi_method(output_global, efficiency, carbon_content):
 
     output_channel.loc[:, 'Total channel'] = output_channel.loc[:,'Ratio log'] * output_channel.loc[:,'Delta CO2 emissions'] / output_channel.loc[:,'log Delta CO2 emissions']
     output_channel = output_channel.loc[:,"Total channel"].to_frame().T.stack().unstack(0).T.sum(axis=1).droplevel(1)  # we get the channels
-    output_channel = output_channel[['Emission content', 'Heating intensity', 'Share', 'Efficiency']]
+    output_channel = output_channel[['Emission content', 'Heating intensity', 'Share', 'Consumption standard']]
 
-    output = output.loc[['Surface (Million m2)', 'Consumption useful (TWh/m2)']]
+    output = output.loc[['Surface (Million m2)', 'Consumption (TWh)']]
     output.loc[:, 'Ratio log'] = np.log(output.loc[:, 2050] / output.loc[:, 2020])
 
     output_CO2.loc[:,'Ratio'] = output_CO2.loc[:,'Delta CO2 emissions'] / output_CO2.loc[:,'log Delta CO2 emissions']
 
     channel_m2 = output.loc['Surface (Million m2)', 'Ratio log'] * output_CO2.sum(axis=0)['Ratio']
-    channel_insulation = output.loc['Consumption useful (TWh/m2)', 'Ratio log'] * output_CO2.sum(axis=0)['Ratio']
-    output_channel = pd.concat([output_channel, pd.Series(data=[channel_m2, channel_insulation], index=['Surface', 'Insulation'])])
+    # channel_insulation = output.loc['Consumption useful (TWh/m2)', 'Ratio log'] * output_CO2.sum(axis=0)['Ratio']
+    output_channel = pd.concat([output_channel, pd.Series(data=[channel_m2], index=['Surface'])])
 
-    output_channel = output_channel.reindex(['Surface', 'Insulation', 'Share', 'Heating intensity', 'Emission content'])
+    output_channel = output_channel.reindex(['Surface', 'Share', 'Consumption standard', 'Heating intensity', 'Emission content'])
 
     return output_channel, output_CO2
 
@@ -1788,6 +1864,7 @@ if __name__ == '__main__':
                   'Uniform': "outputs/1015_optim_pricefeedback/1015_144041_uniform_S3_N1_pricefeedback",
                   'DR': "outputs/1015_optim_pricefeedback/1015_140727_DR_S3_N1_pricefeedback",
                   'Proportiona': "outputs/1015_optim_pricefeedback/1105_153045_proportional_S3_N1_pricefeedback"}
+    list_path = {'Centralized': "outputs/1122_optim/1122_063338_centralized_insulation_S3_N1_hcDPE"}
     for scenario, path in zip(list_path.keys(), list_path.values()):
         with open(os.path.join(path, 'coupling_results.pkl'), "rb") as file:
             output = load(file)
@@ -1795,32 +1872,32 @@ if __name__ == '__main__':
             carbon_content = output["Carbon content (gC02/kWh)"]
             efficiency = pd.read_csv('inputs/technology_characteristics/efficiency_resirf.csv', index_col=0, header=None).squeeze()
 
-        output_channel1, output_CO21 = ldmi_method(output_resirf, efficiency, carbon_content)
-        plot_ldmi_method(output_channel1, output_CO21, 2020, 2050, colors=resources_data['colors_coupling'], rotation=0, save=None,
+        result, emissions = ldmi_method_resirf(output_resirf, carbon_content)
+        plot_ldmi_method(result, emissions, 2020, 2050, colors=resources_data['colors_coupling'], rotation=0, save=None,
                          title=f"LDMI method - {scenario}")
 
-    path = "outputs/1016_policies_exogenous_cc_pricefeedback_hcDPE/1013_201614_S2p_N1_ref_cc_pricefeedback_hcDPE"
-    with open(os.path.join(path, 'coupling_results.pkl'), "rb") as file:
-        output = load(file)
-        output_resirf = output["Output global ResIRF ()"]
-        carbon_content = output["Carbon content (gC02/kWh)"]
-        efficiency = pd.read_csv('inputs/technology_characteristics/efficiency_resirf.csv', index_col=0, header=None).squeeze()
-
-    output_channel1, output_CO21 = ldmi_method(output_resirf, efficiency, carbon_content)
-    output_channel2, output_CO22 = ldmi_method_2(output_resirf, efficiency, carbon_content)
-
-    plot_ldmi_method(output_channel1, output_CO21, 2020, 2050, colors=resources_data['colors_coupling'], rotation=0, save=None,
-                     title="LDMI method - Reference scenario")
-    plot_ldmi_method(output_channel2, output_CO22, 2020, 2050, colors=resources_data['colors_coupling'], rotation=0,
-                     save=None, title="LDMI method 2 - Reference scenario")
-
-    path = "outputs/1016_policies_exogenous_cc_pricefeedback_hcDPE/1014_013733_S2p_N1_ban_cc_pricefeedback_hcDPE"
-    with open(os.path.join(path, 'coupling_results.pkl'), "rb") as file:
-        output = load(file)
-        output_resirf = output["Output global ResIRF ()"]
-        carbon_content = output["Carbon content (gC02/kWh)"]
-        efficiency = pd.read_csv('inputs/technology_characteristics/efficiency_resirf.csv', index_col=0, header=None).squeeze()
-
-    output_channel3, output_CO23 = ldmi_method(output_resirf, efficiency, carbon_content)
-    plot_ldmi_method(output_channel3, output_CO23, 2020, 2050, colors=resources_data['colors_coupling'], rotation=0,
-                     save=None, title="LDMI method - Ban on gas boilers")
+    # path = "outputs/1016_policies_exogenous_cc_pricefeedback_hcDPE/1013_201614_S2p_N1_ref_cc_pricefeedback_hcDPE"
+    # with open(os.path.join(path, 'coupling_results.pkl'), "rb") as file:
+    #     output = load(file)
+    #     output_resirf = output["Output global ResIRF ()"]
+    #     carbon_content = output["Carbon content (gC02/kWh)"]
+    #     efficiency = pd.read_csv('inputs/technology_characteristics/efficiency_resirf.csv', index_col=0, header=None).squeeze()
+    #
+    # output_channel1, output_CO21 = ldmi_method(output_resirf, efficiency, carbon_content)
+    # output_channel2, output_CO22 = ldmi_method_2(output_resirf, efficiency, carbon_content)
+    #
+    # plot_ldmi_method(output_channel1, output_CO21, 2020, 2050, colors=resources_data['colors_coupling'], rotation=0, save=None,
+    #                  title="LDMI method - Reference scenario")
+    # plot_ldmi_method(output_channel2, output_CO22, 2020, 2050, colors=resources_data['colors_coupling'], rotation=0,
+    #                  save=None, title="LDMI method 2 - Reference scenario")
+    #
+    # path = "outputs/1016_policies_exogenous_cc_pricefeedback_hcDPE/1014_013733_S2p_N1_ban_cc_pricefeedback_hcDPE"
+    # with open(os.path.join(path, 'coupling_results.pkl'), "rb") as file:
+    #     output = load(file)
+    #     output_resirf = output["Output global ResIRF ()"]
+    #     carbon_content = output["Carbon content (gC02/kWh)"]
+    #     efficiency = pd.read_csv('inputs/technology_characteristics/efficiency_resirf.csv', index_col=0, header=None).squeeze()
+    #
+    # output_channel3, output_CO23 = ldmi_method(output_resirf, efficiency, carbon_content)
+    # plot_ldmi_method(output_channel3, output_CO23, 2020, 2050, colors=resources_data['colors_coupling'], rotation=0,
+    #                  save=None, title="LDMI method - Ban on gas boilers")

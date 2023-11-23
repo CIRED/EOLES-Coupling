@@ -790,8 +790,8 @@ def comparison_simulations_new(dict_output: dict, ref, greenfield=False, health=
         else:
             save_path_plot = os.path.join(save_path, f"electricity_capacity.{extension}")
 
-        subset_elec = ['onshore', 'offshore', 'pv', 'nuclear', 'hydro', 'peaking plants']
-        make_clusterstackedbar_plot(capacities_evolution_df, groupby='Technology', subset=subset_elec,
+        subset_elec = ['onshore', 'offshore', 'pv', 'nuclear', 'hydro', 'peaking plants', 'battery']
+        make_clusterstackedbar_plot(capacities_evolution_df.loc[:,2050].to_frame(), groupby='Technology', subset=subset_elec,
                                     y_label="Electricity capacity (GW)",
                                     colors=resources_data["new_colors_eoles"], format_y=lambda y, _: '{:.0f}'.format(y),
                                     dict_legend=DICT_TRANSFORM_LEGEND, save=save_path_plot,
@@ -2679,9 +2679,13 @@ def plot_ldmi_method(channel, CO2, start, end, colors=None, rotation=0, save=Non
             new_index.append(c)
     channel.index = new_index
     # channel = channel.reindex(['Surface', 'Insulation', 'Share', 'Heating \n intensity', 'Emission content'])
-    tmp = pd.concat([channel, CO2.sum()[[start, end]]])
+    tmp = pd.concat([channel, CO2[[start, end]]])
     tmp = tmp.reindex([start] + channel.index.to_list() + [end])
     tmp.index = tmp.index.astype(str)
+    percent = tmp.copy()
+    percent = percent / percent.iloc[0] * 100
+    percent.iloc[-1] = (-tmp.iloc[0] + tmp.iloc[-1]) / tmp.iloc[0] * 100
+
     blank = tmp.cumsum().shift(1).fillna(0)  # will be used as start point for the bar plot
     blank[-1] = 0
     fig, ax = plt.subplots(1, 1, figsize=(12.8, 9.6))
@@ -2696,18 +2700,18 @@ def plot_ldmi_method(channel, CO2, start, end, colors=None, rotation=0, save=Non
 
     # Start label loop
     loop = 0
-    for index, val in tmp.iteritems():
+    for ((index, val), (index2, val2)) in zip(percent.iteritems(), tmp.iteritems()):
         # For the last item in the list, we don't want to double count
-        if val == tmp.iloc[-1]:
+        if val == percent.iloc[-1]:
             y = y_height[loop]
         else:
-            y = y_height[loop] + val
+            y = y_height[loop] + val2
         # Determine if we want a neg or pos offset
         if val > 0:
             y += pos_offset
         else:
             y -= neg_offset
-        ax.annotate("{:,.1f}".format(val), (loop, y), ha="center")
+        ax.annotate("{:+,.0f} %".format(val), (loop, y), ha="center")
         loop += 1
 
     y_max = blank.max() * 1.1
