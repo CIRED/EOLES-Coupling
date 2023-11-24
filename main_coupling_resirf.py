@@ -441,7 +441,7 @@ if __name__ == '__main__':
                     "base.json")) as file:  # load reference configuration for coupling
                 config_coupling = json.load(file)
 
-            list_design = ['centralized_insulation']
+            list_design = ['uniform', 'centralized_insulation', 'DR', 'proportional']
 
             DICT_CONFIGS = create_configs_coupling(list_design=list_design, config_coupling=config_coupling,
                                                    config_additional=config_additional, dict_configs=DICT_CONFIGS)

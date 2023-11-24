@@ -299,6 +299,9 @@ def comparison_simulations_new(dict_output: dict, ref, greenfield=False, health=
     for scenario in dict_output.keys():
         for path, name_config in zip(dict_output[scenario].values(), [n for n in dict_output[scenario].keys()]):
             with open(os.path.join(path, 'coupling_results.pkl'), "rb") as file:
+                # if scenario == '':
+                #     name_config_tot = name_config
+                # else:
                 name_config_tot = scenario + ' ' + name_config
                 output = load(file)
 
@@ -357,7 +360,7 @@ def comparison_simulations_new(dict_output: dict, ref, greenfield=False, health=
                     columns={"Consumption saving heater (TWh)": "Consumption saving heater (TWh/year)",
                              "Consumption saving insulation (TWh)": "Consumption saving insulation (TWh/year)"})
                 consumption = output["Output global ResIRF ()"].loc[["Consumption Electricity (TWh)", "Consumption Natural gas (TWh)",
-                     "Consumption Oil fuel (TWh)", "Consumption Wood fuel (TWh)"]]
+                     "Consumption Oil fuel (TWh)", "Consumption Wood fuel (TWh)", "Consumption Heating (TWh)"]]
 
                 consumption_ini = consumption.sum(axis=0).iloc[0]
                 consumption_savings_tot = consumption_savings.sum(axis=0).to_frame().rename(columns={0: name_config_tot})
@@ -911,7 +914,7 @@ def comparison_simulations_new(dict_output: dict, ref, greenfield=False, health=
             save_path_plot = None
         else:
             save_path_plot = os.path.join(save_path, f"subsidies_insulation.{extension}")
-        make_line_plots(subsidies_insulation_dict, y_label="Subsidies insulation (%)",
+        make_line_plots(subsidies_insulation_dict, y_label="Subsidies (%)",
                         format_y=lambda y, _: '{:.0f}'.format(y),
                         index_int=True, save=save_path_plot, rotation=45, x_ticks=dataframe_subsidy.index[::2],
                         y_min=0,
@@ -922,7 +925,7 @@ def comparison_simulations_new(dict_output: dict, ref, greenfield=False, health=
             save_path_plot = None
         else:
             save_path_plot = os.path.join(save_path, f"subsidies_heater.{extension}")
-        make_line_plots(subsidies_heater_dict, y_label="Subsidies heater (%)",
+        make_line_plots(subsidies_heater_dict, y_label="Subsidies (%)",
                         format_y=lambda y, _: '{:.2f}'.format(y),
                         index_int=True, save=save_path_plot, rotation=45, x_ticks=dataframe_subsidy.index[::2],
                         y_min=0,
@@ -986,6 +989,11 @@ def comparison_simulations_new(dict_output: dict, ref, greenfield=False, health=
             )
     except:
         pass
+
+    total_system_costs_2050_df.to_csv(os.path.join(save_path, "total_system_costs_2050.csv"))
+    capacities_evolution_df.loc[:,2050].unstack().to_csv(os.path.join(save_path, "capacities_evolution.csv"))
+    generation_evolution_df.loc[:,2050].unstack().to_csv(os.path.join(save_path, "generation_evolution.csv"))
+    savings_and_costs_hp.to_csv(os.path.join(save_path, "savings_and_costs_hp.csv"))
 
     return total_system_costs_2050_df, consumption_savings_tot_df, complete_system_costs_2050_df
 
@@ -2465,7 +2473,7 @@ def make_clusterstackedbar_plot(df, groupby, y_label, subset=None, colors=None, 
                 ax.axhline(y=0)
 
             plt.setp(ax.xaxis.get_majorticklabels(), rotation=rotation)
-            ax.tick_params(axis='both', which='major', labelsize=14)
+            ax.tick_params(axis='both', which='major', labelsize=19)
 
             title = key
             if isinstance(key, tuple):
@@ -2702,16 +2710,18 @@ def plot_ldmi_method(channel, CO2, start, end, colors=None, rotation=0, save=Non
     loop = 0
     for ((index, val), (index2, val2)) in zip(percent.iteritems(), tmp.iteritems()):
         # For the last item in the list, we don't want to double count
-        if val == percent.iloc[-1]:
+        if val2 == tmp.iloc[-1]:
             y = y_height[loop]
+            y += pos_offset  # in the case of the final item, we do not want a negative offset even if value is negative
         else:
             y = y_height[loop] + val2
-        # Determine if we want a neg or pos offset
-        if val > 0:
-            y += pos_offset
-        else:
-            y -= neg_offset
-        ax.annotate("{:+,.0f} %".format(val), (loop, y), ha="center")
+            # Determine if we want a neg or pos offset
+            if val > 0:
+                y += pos_offset
+            else:
+                y -= neg_offset
+        if loop > 0:
+            ax.annotate("{:+,.0f} %".format(val), (loop, y), ha="center")
         loop += 1
 
     y_max = blank.max() * 1.1
@@ -2729,6 +2739,6 @@ def plot_ldmi_method(channel, CO2, start, end, colors=None, rotation=0, save=Non
         ax.set_ylabel(y_label, color='dimgrey', fontsize=20)
 
     plt.setp(ax.xaxis.get_majorticklabels(), rotation=rotation)
-    ax.tick_params(axis='both', which='major', labelsize=14)
+    ax.tick_params(axis='both', which='major', labelsize=18)
 
     save_fig(fig, save=save)

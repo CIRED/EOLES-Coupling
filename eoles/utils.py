@@ -19,6 +19,8 @@ from typing import Union
 from pickle import load
 import numpy as np
 import plotly.graph_objects as go
+import seaborn as sns
+# sns.set_theme(context="talk", style="white", font_scale=1.3)
 
 
 def get_pandas(path, func=lambda x: pd.read_csv(x)):
@@ -1873,8 +1875,11 @@ if __name__ == '__main__':
             efficiency = pd.read_csv('inputs/technology_characteristics/efficiency_resirf.csv', index_col=0, header=None).squeeze()
 
         result, emissions = ldmi_method_resirf(output_resirf, carbon_content)
-        plot_ldmi_method(result, emissions, 2020, 2050, colors=resources_data['colors_coupling'], rotation=0, save=None,
-                         title=f"LDMI method - {scenario}")
+        plot_ldmi_method(result, emissions, 2020, 2050, colors=resources_data['colors_coupling'], rotation=0,
+                         title=f"Decomposition analysis",
+                         save="outputs/images submission/ldmi.pdf"
+                         # save=None
+                         )
 
     # path = "outputs/1016_policies_exogenous_cc_pricefeedback_hcDPE/1013_201614_S2p_N1_ref_cc_pricefeedback_hcDPE"
     # with open(os.path.join(path, 'coupling_results.pkl'), "rb") as file:
