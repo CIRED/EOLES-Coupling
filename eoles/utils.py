@@ -1372,17 +1372,6 @@ def modif_config_resirf(config_resirf, config_coupling):
     if 'social' in config_coupling['subsidy']['insulation'].keys():
         config_resirf_update['renovation']["rational_behavior"]["social"] = config_coupling["subsidy"]['insulation']["social"]
 
-    # # OLD: Modification rational behavior heater
-    # config_resirf_update["switch_heater"] = config_reference["switch_heater"]
-    # config_resirf_update["switch_heater"]["rational_behavior"]["activated"] = config_coupling["subsidy"]['heater']["rational_behavior"]
-    #
-    # if 'social' in config_coupling['subsidy']['heater'].keys():
-    #     config_resirf_update['switch_heater']["rational_behavior"]["social"] = config_coupling["subsidy"]['heater']["social"]
-
-    if 'district_heating' in config_coupling.keys():
-        if config_coupling['district_heating']:  # we want to include district heating in the experiences
-            del config_resirf_update['simple']['heating_system']['Heating-District heating']
-
     if "prices_constant" in config_coupling.keys():  # this hypothesis is always specified in the config_coupling dictionary
         config_resirf_update["simple"]["prices_constant"] = config_coupling["prices_constant"]
 
@@ -1416,8 +1405,7 @@ def check_required_keys_additional(config_additional):
 
     """
     required_keys = ['greenfield', 'prices_constant', 'price_feedback', 'lifetime_insulation', 'optim_eoles',
-                     'electricity_constant', 'carbon_emissions_resirf', 'carbon_budget', 'carbon_budget_resirf', 'district_heating',
-                     'district_heating_potential', 'biomass_potential_scenario', 'demand_scenario', 'aggregated_potential', 'maximum_capacity_scenario']
+                    'carbon_budget', 'district_heating_potential', 'biomass_potential_scenario', 'demand_scenario', 'aggregated_potential', 'maximum_capacity_scenario']
     assert set(required_keys).issubset(config_additional.keys()), "Some required keys in config_additional are missing"
 
 
@@ -1450,11 +1438,8 @@ def create_configs_coupling(list_design, config_coupling: dict, config_additiona
     config_coupling_update['eoles']['aggregated_potential'] = config_additional['aggregated_potential']
     config_coupling_update['eoles']['maximum_capacity_scenario'] = config_additional['maximum_capacity_scenario']
     config_coupling_update['optim_eoles'] = config_additional['optim_eoles']
-    config_coupling_update['electricity_constant'] = config_additional['electricity_constant']
-    carbon_emissions_resirf = config_additional['carbon_emissions_resirf']
+    # config_coupling_update['electricity_constant'] = config_additional['electricity_constant']
     carbon_budget = config_additional['carbon_budget']
-    carbon_budget_resirf = config_additional['carbon_budget_resirf']
-    district_heating = config_additional['district_heating']
     district_heating_potential = config_additional['district_heating_potential']
 
     if 'method_health_cost' in config_additional.keys():
@@ -1465,15 +1450,15 @@ def create_configs_coupling(list_design, config_coupling: dict, config_additiona
         assert type(policies) is dict  ## we should provide a dictionary in this case
         config_coupling_update['policies'] = policies
 
-    if carbon_emissions_resirf is not None:  # carbon emissions are now specified in the files from Res-IRF
-        # config_coupling_update['carbon_emissions_resirf'] = f'eoles/inputs/technical/{carbon_emissions_resirf}.csv'  # Old version
-        config_coupling_update['carbon_emissions_resirf'] = f'project/input/energy/{carbon_emissions_resirf}.csv'
+    if 'carbon_emissions_resirf' in config_additional.keys():  # carbon emissions are now specified in the files from Res-IRF
+        if config_additional['carbon_emissions_resirf'] is not None:
+            carbon_emissions_resirf = config_additional['carbon_emissions_resirf']
+            config_coupling_update['carbon_emissions_resirf'] = f'project/input/energy/{carbon_emissions_resirf}.csv'
     if carbon_budget is not None:
         config_coupling_update['eoles']['carbon_budget'] = carbon_budget
-    if carbon_budget_resirf is not None:
-        config_coupling_update['eoles']['carbon_budget_resirf'] = carbon_budget_resirf
-    if district_heating:
-        config_coupling_update['district_heating'] = True
+    if 'carbon_budget_resirf' in config_additional.keys():
+        if config_additional['carbon_budget_resirf'] is not None:
+            config_coupling_update['eoles']['carbon_budget_resirf'] = config_additional['carbon_budget_resirf']
     if district_heating_potential is not None:  # we specify another potential for district heating (based on one of ADEME scenario)
         config_coupling_update['eoles']['district_heating_potential'] = district_heating_potential
     if 'load_factors' in config_additional.keys():  # we add specification for other weather years

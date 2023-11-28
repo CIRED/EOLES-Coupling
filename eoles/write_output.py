@@ -213,7 +213,7 @@ def plot_comparison_savings_move(df1, df2, x, y, col_for_size, smallest_size=100
 
 
 def plot_comparison_savings(df, x, y, save, col_for_size, smallest_size=100, biggest_size=300, fontsize=10, y_min=0, y_max=None, x_min=0, x_max=None,
-                            unit="TWh", coordinates=None):
+                            unit="TWh", coordinates=None, remove_legend=False, s_min=None, s_max=None):
     """
 
     :param unit: string
@@ -227,9 +227,11 @@ def plot_comparison_savings(df, x, y, save, col_for_size, smallest_size=100, big
     # x = "Consumption saving insulation (TWh/year)"
     # y = "Consumption saving heater (TWh/year)"
     relative_size = list(df[col_for_size])
-    s_min, s_max = min(relative_size), max(relative_size)
+    if s_min is None:
+        s_min, s_max = min(relative_size), max(relative_size)
     size = [smallest_size + (biggest_size - smallest_size)/(s_max - s_min) * (s - s_min) for s in relative_size]
-    x_max, y_max = df[x].max() * 1.1, df[y].max() * 1.1
+    if y_max is None:
+        x_max, y_max = df[x].max() * 1.1, df[y].max() * 1.1
 
     scatter = ax.scatter(x=df[x], y=df[y], s=size, c=sns.color_palette(n_colors=len(df.index)))
     # for scenario, v in df.iterrows():
@@ -250,20 +252,30 @@ def plot_comparison_savings(df, x, y, save, col_for_size, smallest_size=100, big
         title = "Stock Heat pump (Million) \n"
     else:
         title = f"Energy savings through switch to heat pumps {unit} \n"
-
-    ax = format_ax(ax,
-                   # title="Comparison savings (TWh)",
-                   title=title,
-                   # y_label="Savings heater (TWh)",
-                   x_label=f"Energy savings through home renovation {unit}",
-                   format_y=lambda y, _: '{:.0f}'.format(y), format_x=lambda x, _: '{:.0f}'.format(x),
-                   y_min=y_min, y_max=y_max, x_min=x_min, x_max=x_max,
-                   loc_title="left", c_title="black", loc_xlabel="right")
+    if remove_legend:
+        title = "Million"
+    if not remove_legend:
+        ax = format_ax(ax,
+                       # title="Comparison savings (TWh)",
+                       title=title,
+                       # y_label="Savings heater (TWh)",
+                       x_label=f"Energy savings through home renovation {unit}",
+                       format_y=lambda y, _: '{:.0f}'.format(y), format_x=lambda x, _: '{:.0f}'.format(x),
+                       y_min=y_min, y_max=y_max, x_min=x_min, x_max=x_max,
+                       loc_title="left", c_title="black", loc_xlabel="right")
+    else:
+        ax = format_ax(ax,
+                       # title="Comparison savings (TWh)",
+                       title=title,
+                       x_label=f"{unit}",
+                       format_y=lambda y, _: '{:.0f}'.format(y), format_x=lambda x, _: '{:.0f}'.format(x),
+                       y_min=y_min, y_max=y_max, x_min=x_min, x_max=x_max,
+                       loc_title="left", c_title="black", loc_xlabel="right", fontsize=19)
 
     box = ax.get_position()
     ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
 
-    kw = dict(prop="sizes", num=2, func=lambda s: s_min + (s - smallest_size) * (s_max - s_min) / (biggest_size - smallest_size))
+    kw = dict(prop="sizes", num=3, func=lambda s: s_min + (s - smallest_size) * (s_max - s_min) / (biggest_size - smallest_size))
     # handles, labels = scatter.legend_elements(prop="sizes")
     # legend2 = ax.legend(handles, labels, loc="upper right", title="Sizes")
     if col_for_size == "Total costs":
@@ -271,6 +283,8 @@ def plot_comparison_savings(df, x, y, save, col_for_size, smallest_size=100, big
     else:
         title = col_for_size
     legend2 = ax.legend(*scatter.legend_elements(**kw), title=title, loc='upper left', bbox_to_anchor=(1, 0.5), frameon=False)
+    if remove_legend:
+        ax.get_legend().remove()
 
     save_fig(fig, save=save)
 
@@ -278,7 +292,7 @@ def plot_comparison_savings(df, x, y, save, col_for_size, smallest_size=100, big
 def comparison_simulations_new(dict_output: dict, ref, greenfield=False, health=False, x_min=0, x_max=None, y_min=0, y_max=None,
                            rotation=90, save_path=None, pdf=False, carbon_constraint=True, percent=False, eoles=True,
                            coordinates=None, secondary_y=None, secondary_axis_spec=None, smallest_size=100, biggest_size=400,
-                           fontsize=18):
+                           fontsize=18, remove_legend=False, s_min=None, s_max=None):
     if pdf:
         extension = "pdf"
     else:
@@ -856,9 +870,9 @@ def comparison_simulations_new(dict_output: dict, ref, greenfield=False, health=
                           index_int=False,
                           rotation=90, dict_legend=DICT_TRANSFORM_LEGEND, save=save_path_plot)
 
-    total_system_costs_2050_df = total_system_costs_2050_df.unstack()
-    total_system_costs_2050_df.columns = total_system_costs_2050_df.columns.map(' '.join)
-    savings_and_costs_df = pd.concat([consumption_savings_tot_df, total_system_costs_2050_df], axis=0)
+    total_system_costs_2050_new = total_system_costs_2050_df.unstack().copy()
+    total_system_costs_2050_new.columns = total_system_costs_2050_new.columns.map(' '.join)
+    savings_and_costs_df = pd.concat([consumption_savings_tot_df, total_system_costs_2050_new], axis=0)
     savings_and_costs_df = savings_and_costs_df.T
     plot_comparison_savings(savings_and_costs_df, x="Consumption saving insulation (TWh/year)",
                             y="Consumption saving heater (TWh/year)",
@@ -867,7 +881,7 @@ def comparison_simulations_new(dict_output: dict, ref, greenfield=False, health=
                             fontsize=fontsize,
                             x_min=x_min, x_max=x_max, y_min=y_min, y_max=y_max, unit=unit, coordinates=coordinates)
 
-    savings_and_costs_hp = pd.concat([consumption_savings_tot_df, stock_heat_pump_df, total_system_costs_2050_df],
+    savings_and_costs_hp = pd.concat([consumption_savings_tot_df, stock_heat_pump_df, total_system_costs_2050_new],
                                      axis=0)
     savings_and_costs_hp = savings_and_costs_hp.T
     plot_comparison_savings(savings_and_costs_hp, x="Consumption saving insulation (TWh/year)",
@@ -875,7 +889,24 @@ def comparison_simulations_new(dict_output: dict, ref, greenfield=False, health=
                             save=os.path.join(save_path, f"savings_and_costs_hp.{extension}"),
                             col_for_size="Total costs", smallest_size=smallest_size, biggest_size=biggest_size,
                             fontsize=fontsize,
-                            x_min=x_min, x_max=x_max, y_min=y_min, y_max=y_max, unit=unit, coordinates=coordinates)
+                            x_min=x_min, x_max=x_max, y_min=y_min, y_max=y_max, unit=unit, coordinates=coordinates,
+                            remove_legend=remove_legend, s_min=s_min, s_max=s_max)
+
+    # consumption_savings_tot_df_new = consumption_savings_tot_df.copy()
+    # consumption_savings_tot_df_new.columns = consumption_savings_tot_df_new.columns.str.strip()
+    # consumption_savings_tot_df_new = consumption_savings_tot_df_new.stack().to_frame()
+    # consumption_savings_tot_df_new.columns = [total_system_costs_2050_df.columns.name]
+    # consumption_savings_tot_df_new.index.names = total_system_costs_2050_df.index.names
+    #
+    # stock_heat_pump_df_new = stock_heat_pump_df.copy()
+    # stock_heat_pump_df_new.columns = stock_heat_pump_df_new.columns.str.strip()
+    # stock_heat_pump_df_new = stock_heat_pump_df_new.stack().to_frame()
+    # stock_heat_pump_df_new.columns=[total_system_costs_2050_df.columns.name]
+    # stock_heat_pump_df_new.index.names = total_system_costs_2050_df.index.names
+    #
+    # tmp = pd.concat([consumption_savings_tot_df_new, stock_heat_pump_df_new])
+    #
+    # make_cluster_scatterplot(tmp, x="Consumption saving insulation (TWh/year)", y="Stock Heat pump (Million)", y_label='')
 
     if eoles:
         emissions_tot = \
@@ -2210,7 +2241,8 @@ def format_y_ax(ax, title=None, format_y=lambda y, _: y, y_min=None, y_max=None,
 
 
 def format_ax(ax: plt.Axes, title=None, y_label=None, x_label=None, x_ticks=None, format_y=lambda y, _: y, format_x=lambda x, _: x,
-              rotation=None, y_min=None, y_max=None, x_min=None, x_max=None, loc_title=None, loc_xlabel=None, c_title=None):
+              rotation=None, y_min=None, y_max=None, x_min=None, x_max=None, loc_title=None, loc_xlabel=None, c_title=None,
+              fontsize=None):
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
     ax.spines['bottom'].set_visible(True)
@@ -2224,9 +2256,15 @@ def format_ax(ax: plt.Axes, title=None, y_label=None, x_label=None, x_ticks=None
     if y_label is not None:
         ax.set_ylabel(y_label)
 
+    if fontsize is not None:  # additional condition for the scatter plot graph for paper
+        ax.tick_params(axis='both', which='major', labelsize=fontsize)
+
     if x_label is not None:
         if loc_xlabel is not None:
-            ax.set_xlabel(x_label, loc=loc_xlabel)
+            if fontsize is not None:
+                ax.set_xlabel(x_label, loc=loc_xlabel, fontsize=fontsize)
+            else:
+                ax.set_xlabel(x_label, loc=loc_xlabel)
         else:
             ax.set_xlabel(x_label)
 
@@ -2241,7 +2279,10 @@ def format_ax(ax: plt.Axes, title=None, y_label=None, x_label=None, x_ticks=None
 
     if title is not None:
         if loc_title is not None:
-            ax.set_title(title, loc=loc_title, color=c_title)
+            if fontsize is not None:
+                ax.set_title(title, loc=loc_title, color=c_title, fontsize=fontsize)
+            else:
+                ax.set_title(title, loc=loc_title, color=c_title)
         else:
             ax.set_title(title)
 
@@ -2406,6 +2447,69 @@ def make_stacked_bar_plot(df, y_label=None, subset=None, colors=None, format_y=l
 
     if hline:
         plt.axhline(y=0)
+
+    save_fig(fig, save=save)
+
+
+def make_cluster_scatterplot(df, x, y, y_label, colors=None, format_y=lambda y, _: '{:.0f}'.format(y), save=None,
+                                rotation=0, dict_legend=None, coordinates=None):
+    list_keys = df.index.get_level_values(1).unique()
+    n_columns = int(len(list_keys)) // 2
+    n_rows = 2
+    fig, axes = plt.subplots(n_rows, n_columns, figsize=(12.8, 9.6), sharex='all', sharey='all')
+    handles, labels = None, None
+
+    for k in range(n_rows * n_columns):
+        row = k // n_columns
+        column = k % n_columns
+        if n_rows * n_columns == 1:  # in this case, we have a single plot
+            ax = axes
+        else:
+            ax = axes[row, column]
+
+        try:
+            key = list_keys[k]
+            df_temp = df.loc[df.index.get_level_values(1) == key].unstack()
+
+            scatter = ax.scatter(x=df_temp.T[x], y=df_temp.T[y])
+
+            if coordinates is None:
+                for scenario, v in df.iterrows():
+                    ax.annotate(scenario, xy=(v[x], v[y]), xytext=(20, -5), textcoords="offset points")
+            else:
+                for scenario, v in df.iterrows():
+                    if scenario in coordinates.keys():
+                        ax.annotate(scenario, xy=(v[x], v[y]), xytext=coordinates[scenario], textcoords="offset points")
+                    else:
+                        ax.annotate(scenario, xy=(v[x], v[y]), xytext=(20, -5), textcoords="offset points")
+
+            ax = format_ax_new(ax, format_y=format_y, xinteger=True)
+            if k ==0:
+                ax.set_ylabel(y_label, color='dimgrey', fontsize=20)
+            # ax = format_ax(ax, format_y=format_y, ymin=0, xinteger=True)
+            ax.spines['left'].set_visible(False)
+            # ax.set_ylim(ymax=y_max)
+            # ax.set_ylim(ymin=y_min)
+            ax.set_xlabel('')
+
+            # if hline:
+            #     ax.axhline(y=0)
+
+            plt.setp(ax.xaxis.get_majorticklabels(), rotation=rotation)
+            ax.tick_params(axis='both', which='major', labelsize=19)
+
+            title = key
+            if isinstance(key, tuple):
+                title = '{}-{}'.format(key[0], key[1])
+            ax.set_title(title, fontweight='bold', color='dimgrey', pad=-1.6, fontsize=16)
+
+            if k == 0:
+                handles, labels = ax.get_legend_handles_labels()
+                labels = [l.replace('_', ' ') for l in labels]
+            ax.get_legend().remove()
+
+        except IndexError:
+            ax.axis('off')
 
     save_fig(fig, save=save)
 

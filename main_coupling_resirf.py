@@ -43,18 +43,6 @@ DICT_CONFIG_RESIRF = {
     "classic_premature3": "eoles/inputs/config/config_resirf_premature3.json",
     "threshold": "eoles/inputs/config/config_resirf_threshold.json",
     "classic_simple": "eoles/inputs/config/config_resirf_simple.json",
-    "threshold_simple": "eoles/inputs/config/config_resirf_threshold_simple.json",
-    "classic_simple_premature3": "eoles/inputs/config/config_resirf_simple_premature3.json",
-    "classic_simple_premature5": "eoles/inputs/config/config_resirf_simple_premature5.json",
-    "classic_simple_premature10": "eoles/inputs/config/config_resirf_simple_premature10.json",
-    "threshold_simple_premature3": "eoles/inputs/config/config_resirf_threshold_simple_premature3.json",
-    "threshold_simple_premature10": "eoles/inputs/config/config_resirf_threshold_simple_premature10.json",
-    "nolandlord": "eoles/inputs/config/config_resirf_nolandlord.json",
-    "nomultifamily": "eoles/inputs/config/config_resirf_nomultifamily.json",
-    "nolandlord_nomultifamily": "eoles/inputs/config/config_resirf_nolandlord_nomultifamily.json",
-    "nolandlord_simple": "eoles/inputs/config/config_resirf_nolandlord_simple.json",
-    "nomultifamily_simple": "eoles/inputs/config/config_resirf_nomultifamily_simple.json",
-    "nolandlord_nomultifamily_simple": "eoles/inputs/config/config_resirf_nolandlord_nomultifamily_simple.json",
 }
 
 DICT_CONFIG_EOLES = {
