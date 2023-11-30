@@ -43,24 +43,7 @@ LIST_REPLACEMENT_HEATER = ['Switch Electricity-Heat pump water (Thousand househo
                            'Switch Wood fuel-Performance boiler (Thousand households)']
 
 
-# Functions in case we need to use pickle to copy the Buildings object
-from pathlib import Path
-def copy_building(building: AgentBuildings):
-    path = Path("/tmp")  # absolute path
-    date = datetime.datetime.now().strftime("%m%d%H%M%S%f.pkl")
-    filename = path / date
-    with open(filename, "wb") as file:
-        dump(building, file)
-    return filename
-
-
-def load_building(filename: Path):
-    assert filename.exists()
-    with open(filename, "rb") as file:
-        building = load(file)
-
-    return building
-
+### FILE TO CREATE COUPLING BETWEEN EOLES AND RESIRF, AND TO RUN MODEL IN MULTISTAGE ###
 
 def create_sub_resirf(start, end, sub_heater_value, sub_insulation_value, policy_heater, policy_insulation, proportional_heater, proportional_insulation,
                       proportional_uniform, target, cap_heater, cap_insulation):

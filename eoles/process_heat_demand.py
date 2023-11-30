@@ -5,6 +5,8 @@ import datetime
 
 from eoles.utils import get_pandas
 
+#### FILE USED TO CREATE PROFILES FOR HEATING DEMAND ####
+
 if __name__ == '__main__':
     # ### First method: using Behrang hourly profiles
     # heat_demand = pd.read_csv("inputs/heat_demand_2050.csv", index_col=0, header=None,

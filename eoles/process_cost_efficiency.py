@@ -11,6 +11,8 @@ import matplotlib as mpl
 mpl.rcParams.update(mpl.rcParamsDefault)
 
 
+##### OLD FILE - NOT UP TO DATE ANYMORE #####
+
 def piecewise_linear(x, x1, x2, y0, k1, k2, k3):
     # return np.piecewise(x, [x < x0], [lambda x:k1*x + y0-k1*x0, lambda x:k2*x + y0-k2*x0])
     return np.piecewise(x, [(x < x1), (x >= x1) & (x < x2), x >= x2],

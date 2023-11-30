@@ -171,7 +171,6 @@ def process_RTE_demand(config, year, demand, scenario, method, calibration=False
         adjust_demand = (demand_noP2G_RTE * 1e3 - 580 * 1e3) / 8760  # 580TWh is the total of the profile we use as basis for electricity hourly demand (from RTE), c'est bien vérifié
         demand_elec_RTE_noP2G = demand * (demand_noP2G_RTE / 580)  # new adjustment for demand profile
 
-        # TODO: ajuster la valeur de demand_noP2G_RTE pour augmenter de 2 TWh la demande en résidentiel
         demand_residential_heating_RTE_timesteps = get_pandas(config["demand_residential_heating_RTE_timesteps"],
                                                               lambda x: pd.read_csv(x, index_col=[0, 1]).squeeze())
 
@@ -186,9 +185,9 @@ def process_RTE_demand(config, year, demand, scenario, method, calibration=False
         # demand_elec_RTE_no_residential_heating = demand_elec_RTE_noP2G - hourly_residential_heating_RTE * 38.5/43  # we remove residential electric demand
         demand_elec_RTE_no_residential_heating = demand_elec_RTE_noP2G - hourly_residential_heating_RTE  # we remove residential electric demand
 
-    else:  # in this case, we take a historical demand chronic, so we do not need to readjust. Moreover, there is no power to gas for now.
+    else:  # in this case, we take a historical demand chronic instead of projected RTE profile, so we do not need to readjust. Moreover, there is no power to gas for now.
         demand_elec_RTE_no_residential_heating = demand
-        if hourly_residential_heating_RTE is not None:  # in this case, we also give a profile for electric residential heating (which is necessary to calculate carbon content)
+        if hourly_residential_heating_RTE is not None:  # in this case, we also give a profile for electric residential heating through the coupling (which is necessary to calculate carbon content)
             demand_elec_RTE_no_residential_heating = demand_elec_RTE_no_residential_heating - hourly_residential_heating_RTE
 
     return demand_elec_RTE_no_residential_heating
