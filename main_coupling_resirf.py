@@ -373,7 +373,7 @@ if __name__ == '__main__':
     parser.add_argument("--cpu", type=int, default=3, help="CPUs for multiprocessing")
     parser.add_argument("--configpath", type=str, help="config json file", default=None)
     parser.add_argument("--configdir", type=str, help="config directory", default=None)
-    parser.add_argument("--patterns", nargs="+", type=str, default=["S*.json"], help="Patterns to filter files in the directory.")
+    parser.add_argument("--patterns", nargs="+", type=str, default=["*.json"], help="Patterns to filter files in the directory.")
     parser.add_argument("--exclude-patterns", nargs="+", type=str, default=["base.json"],help="Patterns to exclude files.")
 
     args = parser.parse_args()
@@ -430,6 +430,7 @@ if __name__ == '__main__':
                 config_coupling = json.load(file)
 
             list_design = ['uniform', 'centralized_insulation', 'DR', 'proportional']
+            list_design = None
 
             DICT_CONFIGS = create_configs_coupling(list_design=list_design, config_coupling=config_coupling,
                                                    config_additional=config_additional, dict_configs=DICT_CONFIGS)
