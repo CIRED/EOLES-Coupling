@@ -10,6 +10,7 @@ import numpy as np
 from pickle import load
 import datetime
 from PIL import Image
+from pathlib import Path
 
 from eoles.inputs.resources import resources_data
 from project.utils import save_fig
@@ -70,223 +71,94 @@ DICT_XLABELS = {
 }
 
 
-def plot_comparison(output1, output2, name1, name2):
-    # capacity_df_1 = output1["Capacities (GW)"].T.rename(index={2025: name1})
-    resirf_subsidies_1 = output1["Subsidies (%)"].rename(index={2025: name1})
-    resirf_costs_df_1 = output1["ResIRF costs (Billion euro)"].rename(index={2025: name1})
-    resirf_consumption_df_1 = output1["ResIRF consumption (TWh)"].rename(index={2025: name1})
-    resirf_replacement_heater_1 = output1["ResIRF replacement heater (Thousand)"].T.rename(index={2025: name1})
-    resirf_stock_heater_1 = output1["ResIRF stock heater (Thousand)"].T.rename(index={2029: name1})
-    annualized_system_costs_1 = output1["Annualized system costs (Billion euro / year)"].rename(index={2025: name1})
-
-    # capacity_df_2 = output2["Capacities (GW)"]
-    resirf_subsidies_2 = output2["Subsidies (%)"].rename(index={2025: name2})
-    resirf_costs_df_2 = output2["ResIRF costs (Billion euro)"].rename(index={2025: name2})
-    resirf_consumption_df_2 = output2["ResIRF consumption (TWh)"].rename(index={2025: name2})
-    resirf_replacement_heater_2 = output2["ResIRF replacement heater (Thousand)"].T.rename(index={2025: name2})
-    resirf_stock_heater_2 = output2["ResIRF stock heater (Thousand)"].T.rename(index={2029: name2})
-    annualized_system_costs_2 = output2["Annualized system costs (Billion euro / year)"].rename(index={2025: name2})
-
-    resirf_subsidies = pd.concat([resirf_subsidies_1, resirf_subsidies_2], axis=0)
-    resirf_costs_df = pd.concat([resirf_costs_df_1, resirf_costs_df_2], axis=0)
-    resirf_consumption_df = pd.concat([resirf_consumption_df_1, resirf_consumption_df_2], axis=0)
-    resirf_replacement_heater = pd.concat([resirf_replacement_heater_1, resirf_replacement_heater_2], axis=0)
-    resirf_stock_heater = pd.concat([resirf_stock_heater_1, resirf_stock_heater_2], axis=0)
-    annualized_system_costs = pd.concat([annualized_system_costs_1, annualized_system_costs_2], axis=0)
-
-    make_line_plot(resirf_subsidies, y_label="Subsidies (%)", save=None,
-                   format_y=lambda y, _: '{:.0f}'.format(y), index_int=False, str=True)
-
-    make_line_plot(resirf_costs_df, y_label="Costs (Billion euro)", subset=["Heater", "Insulation", "Health cost"],
-                   save=None, format_y=lambda y, _: '{:.0f}'.format(y), index_int=False, str=True)
-
-    make_line_plot(resirf_consumption_df, subset=["Electricity", "Natural gas", "Oil fuel", "Wood fuel"],
-                   y_label="Heating consumption (TWh)", colors=resources_data["colors_resirf"],
-                   save=None, format_y=lambda y, _: '{:.0f}'.format(y), index_int=False, str=True)
-
-    make_line_plot(resirf_consumption_df, subset=['Saving heater', "Saving insulation"],
-                   y_label="Savings (TWh)",
-                   save=None, format_y=lambda y, _: '{:.0f}'.format(y), index_int=False, str=True)
-
-    make_line_plot(annualized_system_costs, y_label="Annualized system costs",
-                   subset=["Annualized electricity system costs"],
-                   save=None, index_int=False, str=True)
-
-    make_line_plot(resirf_replacement_heater, y_label="Replacement heater (Thousand households)",
-                   save=None, format_y=lambda y, _: '{:.0f}'.format(y), index_int=False, str=True)
-
-    make_line_plot(resirf_stock_heater, y_label="Stock heater (Thousand households)",
-                   save=None, format_y=lambda y, _: '{:.0f}'.format(y), index_int=False, str=True)
-
-
-def plot_comparison_savings_move(df1, df2, x, y, col_for_size, smallest_size=100, biggest_size=300, fontsize=10, y_min=0,
-                                 y_max=None, x_min=0, x_max=None, unit='TWh', save=None, coordinates = None, df3=None):
-    """Same as next graph, but includes two different scenario"""
-    if save is None:
-        fig, ax = plt.subplots(1, 1)
-    else:  # we change figure size when saving figure
-        fig, ax = plt.subplots(1, 1, figsize=(12.8, 9.6))
-    # x = "Consumption saving insulation (TWh/year)"
-    # y = "Consumption saving heater (TWh/year)"
-    relative_size1 = list(df1[col_for_size])
-    relative_size2 = list(df2[col_for_size])
-    s_min1, s_max1 = min(relative_size1), max(relative_size1)
-    s_min2, s_max2 = min(relative_size2), max(relative_size2)
-    s_max = max(s_max1, s_max2)
-    s_min = min(s_min1, s_min2)
-    size1 = [smallest_size + (biggest_size - smallest_size)/(s_max - s_min) * (s - s_min) for s in relative_size1]
-    size2 = [smallest_size + (biggest_size - smallest_size) / (s_max - s_min) * (s - s_min) for s in relative_size2]
-
-    if df3 is not None:
-        relative_size3 = list(df3[col_for_size])
-        s_min3, s_max3 = min(relative_size3), max(relative_size3)
-        s_max = max(s_max3, s_max)
-        s_min = min(s_min3, s_min)
-        size3 = [smallest_size + (biggest_size - smallest_size) / (s_max - s_min) * (s - s_min) for s in relative_size3]
-
-    # colors = dict(zip(df1.index, sns.color_palette(n_colors=len(df1.index))))
-    # colors.update({'Historic': (0, 0, 0)})
-    # TODO: ajouter une couleur fixe par scénario
-    scatter1 = ax.scatter(x=df1[x], y=df1[y], s=size1, c=sns.color_palette(n_colors=len(df1.index)))
-    scatter2 = ax.scatter(x=df2[x], y=df2[y], s=size2, c=sns.color_palette(n_colors=len(df1.index)), hatch='/////')
-    if df3 is not None:
-        scatter3 = ax.scatter(x=df3[x], y=df3[y], s=size3, c=sns.color_palette(n_colors=len(df1.index)), hatch='....')
-    if coordinates is None:
-        for scenario, v in df1.iterrows():
-            ax.annotate(scenario, xy=(v[x], v[y]), xytext=(-20, -25), textcoords="offset points", fontsize=fontsize)
-    else:
-        for scenario, v in df1.iterrows():
-            ax.annotate(scenario, xy=(v[x], v[y]), xytext=coordinates[scenario], textcoords="offset points", fontsize=fontsize)
-
-    # merge = df1.merge(df2, left_index=True, right_index=True)
-
-    # OLD VERSION: fleche automatique avec python
-    # for scenario in merge.index.get_level_values(0):
-    # # for _, row in merge.iterrows():
-    #     x_start = merge.loc[scenario, f'{x}_x']
-    #     y_start = merge.loc[scenario, f'{y}_x']
-    #     x_end = merge.loc[scenario, f'{x}_y']
-    #     y_end = merge.loc[scenario, f'{y}_y']
-    #     ax.arrow(x_start, y_start, x_end - x_start, y_end - y_start,
-    #              head_width=1, head_length=2, fc='k', ec='k')
-    #     midpoint_x = (x_start + x_end) / 2
-    #     midpoint_y = (y_start + y_end) / 2
-    #     ax.annotate(scenario, xy=(midpoint_x, midpoint_y), xytext=(20, -5),
-    #                 textcoords="offset points", fontsize=fontsize)
-        # ax.arrow(row[f'{x}_x'], row[f'{y}_x'], row[f'{x}_y'] - row[f'{x}_x'], row[f'{y}_y'] - row[f'{y}_x'],
-        #          head_width=1, head_length=2, fc='k', ec='k')
-    # for scenario, v in df1.iterrows():
-    #     ax.annotate(scenario, xy=(v[x], v[y]), xytext=(20, -5), textcoords="offset points", fontsize=fontsize)
-
-    if y == "Stock Heat pump (Million)":
-        title = "Stock Heat pump (Million) \n"
-    else:
-        title = f"Energy savings through switch to heat pumps {unit} \n"
-
-    ax = format_ax(ax,
-                   # title="Comparison savings (TWh)",
-                   title=title,
-                   # y_label="Savings heater (TWh)",
-                   x_label=f"Energy savings through home renovation {unit}",
-                   format_y=lambda y, _: '{:.0f}'.format(y), format_x=lambda x, _: '{:.0f}'.format(x),
-                   y_min=y_min, y_max=y_max, x_min=x_min, x_max=x_max,
-                   loc_title="left", c_title="black", loc_xlabel="right")
-
-    box = ax.get_position()
-    ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
-
-    kw = dict(prop="sizes", num=2, func=lambda s: s_min + (s - smallest_size) * (s_max - s_min) / (biggest_size - smallest_size))
-    # handles, labels = scatter.legend_elements(prop="sizes")
-    # legend2 = ax.legend(handles, labels, loc="upper right", title="Sizes")
-    if col_for_size == "Total costs":
-        title = "Total system costs (Billion EUR)"
-    else:
-        title = col_for_size
-    legend2 = ax.legend(*scatter1.legend_elements(**kw), title=title, loc='upper left', bbox_to_anchor=(1, 0.5), frameon=False)
-
-    # legend_style = plt.legend(dummy_lines_style, labels_style, loc='upper left', bbox_to_anchor=(1, 0.5), frameon=False)
-    # legend_color = plt.legend(dummy_lines_color, labels_color, loc='lower left', bbox_to_anchor=(1, 0.5), frameon=False)
-    # ax.add_artist(legend_style)
-    # ax.add_artist(legend_color)
-
-    save_fig(fig, save=save)
-
-
-def plot_comparison_savings(df, x, y, save, col_for_size, smallest_size=100, biggest_size=300, fontsize=10, y_min=0, y_max=None, x_min=0, x_max=None,
-                            unit="TWh", coordinates=None, remove_legend=False, s_min=None, s_max=None):
+def colormap_simulations(overall_folder, config_ref, save_path=None, pdf=False, carbon_constraint=True, eoles=True):
     """
-
-    :param unit: string
-        Whether we display savings in absolute or relative terms.
+    Processes the total system costs for the different simulations and saves the colormap figure
+    :param overall_folder: str
+        Path to the folder containing the different subfolders corresponding to the different simulations
+    :param config_ref: dict
+        Dictionary providing the default values for the configuration
+    :param save_path: str
+        Path to the folder where the figure will be saved
+    :param pdf: bool
+        If True, the figure is saved in pdf format, otherwise in png format
+    :param carbon_constraint: bool
+        If True, the carbon constraint is taken into account
+    :param eoles: bool
+        If True, EOLES model was used in the simulations and the results are processed accordingly
     :return:
     """
-    if save is None:
-        fig, ax = plt.subplots(1, 1)
-    else:  # we change figure size when saving figure
-        fig, ax = plt.subplots(1, 1, figsize=(12.8, 9.6))
-    # x = "Consumption saving insulation (TWh/year)"
-    # y = "Consumption saving heater (TWh/year)"
-    relative_size = list(df[col_for_size])
-    if s_min is None:
-        s_min, s_max = min(relative_size), max(relative_size)
-    size = [smallest_size + (biggest_size - smallest_size)/(s_max - s_min) * (s - s_min) for s in relative_size]
-    if y_max is None:
-        x_max, y_max = df[x].max() * 1.1, df[y].max() * 1.1
-
-    scatter = ax.scatter(x=df[x], y=df[y], s=size, c=sns.color_palette(n_colors=len(df.index)))
-    # for scenario, v in df.iterrows():
-    #     ax.annotate(scenario, xy=(v[x], v[y]), xytext=(20, -5), textcoords="offset points", fontsize=fontsize)
-
-    if coordinates is None:
-        for scenario, v in df.iterrows():
-            ax.annotate(scenario, xy=(v[x], v[y]), xytext=(20, -5), textcoords="offset points", fontsize=fontsize)
+    if pdf:
+        extension = "pdf"
     else:
-        for scenario, v in df.iterrows():
-            if scenario in coordinates.keys():
-                ax.annotate(scenario, xy=(v[x], v[y]), xytext=coordinates[scenario], textcoords="offset points", fontsize=fontsize)
+        extension = "png"
+    total_system_costs_2050_df, complete_system_costs_2050_df = pd.DataFrame(dtype=float), pd.DataFrame(dtype=float)
+    if save_path is not None:
+        save_path = Path(save_path)
+        if not save_path.is_dir():  # create directory
+            os.mkdir(save_path)
+
+    overall_folder = Path(overall_folder)
+    for subfolder in os.listdir(overall_folder):
+        if (Path(overall_folder) / Path(subfolder)).is_dir():
+            subfolder_names = subfolder.split('_')
+            date, scenario, configuration = subfolder_names[0], subfolder_names[-1][6:], '_'.join(subfolder_names[1:-1])
+            tmp = configuration.split('_')
+            config = {}
+            # for each element of tmp, find the key of config_ref which is contained in the element
+            for e in tmp:
+                for k in config_ref.keys():
+                    if k in e:
+                        config[k] = e[len(k):]
+                        break
+
+            if config == config_ref:
+                configuration = 'Reference'
             else:
-                ax.annotate(scenario, xy=(v[x], v[y]), xytext=(20, -5), textcoords="offset points",
-                            fontsize=fontsize)
+                configuration =  ' '.join(configuration.split('_'))
 
-    if y == "Stock Heat pump (Million)":
-        title = "Stock Heat pump (Million) \n"
+
+
+            with open(Path(overall_folder) /Path(subfolder) / Path('coupling_results.pkl'), "rb") as file:
+                output = load(file)
+                # Total system costs
+                annualized_new_investment_df = output["Annualized new investments (1e9€/yr)"]
+                if 2020 in annualized_new_investment_df.columns:
+                    annualized_new_investment_df = annualized_new_investment_df.drop(columns=[2020])
+                annualized_new_energy_capacity_df = output["Annualized costs new energy capacity (1e9€/yr)"]
+                if 2020 in annualized_new_energy_capacity_df.columns:
+                    annualized_new_energy_capacity_df = annualized_new_energy_capacity_df.drop(columns=[2020])
+                functionment_costs_df = output["System functionment (1e9€/yr)"]
+                if 2020 in functionment_costs_df.columns:
+                    functionment_costs_df = functionment_costs_df.drop(columns=[2020])
+
+                passed_cc = True
+                if 2050 not in annualized_new_investment_df.columns:
+                    passed_cc = False
+                total_system_costs_2050 = process_total_costs(annualized_new_investment_df,
+                                                              annualized_new_energy_capacity_df,
+                                                              functionment_costs_df, carbon_constraint=carbon_constraint,
+                                                              eoles=eoles, year=2050)
+                total_system_costs_2050 = total_system_costs_2050.to_frame().rename(columns={0: scenario})
+                total_system_costs_2050.index.name = 'Costs'
+                second_level_index = pd.MultiIndex.from_product([total_system_costs_2050.columns, [configuration]],
+                                                                names=["Gas scenario", "Policy scenario"])
+                total_system_costs_2050.columns = second_level_index
+
+                if not passed_cc:
+                    total_system_costs_2050 = total_system_costs_2050.applymap(lambda x: np.nan)
+                total_system_costs_2050_df = pd.concat([total_system_costs_2050_df, total_system_costs_2050], axis=1)
+
+    total_system_costs_2050_df = total_system_costs_2050_df.T['Total costs'].reset_index().pivot(columns='Gas scenario', index='Policy scenario',
+                                                                    values='Total costs')
+
+    if save_path is None:
+        save_path_plot = None
     else:
-        title = f"Energy savings through switch to heat pumps {unit} \n"
-    if remove_legend:
-        title = "Million"
-    if not remove_legend:
-        ax = format_ax(ax,
-                       # title="Comparison savings (TWh)",
-                       title=title,
-                       # y_label="Savings heater (TWh)",
-                       x_label=f"Energy savings through home renovation {unit}",
-                       format_y=lambda y, _: '{:.0f}'.format(y), format_x=lambda x, _: '{:.0f}'.format(x),
-                       y_min=y_min, y_max=y_max, x_min=x_min, x_max=x_max,
-                       loc_title="left", c_title="black", loc_xlabel="right")
-    else:
-        ax = format_ax(ax,
-                       # title="Comparison savings (TWh)",
-                       title=title,
-                       x_label=f"{unit}",
-                       format_y=lambda y, _: '{:.0f}'.format(y), format_x=lambda x, _: '{:.0f}'.format(x),
-                       y_min=y_min, y_max=y_max, x_min=x_min, x_max=x_max,
-                       loc_title="left", c_title="black", loc_xlabel="right", fontsize=19)
+        save_path_plot = Path(save_path) / Path(f"total_system_costs.{extension}")
 
-    box = ax.get_position()
-    ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
-
-    kw = dict(prop="sizes", num=3, func=lambda s: s_min + (s - smallest_size) * (s_max - s_min) / (biggest_size - smallest_size))
-    # handles, labels = scatter.legend_elements(prop="sizes")
-    # legend2 = ax.legend(handles, labels, loc="upper right", title="Sizes")
-    if col_for_size == "Total costs":
-        title = "Total system costs (Billion EUR)"
-    else:
-        title = col_for_size
-    legend2 = ax.legend(*scatter.legend_elements(**kw), title=title, loc='upper left', bbox_to_anchor=(1, 0.5), frameon=False)
-    if remove_legend:
-        ax.get_legend().remove()
-
-    save_fig(fig, save=save)
+    colormap(total_system_costs_2050_df, save=save_path_plot)
+    return total_system_costs_2050_df
 
 
 def comparison_simulations_new(dict_output: dict, ref, greenfield=False, health=False, x_min=0, x_max=None, y_min=0, y_max=None,
@@ -1028,6 +900,178 @@ def comparison_simulations_new(dict_output: dict, ref, greenfield=False, health=
 
     return total_system_costs_2050_df, consumption_savings_tot_df, complete_system_costs_2050_df
 
+
+def plot_comparison_savings_move(df1, df2, x, y, col_for_size, smallest_size=100, biggest_size=300, fontsize=10, y_min=0,
+                                 y_max=None, x_min=0, x_max=None, unit='TWh', save=None, coordinates = None, df3=None):
+    """Same as next graph, but includes two different scenario"""
+    if save is None:
+        fig, ax = plt.subplots(1, 1)
+    else:  # we change figure size when saving figure
+        fig, ax = plt.subplots(1, 1, figsize=(12.8, 9.6))
+    # x = "Consumption saving insulation (TWh/year)"
+    # y = "Consumption saving heater (TWh/year)"
+    relative_size1 = list(df1[col_for_size])
+    relative_size2 = list(df2[col_for_size])
+    s_min1, s_max1 = min(relative_size1), max(relative_size1)
+    s_min2, s_max2 = min(relative_size2), max(relative_size2)
+    s_max = max(s_max1, s_max2)
+    s_min = min(s_min1, s_min2)
+    size1 = [smallest_size + (biggest_size - smallest_size)/(s_max - s_min) * (s - s_min) for s in relative_size1]
+    size2 = [smallest_size + (biggest_size - smallest_size) / (s_max - s_min) * (s - s_min) for s in relative_size2]
+
+    if df3 is not None:
+        relative_size3 = list(df3[col_for_size])
+        s_min3, s_max3 = min(relative_size3), max(relative_size3)
+        s_max = max(s_max3, s_max)
+        s_min = min(s_min3, s_min)
+        size3 = [smallest_size + (biggest_size - smallest_size) / (s_max - s_min) * (s - s_min) for s in relative_size3]
+
+    # colors = dict(zip(df1.index, sns.color_palette(n_colors=len(df1.index))))
+    # colors.update({'Historic': (0, 0, 0)})
+    # TODO: ajouter une couleur fixe par scénario
+    scatter1 = ax.scatter(x=df1[x], y=df1[y], s=size1, c=sns.color_palette(n_colors=len(df1.index)))
+    scatter2 = ax.scatter(x=df2[x], y=df2[y], s=size2, c=sns.color_palette(n_colors=len(df1.index)), hatch='/////')
+    if df3 is not None:
+        scatter3 = ax.scatter(x=df3[x], y=df3[y], s=size3, c=sns.color_palette(n_colors=len(df1.index)), hatch='....')
+    if coordinates is None:
+        for scenario, v in df1.iterrows():
+            ax.annotate(scenario, xy=(v[x], v[y]), xytext=(-20, -25), textcoords="offset points", fontsize=fontsize)
+    else:
+        for scenario, v in df1.iterrows():
+            ax.annotate(scenario, xy=(v[x], v[y]), xytext=coordinates[scenario], textcoords="offset points", fontsize=fontsize)
+
+    # merge = df1.merge(df2, left_index=True, right_index=True)
+
+    # OLD VERSION: fleche automatique avec python
+    # for scenario in merge.index.get_level_values(0):
+    # # for _, row in merge.iterrows():
+    #     x_start = merge.loc[scenario, f'{x}_x']
+    #     y_start = merge.loc[scenario, f'{y}_x']
+    #     x_end = merge.loc[scenario, f'{x}_y']
+    #     y_end = merge.loc[scenario, f'{y}_y']
+    #     ax.arrow(x_start, y_start, x_end - x_start, y_end - y_start,
+    #              head_width=1, head_length=2, fc='k', ec='k')
+    #     midpoint_x = (x_start + x_end) / 2
+    #     midpoint_y = (y_start + y_end) / 2
+    #     ax.annotate(scenario, xy=(midpoint_x, midpoint_y), xytext=(20, -5),
+    #                 textcoords="offset points", fontsize=fontsize)
+        # ax.arrow(row[f'{x}_x'], row[f'{y}_x'], row[f'{x}_y'] - row[f'{x}_x'], row[f'{y}_y'] - row[f'{y}_x'],
+        #          head_width=1, head_length=2, fc='k', ec='k')
+    # for scenario, v in df1.iterrows():
+    #     ax.annotate(scenario, xy=(v[x], v[y]), xytext=(20, -5), textcoords="offset points", fontsize=fontsize)
+
+    if y == "Stock Heat pump (Million)":
+        title = "Stock Heat pump (Million) \n"
+    else:
+        title = f"Energy savings through switch to heat pumps {unit} \n"
+
+    ax = format_ax(ax,
+                   # title="Comparison savings (TWh)",
+                   title=title,
+                   # y_label="Savings heater (TWh)",
+                   x_label=f"Energy savings through home renovation {unit}",
+                   format_y=lambda y, _: '{:.0f}'.format(y), format_x=lambda x, _: '{:.0f}'.format(x),
+                   y_min=y_min, y_max=y_max, x_min=x_min, x_max=x_max,
+                   loc_title="left", c_title="black", loc_xlabel="right")
+
+    box = ax.get_position()
+    ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
+
+    kw = dict(prop="sizes", num=2, func=lambda s: s_min + (s - smallest_size) * (s_max - s_min) / (biggest_size - smallest_size))
+    # handles, labels = scatter.legend_elements(prop="sizes")
+    # legend2 = ax.legend(handles, labels, loc="upper right", title="Sizes")
+    if col_for_size == "Total costs":
+        title = "Total system costs (Billion EUR)"
+    else:
+        title = col_for_size
+    legend2 = ax.legend(*scatter1.legend_elements(**kw), title=title, loc='upper left', bbox_to_anchor=(1, 0.5), frameon=False)
+
+    # legend_style = plt.legend(dummy_lines_style, labels_style, loc='upper left', bbox_to_anchor=(1, 0.5), frameon=False)
+    # legend_color = plt.legend(dummy_lines_color, labels_color, loc='lower left', bbox_to_anchor=(1, 0.5), frameon=False)
+    # ax.add_artist(legend_style)
+    # ax.add_artist(legend_color)
+
+    save_fig(fig, save=save)
+
+
+def plot_comparison_savings(df, x, y, save, col_for_size, smallest_size=100, biggest_size=300, fontsize=10, y_min=0, y_max=None, x_min=0, x_max=None,
+                            unit="TWh", coordinates=None, remove_legend=False, s_min=None, s_max=None):
+    """
+
+    :param unit: string
+        Whether we display savings in absolute or relative terms.
+    :return:
+    """
+    if save is None:
+        fig, ax = plt.subplots(1, 1)
+    else:  # we change figure size when saving figure
+        fig, ax = plt.subplots(1, 1, figsize=(12.8, 9.6))
+    # x = "Consumption saving insulation (TWh/year)"
+    # y = "Consumption saving heater (TWh/year)"
+    relative_size = list(df[col_for_size])
+    if s_min is None:
+        s_min, s_max = min(relative_size), max(relative_size)
+    size = [smallest_size + (biggest_size - smallest_size)/(s_max - s_min) * (s - s_min) for s in relative_size]
+    if y_max is None:
+        x_max, y_max = df[x].max() * 1.1, df[y].max() * 1.1
+
+    scatter = ax.scatter(x=df[x], y=df[y], s=size, c=sns.color_palette(n_colors=len(df.index)))
+    # for scenario, v in df.iterrows():
+    #     ax.annotate(scenario, xy=(v[x], v[y]), xytext=(20, -5), textcoords="offset points", fontsize=fontsize)
+
+    if coordinates is None:
+        for scenario, v in df.iterrows():
+            ax.annotate(scenario, xy=(v[x], v[y]), xytext=(20, -5), textcoords="offset points", fontsize=fontsize)
+    else:
+        for scenario, v in df.iterrows():
+            if scenario in coordinates.keys():
+                ax.annotate(scenario, xy=(v[x], v[y]), xytext=coordinates[scenario], textcoords="offset points", fontsize=fontsize)
+            else:
+                ax.annotate(scenario, xy=(v[x], v[y]), xytext=(20, -5), textcoords="offset points",
+                            fontsize=fontsize)
+
+    if y == "Stock Heat pump (Million)":
+        title = "Stock Heat pump (Million) \n"
+    else:
+        title = f"Energy savings through switch to heat pumps {unit} \n"
+    if remove_legend:
+        title = "Million"
+    if not remove_legend:
+        ax = format_ax(ax,
+                       # title="Comparison savings (TWh)",
+                       title=title,
+                       # y_label="Savings heater (TWh)",
+                       x_label=f"Energy savings through home renovation {unit}",
+                       format_y=lambda y, _: '{:.0f}'.format(y), format_x=lambda x, _: '{:.0f}'.format(x),
+                       y_min=y_min, y_max=y_max, x_min=x_min, x_max=x_max,
+                       loc_title="left", c_title="black", loc_xlabel="right")
+    else:
+        ax = format_ax(ax,
+                       # title="Comparison savings (TWh)",
+                       title=title,
+                       x_label=f"{unit}",
+                       format_y=lambda y, _: '{:.0f}'.format(y), format_x=lambda x, _: '{:.0f}'.format(x),
+                       y_min=y_min, y_max=y_max, x_min=x_min, x_max=x_max,
+                       loc_title="left", c_title="black", loc_xlabel="right", fontsize=19)
+
+    box = ax.get_position()
+    ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
+
+    kw = dict(prop="sizes", num=3, func=lambda s: s_min + (s - smallest_size) * (s_max - s_min) / (biggest_size - smallest_size))
+    # handles, labels = scatter.legend_elements(prop="sizes")
+    # legend2 = ax.legend(handles, labels, loc="upper right", title="Sizes")
+    if col_for_size == "Total costs":
+        title = "Total system costs (Billion EUR)"
+    else:
+        title = col_for_size
+    legend2 = ax.legend(*scatter.legend_elements(**kw), title=title, loc='upper left', bbox_to_anchor=(1, 0.5), frameon=False)
+    if remove_legend:
+        ax.get_legend().remove()
+
+    save_fig(fig, save=save)
+
+
+
 def comparison_simulations(dict_output: dict, ref, greenfield=False, health=False, x_min=0, x_max=None, y_min=0, y_max=None,
                            rotation=90, save_path=None, pdf=False, carbon_constraint=True, percent=False, eoles=True,
                            coordinates=None, secondary_y=None, secondary_axis_spec=None, smallest_size=100, biggest_size=400,
@@ -1598,6 +1642,8 @@ def process_total_costs(annualized_new_investment_df, annualized_new_energy_capa
         Annualized costs of new energy capacity investment done during the considered year.
     :param functionment_costs_df: pd.DataFrame
         Functionment cost of the system for one year.
+    :param eoles: bool
+        Indicate whether we have optimized the energy system as well through the EOLES module
     :return:
     """
     annualized_new_investment_df_copy = annualized_new_investment_df.copy().loc[:,:year]
@@ -1977,37 +2023,6 @@ def plot_simulation(output, save_path):
                    format_y=lambda y, _: '{:.0f}'.format(y), y_min=0)
 
 
-def plot_investment_trajectory(resirf_costs_df, save=None):
-    if save is None:
-        fig, ax = plt.subplots(1, 1)
-        save_path = None
-    else:  # we change figure size when saving figure
-        fig, ax = plt.subplots(1, 1, figsize=(12.8, 9.6))
-        save_path = os.path.join(save, "investment_subsidies_heater.png")
-    resirf_costs_df[["Investment heater (Billion euro)"]].plot.line(ax=ax, color=resources_data["colors_eoles"])
-    resirf_costs_df[["Subsidies heater (Billion euro)"]].plot.line(ax=ax, color=resources_data["colors_eoles"],
-                                                                   style="--")
-
-    ax = format_ax(ax, title="Investments heater (Billion euro)", x_ticks=resirf_costs_df.index[::2],
-                   format_y=lambda y, _: '{:.0f}'.format(y), rotation=45)
-    format_legend(ax, dict_legend=DICT_TRANSFORM_LEGEND)
-    save_fig(fig, save=save_path)
-
-    if save is None:
-        fig, ax = plt.subplots(1, 1)
-        save_path = None
-    else:  # we change figure size when saving figure
-        fig, ax = plt.subplots(1, 1, figsize=(12.8, 9.6))
-        save_path = os.path.join(save, "investment_subsidies_insulation.png")
-    resirf_costs_df[["Investment insulation (Billion euro)"]].plot.line(ax=ax, color=resources_data["colors_eoles"])
-    resirf_costs_df[["Subsidies insulation (Billion euro)"]].plot.line(ax=ax, color=resources_data["colors_eoles"],
-                                                                       style="--")
-    ax = format_ax(ax, title="Investments insulation (Billion euro)", x_ticks=resirf_costs_df.index[::2],
-                   format_y=lambda y, _: '{:.0f}'.format(y), rotation=45)
-    format_legend(ax, dict_legend=DICT_TRANSFORM_LEGEND)
-    save_fig(fig, save=save_path)
-
-
 def plot_residual_demand(hourly_generation, date_start, date_end, climate=2006, save_path=None,
                       y_min=None, y_max=None, x_min=None, x_max=None):
     """This plot allows to compare electricity demand, including electrolysis and methanation, and residual demand, where
@@ -2108,6 +2123,52 @@ def plot_typical_demand(hourly_generation, date_start, date_end, climate=2006, s
         ax.set_xlim(xmin=x_min)
     if x_max is not None:
         ax.set_xlim(xmax=x_max)
+    format_legend(ax)
+    plt.axhline(y=0)
+
+    save_fig(fig, save=save_path)
+
+
+def plot_load_profile(hourly_generation1, hourly_generation2, date_start, date_end, climate=2006, save_path=None,
+                      y_min=None, y_max=None, x_min=None, x_max=None):
+    hourly_generation_subset1 = hourly_generation1.copy()
+    hourly_generation_subset1["date"] = hourly_generation_subset1.apply(
+        lambda row: datetime.datetime(climate, 1, 1, 0) + datetime.timedelta(hours=row["hour"]),
+        axis=1)
+    hourly_generation_subset1 = hourly_generation_subset1.set_index("date")
+
+    hourly_generation_subset1 = hourly_generation_subset1.loc[date_start: date_end, :]  # select week of interest
+
+    hourly_generation_subset2 = hourly_generation2.copy()
+    hourly_generation_subset2["date"] = hourly_generation_subset2.apply(
+        lambda row: datetime.datetime(climate, 1, 1, 0) + datetime.timedelta(hours=row["hour"]),
+        axis=1)
+    hourly_generation_subset2 = hourly_generation_subset2.set_index("date")
+
+    hourly_generation_subset2 = hourly_generation_subset2.loc[date_start: date_end, :]  # select week of interest
+
+    if save_path is None:
+        fig, ax = plt.subplots(1, 1)
+    else:  # we change figure size when saving figure
+        fig, ax = plt.subplots(1, 1, figsize=(12.8, 9.6))
+
+    hourly_generation_subset1[["heat_elec"]].squeeze().plot(ax=ax, style='-', c='red', label="2050")
+    hourly_generation_subset2[["heat_elec"]].squeeze().plot(ax=ax, style='-', c='blue', label="2020")
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['bottom'].set_visible(True)
+    ax.spines['left'].set_visible(True)
+    ax.set_title("Hourly production and demand (GW)", loc='left', color='black')
+    ax.set_xlabel('')
+    if y_min is not None:
+        ax.set_ylim(ymin=y_min)
+    if y_max is not None:
+        ax.set_ylim(ymax=y_max)
+    if x_min is not None:
+        ax.set_xlim(xmin=x_min)
+    if x_max is not None:
+        ax.set_xlim(xmax=x_max)
+
     format_legend(ax)
     plt.axhline(y=0)
 
@@ -2514,6 +2575,32 @@ def make_cluster_scatterplot(df, x, y, y_label, colors=None, format_y=lambda y, 
     save_fig(fig, save=save)
 
 
+def colormap(df, colors=None, format_y=lambda y, _: '{:.0f}'.format(y), save=None, y_label=None, rotation=0,
+             title=None):
+    if save is None:
+        fig, ax = plt.subplots(1, 1)
+    else:  # we change figure size when saving figure
+        fig, ax = plt.subplots(1, 1, figsize=(18, 9.6))
+
+    if colors is None:
+        sns.heatmap(df, ax=ax, cmap='viridis', annot=True, fmt='.0f', annot_kws={"size": 16})
+    else:
+        sns.heatmap(df, ax=ax, cmap=colors, annot=True, fmt='.0f', annot_kws={"size": 16})
+
+    # ax = format_ax_new(ax, format_y=format_y, xinteger=True)
+    # ax.set_ylabel(y_label, color='dimgrey', fontsize=10, labelpad=100)
+    # ax = format_ax(ax, format_y=format_y, ymin=0, xinteger=True)
+    # ax.spines['left'].set_visible(False)
+    ax.set_xlabel('')
+    ax.xaxis.set_label_position('top')
+
+    plt.setp(ax.xaxis.get_majorticklabels(), rotation=rotation)
+    # ax.tick_params(axis='both', which='major', labelsize=19)
+
+    ax.set_title(title, fontweight='bold', color='dimgrey', pad=-1.6, fontsize=16)
+
+    save_fig(fig, save=save)
+
 def make_clusterstackedbar_plot(df, groupby, y_label, subset=None, colors=None, format_y=lambda y, _: '{:.0f}'.format(y), save=None,
                                 rotation=0, dict_legend=None, scatter=None, ref=None, drop=False, hline=False, ranking_exogenous_scenario=None,
                                 ranking_policy_scenario=None):
@@ -2800,7 +2887,7 @@ def plot_ldmi_method(channel, CO2, start, end, colors=None, rotation=0, save=Non
 
     blank = tmp.cumsum().shift(1).fillna(0)  # will be used as start point for the bar plot
     blank[-1] = 0
-    fig, ax = plt.subplots(1, 1, figsize=(12.8, 9.6))
+    fig, ax = plt.subplots(1, 1, figsize=(14, 9.6))
     if colors is not None:
         tmp.plot(kind='bar', stacked=True, bottom=blank, title=None, ax=ax, color=[colors[i] for i in tmp.index])
     else:
@@ -2846,3 +2933,11 @@ def plot_ldmi_method(channel, CO2, start, end, colors=None, rotation=0, save=Non
     ax.tick_params(axis='both', which='major', labelsize=18)
 
     save_fig(fig, save=save)
+
+
+if __name__ == '__main__':
+    print(os.getcwd())
+    total_system_costs_2050_df = colormap_simulations(overall_folder=Path('outputs') / Path('20231205'),
+                                                      config_ref= {'biogas': 'S3',
+                                                                   'capacity': 'N1'},
+                                                      save_path=Path('outputs') / Path('20231205'))

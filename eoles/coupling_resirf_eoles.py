@@ -413,6 +413,7 @@ def resirf_eoles_coupling_greenfield(buildings, inputs_dynamics, policies_heater
                                      optimization=True, list_sub_heater=None, list_sub_insulation=None,
                                      optimparam: OptimizationParam = OptimizationParam(),
                                      couplingparam: CouplingParam = CouplingParam()):
+    # TODO: old framework, to be updated
     # importing evolution of historical capacity and expected evolution of demand
     existing_capacity_historical, existing_charging_capacity_historical, existing_energy_capacity_historical, \
     maximum_capacity_evolution, heating_gas_demand_RTE_timesteps, ECS_gas_demand_RTE_timesteps, capex_annuity_fOM_historical, \
@@ -1824,7 +1825,7 @@ def initialize_output_dynamics(config_eoles):
     output_dynamics['conversion_generation_df'] = pd.DataFrame(index=index_conversion_prod, dtype=float)
     output_dynamics['charging_capacity_df'] = pd.DataFrame(index=existing_charging_capacity_historical.index, dtype=float)
     output_dynamics['energy_capacity_df'] = pd.DataFrame(index=existing_energy_capacity_historical.index, dtype=float)
-    output_dynamics['spot_price_df'], output_dynamics['hourly_generation_2050'] = pd.DataFrame(dtype=float), pd.DataFrame()
+    output_dynamics['spot_price_df'], output_dynamics['hourly_generation_2050'], output_dynamics['hourly_generation_init'] = pd.DataFrame(dtype=float), pd.DataFrame(), pd.DataFrame()
     output_dynamics['peak_electricity_load_df'], output_dynamics['peak_heat_load_df'] = pd.DataFrame(dtype=float), pd.DataFrame(dtype=float)
     output_dynamics['carbon_content_df'] = pd.DataFrame(dtype=float)
 

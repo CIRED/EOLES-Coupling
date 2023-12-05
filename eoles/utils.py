@@ -1656,10 +1656,10 @@ def ldmi_method_resirf(output, carbon_content):
         result['Share surface'] += data.loc['Emission {} (MtCO2)'.format(i), end] - data.loc['Emission {} (MtCO2)'.format(i), start]
 
     rename = {'Surface (Million m2)': 'Surface',
-            'Share surface': 'Switch heater',
+            'Share surface': 'Fuel switch',
             'Consumption standard': 'Insulation',
             'Heating intensity': 'Heating intensity',
-            'Emission content': 'Carbon content'}
+            'Emission content': 'Fuel decarbonization'}
     result = pd.Series({rename[k]: v for k, v in result.items()})
     emission = data.loc[[f'Emission {energy} (MtCO2)' for energy in heater_vector],[start,end]].sum()
     return result, emission
@@ -1860,7 +1860,7 @@ if __name__ == '__main__':
 
         result, emissions = ldmi_method_resirf(output_resirf, carbon_content)
         plot_ldmi_method(result, emissions, 2020, 2050, colors=resources_data['colors_coupling'], rotation=0,
-                         title=f"Decomposition analysis",
+                         title=None,
                          save="outputs/images submission/ldmi.pdf"
                          # save=None
                          )

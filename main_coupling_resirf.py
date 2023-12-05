@@ -55,23 +55,27 @@ DICT_CONFIG_EOLES = {
 
 
 def save_simulation_results(output, buildings, name_config_coupling, config_coupling, config_eoles, config_resirf,
-                            dict_optimizer, optimization=True):
+                            dict_optimizer, optimization=True, save_folder=None):
     """Save simulation results."""
-    date = datetime.datetime.now().strftime("%m%d_%H%M%S")
-    export_results = os.path.join("eoles", "outputs", f'{date}_{name_config_coupling}')
+    date = datetime.datetime.now().strftime("%m%d%H%M%S")
+    if save_folder is not None:
+        export_results = Path(save_folder) / Path(f'{date}_{name_config_coupling}')
+    else:
+        export_results = Path('eoles') / Path('outputs') / Path(f'{date}_{name_config_coupling}')
+    # export_results = os.path.join("eoles", "outputs", f'{date}_{name_config_coupling}')
 
     # Create directories
-    if not os.path.isdir(export_results):
+    if not export_results.is_dir():
         os.mkdir(export_results)
 
-    if not os.path.isdir(os.path.join(export_results, "config")):
-        os.mkdir(os.path.join(export_results, "config"))
+    if not (Path(export_results) / Path("config")).is_dir():
+        os.mkdir(Path(export_results) / Path("config"))
 
-    if not os.path.isdir(os.path.join(export_results, "dataframes")):
-        os.mkdir(os.path.join(export_results, "dataframes"))
+    if not (Path(export_results) / Path("dataframes")).is_dir():
+        os.mkdir(Path(export_results) / Path("dataframes"))
 
-    if not os.path.isdir(os.path.join(export_results, "plots")):
-        os.mkdir(os.path.join(export_results, "plots"))
+    if not (Path(export_results) / Path("plots")).is_dir():
+        os.mkdir(Path(export_results) / Path("plots"))
 
     with open(os.path.join(export_results, "config", 'config_eoles.json'), "w") as outfile:
         outfile.write(json.dumps(config_eoles, indent=4))
@@ -104,7 +108,7 @@ def save_simulation_results(output, buildings, name_config_coupling, config_coup
     return export_results, output["Output global ResIRF ()"]
 
 
-def run_optimization_scenario(config_coupling, name_config_coupling="default"):
+def run_scenario(config_coupling, name_config_coupling="default", save_folder=None):
     """
     Runs an optimization scenario.
     :param config_coupling: dict
@@ -197,169 +201,29 @@ def run_optimization_scenario(config_coupling, name_config_coupling="default"):
                                                                           energy_taxes=energy_taxes,
                                                                           energy_vta=energy_vta)
 
-
-    # if "no_subsidies" in config_coupling.keys():  # we do not want to have any insolation and electrification
-    #     assert config_coupling["no_subsidies"], "Parameter no_subsidies can only be True for the time being"
-    #     print("no optimized subsidies")
-    #     if "greenfield" in config_coupling.keys():  # we optimize in a greenfield manner
-    #         assert config_coupling[
-    #             "greenfield"], "Parameter greenfield can only be True for the time being, when specified in config."
-    #         print("Greenfield")
-    #         output, buildings, dict_optimizer = resirf_eoles_coupling_greenfield(buildings, inputs_dynamics,
-    #                                                                              policies_heater, policies_insulation,
-    #                                                                              scc=775, scenario_cost=config_coupling["scenario_cost_eoles"],
-    #                                                                              config_eoles=config_eoles,
-    #                                                                              config_coupling=config_coupling,
-    #                                                                              add_CH4_demand=False,
-    #                                                                              optimization=False,
-    #                                                                              list_sub_heater=[0.0],
-    #                                                                              list_sub_insulation=[1.0],
-    #                                                                              optimparam=optimparam,
-    #                                                                              couplingparam=couplingparam
-    #                                                                              )
-    #     else:
-    #         output, buildings, dict_optimizer = resirf_eoles_coupling_dynamic(buildings, inputs_dynamics,
-    #                                                                           policies_heater, policies_insulation,
-    #                                                                           list_year, list_trajectory_scc,
-    #                                                                           config_coupling["scenario_cost_eoles"],
-    #                                                                           config_eoles=config_eoles,
-    #                                                                           config_coupling=config_coupling,
-    #                                                                           add_CH4_demand=False,
-    #                                                                           couplingparam=couplingparam,
-    #                                                                           optimization=False,
-    #                                                                           list_sub_heater=[0.0 for i in range(5)],
-    #                                                                           list_sub_insulation=[1.0 for i in range(5)],
-    #                                                                           energy_taxes=energy_taxes,
-    #                                                                           energy_vta=energy_vta)
-    # elif 'subsidies_specified' in config_coupling.keys():
-    #     print('Subsidies specified')
-    #     assert config_coupling['subsidies_specified'], "Parameter subsidies_specified can only be True for the time being, when specified in config."
-    #     assert 'subsidies_insulation' in config_coupling.keys()
-    #     assert 'subsidies_heater' in config_coupling.keys()
-    #     if "greenfield" in config_coupling.keys():  # we optimize in a greenfield manner
-    #         assert config_coupling["greenfield"], "Parameter greenfield can only be True for the time being, when specified in config."
-    #         print("Greenfield")
-    #         assert len(config_coupling['subsidies_heater']) == 1, "Subsidies are not correctly specified in the greenfield setting."
-    #         output, buildings, dict_optimizer = resirf_eoles_coupling_greenfield(buildings, inputs_dynamics,
-    #                                                                              policies_heater, policies_insulation,
-    #                                                                              scc=775, scenario_cost=config_coupling["scenario_cost_eoles"],
-    #                                                                              config_eoles=config_eoles,
-    #                                                                              config_coupling=config_coupling,
-    #                                                                              add_CH4_demand=False,
-    #                                                                              optimization=False,
-    #                                                                              list_sub_heater=config_coupling['subsidies_heater'],
-    #                                                                              list_sub_insulation=config_coupling['subsidies_insulation'],
-    #                                                                              couplingparam=couplingparam
-    #                                                                              )
-    #     else:
-    #         assert len(config_coupling['subsidies_heater']) == len(config_coupling['list_year']), "Subsidies are not correctly specified in the multistep setting."
-    #         output, buildings, dict_optimizer = resirf_eoles_coupling_dynamic(buildings, inputs_dynamics,
-    #                                                                           policies_heater, policies_insulation,
-    #                                                                           list_year, list_trajectory_scc,
-    #                                                                           config_coupling["scenario_cost_eoles"],
-    #                                                                           config_eoles=config_eoles,
-    #                                                                           config_coupling=config_coupling,
-    #                                                                           add_CH4_demand=False,
-    #                                                                           couplingparam=couplingparam,
-    #                                                                           optimization=False,
-    #                                                                           list_sub_heater=config_coupling['subsidies_heater'],
-    #                                                                           list_sub_insulation=config_coupling['subsidies_insulation'],
-    #                                                                           energy_taxes=energy_taxes,
-    #                                                                           energy_vta=energy_vta)
-    # elif 'optim_eoles' in config_coupling.keys():
-    #     print('Optimization ResIRF - no optimization EOLES')
-    #     assert not config_coupling['optim_eoles'], "Parameter optim_eoles can only be False for the time being, when specified in config."
-    #     if "greenfield" in config_coupling.keys():  # we optimize in a greenfield manner
-    #         assert config_coupling["greenfield"], "Parameter greenfield can only be True for the time being, when specified in config."
-    #         print("Greenfield")
-    #         output, buildings, dict_optimizer = resirf_eoles_coupling_greenfield(buildings, inputs_dynamics,
-    #                                                                              policies_heater, policies_insulation,
-    #                                                                              scc=775, scenario_cost=config_coupling["scenario_cost_eoles"],
-    #                                                                              config_eoles=config_eoles,
-    #                                                                              config_coupling=config_coupling,
-    #                                                                              add_CH4_demand=False,
-    #                                                                              optimization=True,
-    #                                                                              optimparam=optimparam,
-    #                                                                              couplingparam=couplingparam, optim_eoles=False
-    #                                                                              )
-    #     else:
-    #         output, buildings, dict_optimizer = resirf_eoles_coupling_dynamic(buildings, inputs_dynamics,
-    #                                                                           policies_heater, policies_insulation,
-    #                                                                           list_year, list_trajectory_scc,
-    #                                                                           config_coupling["scenario_cost_eoles"],
-    #                                                                           config_eoles=config_eoles,
-    #                                                                           config_coupling=config_coupling,
-    #                                                                           add_CH4_demand=False,
-    #                                                                           couplingparam=couplingparam,
-    #                                                                           optimparam=optimparam,
-    #                                                                           optimization=True,
-    #                                                                           energy_taxes=energy_taxes,
-    #                                                                           energy_vta=energy_vta,
-    #                                                                           optim_eoles=False)
-    # elif "greenfield" in config_coupling.keys():  # we optimize in a greenfield manner
-    #     assert config_coupling[
-    #         "greenfield"], "Parameter greenfield can only be True for the time being, when specified in config."
-    #     print("Greenfield")
-    #     output, buildings, dict_optimizer = resirf_eoles_coupling_greenfield(buildings, inputs_dynamics,
-    #                                                                          policies_heater, policies_insulation,
-    #                                                                          scc=775, scenario_cost=config_coupling["scenario_cost_eoles"],
-    #                                                                          config_eoles=config_eoles,
-    #                                                                          config_coupling=config_coupling,
-    #                                                                          add_CH4_demand=False,
-    #                                                                          optimization=True,
-    #                                                                          optimparam=optimparam
-    #                                                                          )
-    # else:  # we optimize the value of subsidy
-    #     output, buildings, dict_optimizer = resirf_eoles_coupling_dynamic(buildings, inputs_dynamics,
-    #                                                                       policies_heater, policies_insulation,
-    #                                                                       list_year, list_trajectory_scc, config_coupling["scenario_cost_eoles"],
-    #                                                                       config_eoles=config_eoles,
-    #                                                                       config_coupling=config_coupling,
-    #                                                                       add_CH4_demand=False,
-    #                                                                       optimparam=optimparam,
-    #                                                                       couplingparam=couplingparam,
-    #                                                                       optimization=True,
-    #                                                                       energy_taxes=energy_taxes,
-    #                                                                       energy_vta=energy_vta)
-
     # Save results
     export_results, output_resirf = save_simulation_results(output, buildings, name_config_coupling, config_coupling, config_eoles, config_resirf,
-                            dict_optimizer, optimization=True)
+                            dict_optimizer, optimization=True, save_folder=save_folder)
 
     return name_config_coupling, output_resirf, export_results
 
 
-def run_multiple_configs(dict_config, cpu: int, reference=None, greenfield=False, health=True,
-                         carbon_constraint=True, folder_comparison=os.path.join("eoles/outputs/comparison")):
+def run_multiple_configs(dict_config, cpu: int, folder_to_save=None):
     """Run multiple configs in parallel"""
     logger.info('Scenarios: {}'.format(', '.join(dict_config.keys())))
+
+    if folder_to_save is not None: # we create the folder to save the results
+        folder_to_save = Path('eoles') / Path('outputs') / Path(folder_to_save)
+        if not folder_to_save.is_dir():
+            folder_to_save.mkdir()
     try:
         logger.info('Launching processes')
         with Pool(cpu) as pool:
 
-            results = pool.starmap(run_optimization_scenario,
-                                   zip(dict_config.values(), [n for n in dict_config.keys()]))
+            results = pool.starmap(run_scenario,
+                                   zip(dict_config.values(), [n for n in dict_config.keys()], [folder_to_save] * len(dict_config)))
         results_resirf = {i[0]: i[1] for i in results}
         results_general = {i[0]: i[2] for i in results}
-
-        # Plots
-        date = datetime.datetime.now().strftime("%m%d_%H%M%S")
-        folder = os.path.join(folder_comparison, f'{date}')
-        if not os.path.isdir(folder):
-            os.mkdir(folder)
-
-        # Plots coupling
-        if reference is not None:
-            assert reference in results_general.keys(), "Name of reference simulation should be one of the simulations."
-            annualized_system_costs_df, total_system_costs_df, consumption_savings_tot_df, complete_system_costs_2050_df = comparison_simulations(
-                results_general, ref=reference, greenfield=greenfield, health=health, save_path=folder, carbon_constraint=carbon_constraint)
-
-            results_resirf["Reference"] = results_resirf.pop(reference)
-            plot_compare_scenarios(results_resirf, folder=folder)
-
-        # config_policies = get_json('project/input/policies/cba_inputs.json')
-        # if 'Reference' in results_resirf.keys() and len(results_resirf.keys()) > 1 and config_policies is not None:
-        #     indicator_policies(results_resirf, folder, config_policies, policy_name=None)
 
     except Exception as e:
         logger.exception(e)
@@ -411,7 +275,6 @@ if __name__ == '__main__':
         for pattern in args.patterns:
             pattern_path = configdir / pattern
             matching_files = glob.glob(str(pattern_path))
-            # config_files.extend(glob.glob(str(pattern_path)))
 
             # Loop through the matching files and exclude those that match any exclude pattern, notably the base.json file
             for file in matching_files:
@@ -435,9 +298,8 @@ if __name__ == '__main__':
             DICT_CONFIGS = create_configs_coupling(list_design=list_design, config_coupling=config_coupling,
                                                    config_additional=config_additional, dict_configs=DICT_CONFIGS)
 
-
-    results = run_multiple_configs(DICT_CONFIGS, cpu=cpu,reference=None, greenfield=True,
-                                   health=True, carbon_constraint=True)
+    folder_date = datetime.datetime.now().strftime("%Y%m%d")
+    results = run_multiple_configs(DICT_CONFIGS, cpu=cpu, folder_to_save=folder_date)
 
     # CODE to test specific subsidies
     # to add if I want to run stuff again with specific subsidies. Maybe to adapt depending on what i want to test

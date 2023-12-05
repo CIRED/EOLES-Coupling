@@ -206,14 +206,14 @@ colors_coupling = {
     '2020': 'grey',
     'Surface': color_palette[8],
     'Insulation': color_palette[6],
-    'Switch heater': color_palette[2],
-    'Switch \n heater': color_palette[2],
+    'Fuel switch': color_palette[2],
+    'Fuel \n switch': color_palette[2],
     'Heating \n intensity': color_palette[0],
     'Heating intensity': color_palette[0],
     'Emission \n content': color_palette[5],
     'Emission content': color_palette[5],
-    'Carbon \n content': color_palette[5],
-    'Carbon content': color_palette[5],
+    'Fuel \n decarbonization': color_palette[5],
+    'Fuel decarbonization': color_palette[5],
     '2050': 'grey'
 }
 
