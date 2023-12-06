@@ -30,12 +30,12 @@ DICT_TRANSFORM_LEGEND = {
     "Annualized total costs": "total costs",
     "Investment electricity costs": "Investment energy mix",
     "Functionment costs": "Energy operational costs",
-    "Investment heater costs": "Investment heater switch",
+    "Investment heater costs": "Investment switch heater",
     "Investment insulation costs": "Investment insulation",
     "Carbon cost": "Carbon cost",
     "Health costs": "Health costs",
-    "Total costs HC excluded": "Total system costs (Billion EUR)",
-    "Total costs": "Total system costs (Billion EUR)",
+    "Total costs HC excluded": "Total system costs (Billion €)",
+    "Total costs": "Total system costs (Billion €)",
     "Consumption saving insulation (TWh/year)": "insulation",
     "Consumption saving heater (TWh/year)": "heater",
     "Consumption saving insulation (TWh)": "insulation",
@@ -46,16 +46,22 @@ DICT_TRANSFORM_LEGEND = {
     "Subsidies insulation (Billion euro)": "subsidies insulation",
     "offshore_f": "offshore floating wind",
     "offshore_g": "offshore ground wind",
-    "onshore": "onshore",
+    "onshore": "Onshore",
+    "offshore": "Offshore",
+    "pv": "Solar PV",
+    "nuclear": "Nuclear",
+    "hydro": "Hydroelectricity",
+    "battery": "Battery",
+    "peaking plants": "Peaking plants",
     "pv_g": "pv ground",
     "pv_c": "pv large roof",
-    "nuclear": "nuclear",
     "river": "river",
     "lake": "lake",
     "methanization": "methanization",
     "pyrogazification": "pyrogazification",
     "natural_gas": "natural gas"
 }
+
 
 DICT_XLABELS = {
     "Uniform": "Uniform \n Uniform insulation \n ad valorem subsidies \n Heat pump subsidy",
@@ -103,9 +109,10 @@ def colormap_simulations(overall_folder, config_ref, save_path=None, pdf=False, 
         if (Path(overall_folder) / Path(subfolder)).is_dir():
             subfolder_names = subfolder.split('_')
             date, scenario, configuration = subfolder_names[0], subfolder_names[-1][6:], '_'.join(subfolder_names[1:-1])
+
+            # change name for Reference configuration
             tmp = configuration.split('_')
             config = {}
-            # for each element of tmp, find the key of config_ref which is contained in the element
             for e in tmp:
                 for k in config_ref.keys():
                     if k in e:
@@ -486,11 +493,11 @@ def comparison_simulations_new(dict_output: dict, ref, greenfield=False, health=
         save_path_plot = os.path.join(save_path, f"difference_total_system_costs.{extension}")
 
     make_clusterstackedbar_plot(total_system_costs_diff_df, groupby='Costs', subset=subset_costs,
-                                y_label="Total system costs (Md€)",
-                                colors=resources_data["colors_eoles"], format_y=lambda y, _: '{:.0f}'.format(y),
+                                y_label="Total system costs",
+                                colors=resources_data["colors_eoles"], format_y=lambda y, _: '{:.0f} B€'.format(y),
                                 dict_legend=DICT_TRANSFORM_LEGEND, save=save_path_plot, scatter=scatter, ref=ref,
                                 drop=True, hline=True, ranking_exogenous_scenario=ranking_exogenous_scenario,
-                                ranking_policy_scenario=ranking_policy_scenario)
+                                ranking_policy_scenario=ranking_policy_scenario, legend_loc='right')
 
     hc_excluded_2030 = total_system_costs_2030_df.loc['Total costs'].sub(total_system_costs_2030_df.loc['Health costs'])
     hc_excluded_2030.index = pd.MultiIndex.from_product([['Total costs HC excluded'], hc_excluded_2030.index], names=['Costs', 'Policy scenario'])
@@ -680,11 +687,12 @@ def comparison_simulations_new(dict_output: dict, ref, greenfield=False, health=
             save_path_plot = os.path.join(save_path, f"electricity_capacity.{extension}")
 
         subset_elec = ['onshore', 'offshore', 'pv', 'nuclear', 'hydro', 'peaking plants', 'battery']
+        # we only consider year 2050 for the plot
         make_clusterstackedbar_plot(capacities_evolution_df.loc[:,2050].to_frame(), groupby='Technology', subset=subset_elec,
-                                    y_label="Electricity capacity (GW)",
-                                    colors=resources_data["new_colors_eoles"], format_y=lambda y, _: '{:.0f}'.format(y),
-                                    dict_legend=DICT_TRANSFORM_LEGEND, save=save_path_plot,
-                                    ranking_policy_scenario=ranking_policy_scenario
+                                    y_label="Electricity capacity",
+                                    colors=resources_data["new_colors_eoles"], format_y=lambda y, _: '{:.0f} GW'.format(y),
+                                    dict_legend=DICT_TRANSFORM_LEGEND, save=save_path_plot, display_title=False,
+                                    ranking_policy_scenario=ranking_policy_scenario, legend_loc='right', reorder_labels=True
                                     )
 
         reference_rows = capacities_evolution_df.loc[capacities_evolution_df.index.get_level_values('Policy scenario') == ref]
@@ -734,9 +742,9 @@ def comparison_simulations_new(dict_output: dict, ref, greenfield=False, health=
     else:
         save_path_plot = os.path.join(save_path, f"consumption_savings.{extension}")
     if percent:
-        unit = "(%)"
+        unit = "%"
     else:
-        unit = "(TWh)"
+        unit = "TWh"
     make_stacked_bar_plot(consumption_savings_tot_df.T, y_label=f"Total consumption savings {unit}",
                           colors=resources_data["colors_resirf"], format_y=lambda y, _: '{:.0f}'.format(y),
                           index_int=False,
@@ -759,7 +767,8 @@ def comparison_simulations_new(dict_output: dict, ref, greenfield=False, health=
     plot_comparison_savings(savings_and_costs_hp, x="Consumption saving insulation (TWh/year)",
                             y="Stock Heat pump (Million)",
                             save=os.path.join(save_path, f"savings_and_costs_hp.{extension}"),
-                            col_for_size="Total costs", smallest_size=smallest_size, biggest_size=biggest_size,
+                            col_for_size="Total costs", format_y=lambda y, _: '{:.0f} M'.format(y), format_x=lambda x, _: '{:.0f} {}'.format(x, unit),
+                            smallest_size=smallest_size, biggest_size=biggest_size,
                             fontsize=fontsize,
                             x_min=x_min, x_max=x_max, y_min=y_min, y_max=y_max, unit=unit, coordinates=coordinates,
                             remove_legend=remove_legend, s_min=s_min, s_max=s_max)
@@ -969,7 +978,7 @@ def plot_comparison_savings_move(df1, df2, x, y, col_for_size, smallest_size=100
                    # title="Comparison savings (TWh)",
                    title=title,
                    # y_label="Savings heater (TWh)",
-                   x_label=f"Energy savings through home renovation {unit}",
+                   x_label=f"Energy savings through home insulation {unit}",
                    format_y=lambda y, _: '{:.0f}'.format(y), format_x=lambda x, _: '{:.0f}'.format(x),
                    y_min=y_min, y_max=y_max, x_min=x_min, x_max=x_max,
                    loc_title="left", c_title="black", loc_xlabel="right")
@@ -994,7 +1003,9 @@ def plot_comparison_savings_move(df1, df2, x, y, col_for_size, smallest_size=100
     save_fig(fig, save=save)
 
 
-def plot_comparison_savings(df, x, y, save, col_for_size, smallest_size=100, biggest_size=300, fontsize=10, y_min=0, y_max=None, x_min=0, x_max=None,
+def plot_comparison_savings(df, x, y, save, col_for_size, format_y=lambda y, _: '{:.0f}'.format(y), format_x=lambda x, _: '{:.0f}'.format(x),
+                            smallest_size=100,
+                            biggest_size=300, fontsize=10, y_min=0, y_max=None, x_min=0, x_max=None,
                             unit="TWh", coordinates=None, remove_legend=False, s_min=None, s_max=None):
     """
 
@@ -1031,26 +1042,24 @@ def plot_comparison_savings(df, x, y, save, col_for_size, smallest_size=100, big
                             fontsize=fontsize)
 
     if y == "Stock Heat pump (Million)":
-        title = "Stock Heat pump (Million) \n"
+        title = "Stock Heat pump \n"
     else:
         title = f"Energy savings through switch to heat pumps {unit} \n"
     if remove_legend:
-        title = "Million"
+        title = ""
     if not remove_legend:
         ax = format_ax(ax,
-                       # title="Comparison savings (TWh)",
                        title=title,
-                       # y_label="Savings heater (TWh)",
-                       x_label=f"Energy savings through home renovation {unit}",
-                       format_y=lambda y, _: '{:.0f}'.format(y), format_x=lambda x, _: '{:.0f}'.format(x),
+                       x_label=f"Energy savings through home insulation",
+                       format_y=format_y, format_x=format_x,
                        y_min=y_min, y_max=y_max, x_min=x_min, x_max=x_max,
                        loc_title="left", c_title="black", loc_xlabel="right")
     else:
         ax = format_ax(ax,
                        # title="Comparison savings (TWh)",
                        title=title,
-                       x_label=f"{unit}",
-                       format_y=lambda y, _: '{:.0f}'.format(y), format_x=lambda x, _: '{:.0f}'.format(x),
+                       x_label="",
+                       format_y=format_y, format_x=format_x,
                        y_min=y_min, y_max=y_max, x_min=x_min, x_max=x_max,
                        loc_title="left", c_title="black", loc_xlabel="right", fontsize=19)
 
@@ -1061,7 +1070,7 @@ def plot_comparison_savings(df, x, y, save, col_for_size, smallest_size=100, big
     # handles, labels = scatter.legend_elements(prop="sizes")
     # legend2 = ax.legend(handles, labels, loc="upper right", title="Sizes")
     if col_for_size == "Total costs":
-        title = "Total system costs (Billion EUR)"
+        title = "Total system costs (Billion €)"
     else:
         title = col_for_size
     legend2 = ax.legend(*scatter.legend_elements(**kw), title=title, loc='upper left', bbox_to_anchor=(1, 0.5), frameon=False)
@@ -1315,7 +1324,7 @@ def comparison_simulations(dict_output: dict, ref, greenfield=False, health=Fals
         if health:
             make_stacked_investment_plot(df=total_system_costs_diff_df.drop(columns=[ref]).T,
                                          # y_label="Difference of total system costs over 2025-2050 (Billion €)",
-                                         y_label="Total costs (Billion EUR)",
+                                         y_label="Total costs (Billion €)",
                                          subset=subset_costs,
                                          scatter=total_system_costs_diff_df.drop(columns=[ref]).T[
                                              ["Total costs"]].squeeze(),
@@ -2594,6 +2603,7 @@ def colormap(df, colors=None, format_y=lambda y, _: '{:.0f}'.format(y), save=Non
     ax.set_xlabel('')
     ax.xaxis.set_label_position('top')
 
+    plt.yticks(rotation=0)
     plt.setp(ax.xaxis.get_majorticklabels(), rotation=rotation)
     # ax.tick_params(axis='both', which='major', labelsize=19)
 
@@ -2602,8 +2612,8 @@ def colormap(df, colors=None, format_y=lambda y, _: '{:.0f}'.format(y), save=Non
     save_fig(fig, save=save)
 
 def make_clusterstackedbar_plot(df, groupby, y_label, subset=None, colors=None, format_y=lambda y, _: '{:.0f}'.format(y), save=None,
-                                rotation=0, dict_legend=None, scatter=None, ref=None, drop=False, hline=False, ranking_exogenous_scenario=None,
-                                ranking_policy_scenario=None):
+                                rotation=0, display_title=True, dict_legend=None, scatter=None, ref=None, drop=False, hline=False, ranking_exogenous_scenario=None,
+                                ranking_policy_scenario=None, legend_loc='lower', reorder_labels=False):
 
     list_keys = list(df.columns)
     if ranking_exogenous_scenario is not None:  # we modify the order of display of the graphs
@@ -2669,7 +2679,10 @@ def make_clusterstackedbar_plot(df, groupby, y_label, subset=None, colors=None, 
             title = key
             if isinstance(key, tuple):
                 title = '{}-{}'.format(key[0], key[1])
-            ax.set_title(title, fontweight='bold', color='dimgrey', pad=-1.6, fontsize=16)
+            if display_title:
+                ax.set_title(title, fontweight='bold', color='dimgrey', pad=-1.6, fontsize=16)
+            else:
+                ax.set_title('')
 
             if k == 0:
                 handles, labels = ax.get_legend_handles_labels()
@@ -2682,8 +2695,16 @@ def make_clusterstackedbar_plot(df, groupby, y_label, subset=None, colors=None, 
     if dict_legend is not None:
         labels = [dict_legend[e] if e in dict_legend.keys() else e for e in labels]
 
-    fig.legend(handles, labels, loc='lower center', frameon=False, ncol=3,
-               bbox_to_anchor=(0.5, -0.1))
+    if reorder_labels:
+        labels = labels[::-1]
+        handles = handles[::-1]
+
+    if legend_loc == 'lower':
+        fig.legend(handles, labels, loc='lower center', frameon=False, ncol=3,
+                   bbox_to_anchor=(0.5, -0.1))
+    else:
+        fig.legend(handles, labels, loc='center left', frameon=False, ncol=1,
+                   bbox_to_anchor=(1, 0.5))
 
     # fig.suptitle(title, fontsize=18, y=1.02)
 
