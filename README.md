@@ -42,6 +42,8 @@ You can run the script as follows:
 python main_coupling_resirf.py --cpu 1 --configdir "eoles/inputs/xps/20231205
 ```
 
+It is possible to create a folder with different configurations using the `scenarios_creation.ipynb` notebook.
+
 The command specifies:
 - `--cpu 1`: the number of CPUs to use
 - `--configdir "eoles/inputs/xps/20231205`: the folder where the configurations are stored
