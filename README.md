@@ -35,7 +35,10 @@ pip install -e .
 
 This allows you to have access to all the functionalities from ResIRF in your environment.
 
-### Step 2: Running the coupling
+### Step 2: Install a solver
+Our package relies on the Gurobi solver, used through the `pyomo` interface. This requires dowloading Gurobi and installing a license. It is also possible to rely on open-source solvers such as CPLEX. 
+
+### Step 3: Running the coupling
 The standard way to run the coupling is to launch the script main_coupling_resirf.py. This requires providing the configurations which you want to run. Examples of configurations can be found in `eoles/inputs/xps`. Files called `base.json` provide general configuration parameters. Other json files in a given folder provide specifications for varying configurations. For example, the file `eoles/inputs/xps/20231205/biogasS2_capacityN1_demandReference_policyambition.json` specifies different parameters for biogas potential, renewable potential, demand scenario and residential policies scenario.
 
 You can run the script as follows:

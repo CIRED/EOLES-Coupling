@@ -1290,10 +1290,20 @@ def modif_config_eoles(config_eoles, config_coupling):
     config_eoles_update["demand_scenario"] = config_coupling["eoles"]["demand_scenario"]
 
     if 'costs_supply' in config_coupling['eoles'].keys():  # we modify the costs of supply
-        if 'storage_capex' in config_coupling['eoles']['costs_supply'].keys():
-            config_eoles_update["storage_capex_variant"] = config_coupling['eoles']['costs_supply']['storage_capex']
-        if 'capex' in config_coupling['eoles']['costs_supply'].keys():
-            config_eoles_update["capex_variant"] = config_coupling['eoles']['costs_supply']['capex']
+        if 'storage_capex_variant' in config_coupling['eoles']['costs_supply'].keys():  # variant for some technologies
+            config_eoles_update["storage_capex_variant"] = config_coupling['eoles']['costs_supply']['storage_capex_variant']
+        if 'capex_variant' in config_coupling['eoles']['costs_supply'].keys():  # variant for some technologies
+            config_eoles_update["capex_variant"] = config_coupling['eoles']['costs_supply']['capex_variant']
+        if 'storage_capex' in config_coupling['eoles']['costs_supply'].keys():  # variant for all technologies
+            new_storage_capex = config_coupling['eoles']['costs_supply']['storage_capex']
+            new_storage_file = f"eoles/inputs/technology_characteristics/{new_storage_capex}.csv"
+            assert Path(new_storage_file).is_file(), "Scenario for storage capex is not correctly specified"
+            config_eoles_update["storage_capex"] = new_storage_file
+        if 'capex' in config_coupling['eoles']['costs_supply'].keys():  # variant for all technologies
+            new_capex = config_coupling['eoles']['costs_supply']['capex']
+            new_capex_file = f"eoles/inputs/technology_characteristics/{new_capex}.csv"
+            assert Path(new_capex_file).is_file(), "Scenario for capex is not correctly specified"
+            config_eoles_update["capex"] = new_capex_file
 
     if 'carbon_budget' in config_coupling['eoles'].keys():
         carbon_budget_spec = config_coupling["eoles"]['carbon_budget']
@@ -1361,16 +1371,30 @@ def modif_config_resirf(config_resirf, config_coupling):
         assert Path(config_coupling['carbon_emissions_resirf']).is_file(), "Carbon emissions as specified are not a correct file"
         config_resirf_update['energy']['carbon_emission'] = config_coupling['carbon_emissions_resirf']
 
-    if 'method_health_cost' in config_coupling.keys():  # in that case, we specify the method to estimate health costs
-        config_resirf_update['method_health_cost'] = config_coupling['method_health_cost']
+    if 'method_health_cost' in config_coupling['resirf'].keys():  # in that case, we specify the method to estimate health costs
+        config_resirf_update['method_health_cost'] = config_coupling['resirf']['method_health_cost']
 
-    if 'hourly_profile' in config_coupling.keys():  # in that case, we specify the hourly profile to use
-        # assert Path(config_coupling['hourly_profile']).is_file(), "Hourly profile as specified is not a correct file"
-        if 'technical' in config_resirf_update.keys():
-            config_resirf_update['technical']['hourly_profile'] = config_coupling['hourly_profile']
-        else:  # we create the technical dictionary to modify the hourly profile
-            config_resirf_update['technical'] = {}
-            config_resirf_update['technical']['hourly_profile'] = config_coupling['hourly_profile']
+    if 'technical' in config_coupling['resirf'].keys():
+        if 'technical' in config_resirf_update.keys():  # there is already a dictionary specifying some options for technical
+            for k,v in config_resirf_update['technical'].items():
+                if k in config_coupling['resirf']['technical'].keys():  # needs updating in this case
+                    if isinstance(v, dict):
+                        v.update(config_coupling['resirf']['technical'][k])
+                    else:
+                        config_resirf_update['technical'][k] = config_coupling['resirf']['technical'][k]
+        else:  # we create the technical dictionary
+            config_resirf_update['technical'] = config_coupling['resirf']['technical']
+
+    if 'switch_heater' in config_coupling['resirf'].keys():
+        if 'switch_heater' in config_resirf_update.keys():  # there is already a dictionary specifying some options for switch_heater
+            for k,v in config_resirf_update['switch_heater'].items():
+                if k in config_coupling['resirf']['switch_heater'].keys():  # needs updating in this case
+                    if isinstance(v, dict):
+                        v.update(config_coupling['resirf']['switch_heater'][k])
+                    else:
+                        config_resirf_update['switch_heater'][k] = config_coupling['resirf']['switch_heater'][k]
+        else:  # we create the switch_heater dictionary
+            config_resirf_update['switch_heater'] = config_coupling['resirf']['switch_heater']
 
     if 'policies' in config_coupling.keys():
         config_resirf_update['policies'] = config_coupling['policies']
@@ -1459,15 +1483,22 @@ def create_configs_coupling(list_design, config_coupling: dict, config_additiona
     carbon_budget = config_additional['carbon_budget']
     district_heating_potential = config_additional['district_heating_potential']
 
-    if 'hourly_profile' in config_additional.keys():
-        hourly_profile = config_additional['hourly_profile']
-        config_coupling_update['hourly_profile'] = f'project/input/technical/{hourly_profile}.csv'
+    config_coupling_update['resirf'] = {}  # we create a dictionary for the ResIRF configuration specs
+    if 'technical' in config_additional.keys():  # we modify the specification for the Res-IRF configuration
+        config_coupling_update['resirf']['technical'] = config_additional['technical']
+
+    if 'switch_heater' in config_additional.keys():  # we modify the specification for the Res-IRF configuration
+        config_coupling_update['resirf']['switch_heater'] = config_additional['switch_heater']
+
+    # if 'hourly_profile' in config_additional.keys():
+    #     hourly_profile = config_additional['hourly_profile']
+    #     config_coupling_update['hourly_profile'] = f'project/input/technical/{hourly_profile}.csv'
 
     if 'costs_supply' in config_additional.keys():
         config_coupling_update['eoles']['costs_supply'] = config_additional['costs_supply']
 
     if 'method_health_cost' in config_additional.keys():
-        config_coupling_update['method_health_cost'] = config_additional['method_health_cost']
+        config_coupling_update['resirf']['method_health_cost'] = config_additional['method_health_cost']
 
     if "policies" in config_additional.keys():  # we update the default policies in ResIRF
         policies = config_additional["policies"]

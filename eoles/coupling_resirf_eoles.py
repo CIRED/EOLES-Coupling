@@ -115,7 +115,7 @@ def resirf_eoles_coupling_static(subsidy, subsidy_policy_heater, subsidy_policy_
     energy_prices, taxes, cost_heater, cost_insulation, demolition_rate, flow_district_heating = deepcopy(inputs_dynamics['energy_prices']), deepcopy(inputs_dynamics['taxes']), deepcopy(inputs_dynamics['cost_heater']), deepcopy(inputs_dynamics['cost_insulation']), deepcopy(inputs_dynamics['demolition_rate']), deepcopy(inputs_dynamics['flow_district_heating'])
     lifetime_heater, lifetime_insulation = deepcopy(inputs_dynamics["lifetime_heater"]), deepcopy(inputs_dynamics["lifetime_insulation"])
     flow_built, post_inputs, policies_heater_copy, policies_insulation_copy = deepcopy(inputs_dynamics['flow_built']), deepcopy(inputs_dynamics['post_inputs']), deepcopy(policies_heater), deepcopy(policies_insulation)
-    technical_progress, financing_cost, premature_replacement, carbon_content = deepcopy(inputs_dynamics['technical_progress']), deepcopy(inputs_dynamics['financing_cost']), deepcopy(inputs_dynamics['premature_replacement']), deepcopy(inputs_dynamics['post_inputs']['carbon_emission'])
+    technical_progress, financing_cost, premature_replacement, carbon_content, hourly_profile = deepcopy(inputs_dynamics['technical_progress']), deepcopy(inputs_dynamics['financing_cost']), deepcopy(inputs_dynamics['premature_replacement']), deepcopy(inputs_dynamics['post_inputs']['carbon_emission']), deepcopy(inputs_dynamics['hourly_profile'])
 
     # simulation between start and end - flow output represents annual values for year "end"
     sub_heater, sub_insulation = create_sub_resirf(start_year_resirf, endyear_resirf, sub_heater_value, sub_insulation_value,
@@ -133,7 +133,9 @@ def resirf_eoles_coupling_static(subsidy, subsidy_policy_heater, subsidy_policy_
                                                       flow_district_heating=flow_district_heating,
                                                       demolition_rate=demolition_rate, output_consumption=True,
                                                       technical_progress=technical_progress,  premature_replacement=premature_replacement,
-                                                      output_options='cost_benefit', carbon_content=carbon_content
+                                                      output_options='cost_benefit',
+                                                      carbon_content=carbon_content,
+                                                      hourly_profile=hourly_profile
                                                       )
 
     # heating_consumption = output[endyear_resirf - 1]['Consumption (kWh/h)']
@@ -485,7 +487,9 @@ def resirf_eoles_coupling_greenfield(buildings, inputs_dynamics, policies_heater
                                                               output_consumption=True,
                                                               technical_progress=inputs_dynamics['technical_progress'],
                                                               premature_replacement=inputs_dynamics['premature_replacement'],
-                                                              output_options='full', carbon_content=inputs_dynamics['post_inputs']['carbon_emission'])
+                                                              output_options='full',
+                                                              carbon_content=inputs_dynamics['post_inputs']['carbon_emission'],
+                                                              hourly_profile=inputs_dynamics['hourly_profile'])
     initial_state_budget = output_opt.loc["Balance state (Billion euro)"][2024]  # we get final state budget
 
     # we add initial values to observe what happens
@@ -605,7 +609,9 @@ def resirf_eoles_coupling_greenfield(buildings, inputs_dynamics, policies_heater
                                                               output_consumption=True,
                                                               technical_progress=inputs_dynamics['technical_progress'],
                                                               premature_replacement=inputs_dynamics['premature_replacement'],
-                                                              output_options='full', carbon_content=inputs_dynamics['post_inputs']['carbon_emission'])
+                                                              output_options='full',
+                                                              carbon_content=inputs_dynamics['post_inputs']['carbon_emission'],
+                                                              hourly_profile=inputs_dynamics['hourly_profile'])
 
     output_global_ResIRF = pd.concat([output_global_ResIRF, output_opt], axis=1)
     stock_global_ResIRF = pd.concat([stock_global_ResIRF, stock_opt], axis=1)
@@ -1024,7 +1030,9 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
                                                               output_consumption=True,
                                                               technical_progress=inputs_dynamics['technical_progress'],
                                                               premature_replacement=inputs_dynamics['premature_replacement'],
-                                                              output_options='full', carbon_content=inputs_dynamics['post_inputs']['carbon_emission'])
+                                                              output_options='full',
+                                                              carbon_content=inputs_dynamics['post_inputs']['carbon_emission'],
+                                                              hourly_profile=inputs_dynamics['hourly_profile'])
     initial_state_budget = output_opt.loc["Balance state (Billion euro)"][start1]  # we get final state budget
 
     # we add initial values to observe what happens
@@ -1240,7 +1248,9 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
                                                                   output_consumption=True,
                                                                   technical_progress=inputs_dynamics['technical_progress'],
                                                                   premature_replacement=inputs_dynamics['premature_replacement'],
-                                                                  output_options='full', carbon_content=inputs_dynamics['post_inputs']['carbon_emission'])
+                                                                  output_options='full',
+                                                                  carbon_content=inputs_dynamics['post_inputs']['carbon_emission'],
+                                                                  hourly_profile=inputs_dynamics['hourly_profile'])
 
         output_dynamics['output_global_ResIRF'] = pd.concat([output_dynamics['output_global_ResIRF'], output_opt], axis=1)
         output_dynamics['stock_global_ResIRF'] = pd.concat([output_dynamics['stock_global_ResIRF'], stock_opt], axis=1)

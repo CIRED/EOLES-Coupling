@@ -261,7 +261,7 @@ if __name__ == '__main__':
             config_coupling = json.load(file)
 
         list_design = ['uniform', 'centralized_insulation', 'DR', 'proportional']
-        list_design = ['centralized_insulation']
+        list_design = None
 
         # # Cas spécifique où on vient extraire la valeur de subventions qui ont été optimisées au préalable
         # config_coupling['subsidies_specified'] = True  # we specify that subsidies are given

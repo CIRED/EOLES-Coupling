@@ -176,6 +176,9 @@ def colormap_simulations(overall_folder, config_ref, save_path=None, pdf=False, 
     # sort again dataframe to have Reference as first row
     if 'Reference' in total_system_costs_2050_df.index:
         total_system_costs_2050_df = total_system_costs_2050_df.reindex(['Reference'] + [i for i in total_system_costs_2050_df.index if i != 'Reference'])
+    if 'reference' in total_system_costs_2050_df.columns:
+        total_system_costs_2050_df = total_system_costs_2050_df.reindex(columns=
+            ['reference'] + [i for i in total_system_costs_2050_df.columns if i != 'reference'])
     colormap(total_system_costs_2050_df, save=save_path_plot)
     return total_system_costs_2050_df
 
@@ -2613,8 +2616,11 @@ def colormap(df, colors=None, format_y=lambda y, _: '{:.0f}'.format(y), save=Non
     if colors is None:
         custom_cmap = sns.color_palette("viridis", as_cmap=True, n_colors=len(df)).reversed()
         sns.heatmap(df, ax=ax, cmap=custom_cmap, annot=True, fmt='.0f', annot_kws={"size": 16})
+        # ax.xaxis.tick_top()
+        # ax.xaxis.set_label_position('top')
     else:
         sns.heatmap(df, ax=ax, cmap=colors, annot=True, fmt='.0f', annot_kws={"size": 16})
+    ax.tick_params(labelbottom=False, labeltop=True)
 
     # ax = format_ax_new(ax, format_y=format_y, xinteger=True)
     # ax.set_ylabel(y_label, color='dimgrey', fontsize=10, labelpad=100)
@@ -2982,5 +2988,6 @@ if __name__ == '__main__':
                                                       config_ref= {'biogas': 'S3',
                                                                    'capacity': 'N1',
                                                                    'demand': 'Reference',
-                                                                   'profile': 'Reference'},
+                                                                   'profile': 'Reference',
+                                                                   'weather': 'Reference'},
                                                       save_path=Path('outputs') / Path('20231210'))
