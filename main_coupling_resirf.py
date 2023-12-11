@@ -99,12 +99,16 @@ def save_simulation_results(output, buildings, name_config_coupling, config_coup
             plot_blackbox_optimization(dict_optimizer, save_path=os.path.join(export_results))
 
         buildings.path = os.path.join(export_results, "plots")
-        plot_scenario(output["Output global ResIRF ()"], output["Stock global ResIRF ()"],
-                      buildings)  # make ResIRF plots
+        try:
+            logger.info(f'Config {name_config_coupling} plots not working')
+            plot_scenario(output["Output global ResIRF ()"], output["Stock global ResIRF ()"],
+                          buildings)  # make ResIRF plots
+        except:
+            pass
 
         if not config_coupling["greenfield"]:  # si greenfield, on ne veut pas plotter l'évolution des quantités, car pas d'optimisation dynamique
             plot_simulation(output, save_path=os.path.join(export_results, "plots"))
-            save_summary_pdf(path=export_results)  # saving summary as pdf
+            # save_summary_pdf(path=export_results)  # saving summary as pdf
     return export_results, output["Output global ResIRF ()"]
 
 

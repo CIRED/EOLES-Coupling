@@ -828,6 +828,14 @@ def read_technology_data(config, year):
     storage_capex = get_pandas(config["storage_capex"],
                                lambda x: pd.read_csv(x, index_col=0))  # 1e6€/GW
     storage_capex = storage_capex[[str(year)]].squeeze()  # get storage capex for year of interest
+
+    if 'capex_variant' in config.keys():  # in this case, we specify a variant for the CAPEX costs
+        for tec in config['capex_variant'].keys():
+            capex[tec] = config['capex_variant'][tec]
+    if 'storage_capex_variant' in config.keys():  # in this case, we specify a variant for the storage CAPEX costs
+        for tec in config['storage_capex_variant'].keys():
+            storage_capex[tec] = config['storage_capex_variant'][tec]
+
     fOM = get_pandas(config["fOM"], lambda x: pd.read_csv(x, index_col=0))  # 1e6€/GW/year
     fOM = fOM[[str(year)]].squeeze()  # get fOM for year of interest
     vOM = get_pandas(config["vOM"],

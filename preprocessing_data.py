@@ -167,31 +167,44 @@ demand_ev_bus = demand_ev_bus.set_index('hour')
 #
 # ############# Extract required years  #############
 # ############# Extract required years for renewable data #########
-# vre_profiles_initial = pd.read_csv('eoles/inputs/hourly_profiles/vre_profiles_2000-2019.csv', index_col=0).reset_index()
-# vre_profiles_initial.columns = ["tec", "hour", "capacity_factor"]
-# vre_profiles_initial = vre_profiles_initial.loc[vre_profiles_initial.tec.isin(['offshore_f', 'river'])]
-# vre_profiles_quentin = pd.read_csv('eoles/inputs/hourly_profiles/vre_profiles_all_years.csv', index_col=0).reset_index()
-# vre_profiles_quentin.columns = ["tec", "hour", "capacity_factor"]
-# # vre_profiles_quentin = vre_profiles_quentin.replace('pv_g_EW', 'pv_g')  # we rename to have the good technology name
-# # vre_profiles_quentin = vre_profiles_quentin.replace('offshore_f', 'offshore_g')  # we rename to have the good technology name
-# vre_profiles_quentin = vre_profiles_quentin.loc[vre_profiles_quentin.tec.isin(['offshore_g', 'onshore', 'pv_c', 'pv_g'])]
+vre_profiles_initial = pd.read_csv('eoles/inputs/hourly_profiles/vre_profiles_2000-2019.csv', index_col=0).reset_index()
+vre_profiles_initial.columns = ["tec", "hour", "capacity_factor"]
+vre_profiles_initial = vre_profiles_initial.loc[vre_profiles_initial.tec.isin(['offshore_f', 'river'])]
+vre_profiles_quentin = pd.read_csv('eoles/inputs/hourly_profiles/vre_profiles_all_years.csv', index_col=0).reset_index()
+vre_profiles_quentin.columns = ["tec", "hour", "capacity_factor"]
+# vre_profiles_quentin = vre_profiles_quentin.replace('pv_g_EW', 'pv_g')  # we rename to have the good technology name
+# vre_profiles_quentin = vre_profiles_quentin.replace('offshore_f', 'offshore_g')  # we rename to have the good technology name
+vre_profiles_quentin = vre_profiles_quentin.loc[vre_profiles_quentin.tec.isin(['offshore_g', 'onshore', 'pv_c', 'pv_g'])]
+
+lake_inflows = pd.read_csv('eoles/inputs/hourly_profiles/lake_2000-2019.csv', index_col=0, header=None).reset_index()
+lake_inflows.columns = ["month", "capacity_factor"]
 #
-# list_year = [2016]
-# vre_profiles_subset = pd.DataFrame()
+list_year = [2012]
+vre_profiles_subset = pd.DataFrame()
+lake_inflows_subset = pd.DataFrame()
+
+for (i, y) in enumerate(list_year):
+    n = y - 2000
+    initial_hour, final_hour = 8760*n, 8760*n+8759
+    initial_month, final_month = 12*n+1, 12*n+12
+    # Load factors
+    vre_profiles_initial_y = vre_profiles_initial.loc[(vre_profiles_initial.hour >= initial_hour) & (vre_profiles_initial.hour <= final_hour)]
+    vre_profiles_quentin_y = vre_profiles_quentin.loc[(vre_profiles_quentin.hour >= initial_hour) & (vre_profiles_quentin.hour <= final_hour)]
+    vre_profiles_y = pd.concat([vre_profiles_initial_y, vre_profiles_quentin_y], axis=0)
+    vre_profiles_y['hour'] = vre_profiles_y['hour'].apply(lambda x: x + 8760*(i-n))
+    vre_profiles_subset = pd.concat([vre_profiles_subset, vre_profiles_y], axis=0)
+    # Lake inflows
+    lake_inflows_y = lake_inflows.loc[(lake_inflows.month >= initial_month) & (lake_inflows.month <= final_month)]
+    lake_inflows_y['month'] = lake_inflows_y['month'].apply(lambda x: x + 12*(i-n))
+    lake_inflows_subset = pd.concat([lake_inflows_subset, lake_inflows_y], axis=0)
+
+vre_profiles_subset = vre_profiles_subset.sort_values(by=["tec", "hour"])
+vre_profiles_subset = vre_profiles_subset.set_index("tec")
+
+lake_inflows_subset = lake_inflows_subset.set_index('month')
 #
-# for (i, y) in enumerate(list_year):
-#     n = y - 2000
-#     initial_hour = 8760*n
-#     final_hour = 8760*n+8759
-#     vre_profiles_initial_y = vre_profiles_initial.loc[(vre_profiles_initial.hour >= initial_hour) & (vre_profiles_initial.hour <= final_hour)]
-#     vre_profiles_quentin_y = vre_profiles_quentin.loc[(vre_profiles_quentin.hour >= initial_hour) & (vre_profiles_quentin.hour <= final_hour)]
-#     vre_profiles_y = pd.concat([vre_profiles_initial_y, vre_profiles_quentin_y], axis=0)
-#     vre_profiles_y['hour'] = vre_profiles_y['hour'].apply(lambda x: x + 8760*(i-n))
-#     vre_profiles_subset = pd.concat([vre_profiles_subset, vre_profiles_y], axis=0)
-# vre_profiles_subset = vre_profiles_subset.sort_values(by=["tec", "hour"])
-# vre_profiles_subset = vre_profiles_subset.set_index("tec")
-#
-# vre_profiles_subset.to_csv('eoles/inputs/hourly_profiles/vre_profiles_2016.csv', header=False)
+vre_profiles_subset.to_csv('eoles/inputs/hourly_profiles/vre_profiles_2012.csv', header=False)
+lake_inflows_subset.to_csv('eoles/inputs/hourly_profiles/lake_2012.csv', header=False)
 #
 # ############## Estimate run of river values for different years  ######################
 #

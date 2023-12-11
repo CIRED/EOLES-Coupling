@@ -115,6 +115,8 @@ colors_eoles = {
     "phs discharging": '#949494',
     "phs_in": '#CC78BC',
     "phs charging": '#CC78BC',
+    "hydrogen charging": 'green',
+    "hydrogen discharging": 'purple',
     "battery1": "blue",
     "battery4": "blue",
     "battery": "pink",

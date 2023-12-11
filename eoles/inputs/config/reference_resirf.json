@@ -74,7 +74,8 @@
       "footprint_renovation": "project/input/technical/footprint_renovation.csv",
       "residual_rate": 0,
       "surface": "project/input/technical/surface.csv",
-      "ratio_surface": "project/input/technical/ratio_surface.csv"
+      "ratio_surface": "project/input/technical/ratio_surface.csv",
+      "hourly_profile": "project/input/technical/hourly_profile_rte.csv"
     },
     "energy": {
       "energy_prices": {

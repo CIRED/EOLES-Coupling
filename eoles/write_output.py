@@ -111,18 +111,21 @@ def colormap_simulations(overall_folder, config_ref, save_path=None, pdf=False, 
             date, scenario, configuration = subfolder_names[0], subfolder_names[-1][6:], '_'.join(subfolder_names[1:-1])
 
             # change name for Reference configuration
-            tmp = configuration.split('_')
+            tmp = configuration.split('_')  # get values for different parameters
             config = {}
+            new_configuration = ''
             for e in tmp:
                 for k in config_ref.keys():
                     if k in e:
                         config[k] = e[len(k):]
+                        if e[len(k):] != config_ref[k]:  # we only keep the parameters that are different from the reference configuration
+                            new_configuration += e[len(k):] + ' '
                         break
 
-            if config == config_ref:
+            if config == config_ref:  # in this case, this is the reference configuration without any variant
                 configuration = 'Reference'
             else:
-                configuration =  ' '.join(configuration.split('_'))
+                configuration =  new_configuration
 
 
 
@@ -139,7 +142,7 @@ def colormap_simulations(overall_folder, config_ref, save_path=None, pdf=False, 
                 if 2020 in functionment_costs_df.columns:
                     functionment_costs_df = functionment_costs_df.drop(columns=[2020])
 
-                passed_cc = True
+                passed_cc = True  # check if all time steps were passed
                 if 2050 not in annualized_new_investment_df.columns:
                     passed_cc = False
                 total_system_costs_2050 = process_total_costs(annualized_new_investment_df,
@@ -151,6 +154,12 @@ def colormap_simulations(overall_folder, config_ref, save_path=None, pdf=False, 
                 second_level_index = pd.MultiIndex.from_product([total_system_costs_2050.columns, [configuration]],
                                                                 names=["Gas scenario", "Policy scenario"])
                 total_system_costs_2050.columns = second_level_index
+
+                if passed_cc:
+                    capacities_df = output["Capacities (GW)"]
+                    capacities_battery = max(capacities_df.loc['battery1', 2050], capacities_df.loc['battery4', 2050])
+                    if capacities_battery > 100:  # we consider that the amount of batteries is not realistic.
+                        passed_cc = False
 
                 if not passed_cc:
                     total_system_costs_2050 = total_system_costs_2050.applymap(lambda x: np.nan)
@@ -164,6 +173,9 @@ def colormap_simulations(overall_folder, config_ref, save_path=None, pdf=False, 
     else:
         save_path_plot = Path(save_path) / Path(f"total_system_costs.{extension}")
 
+    # sort again dataframe to have Reference as first row
+    if 'Reference' in total_system_costs_2050_df.index:
+        total_system_costs_2050_df = total_system_costs_2050_df.reindex(['Reference'] + [i for i in total_system_costs_2050_df.index if i != 'Reference'])
     colormap(total_system_costs_2050_df, save=save_path_plot)
     return total_system_costs_2050_df
 
@@ -2183,7 +2195,7 @@ def plot_load_profile(hourly_generation1, hourly_generation2, date_start, date_e
 
     save_fig(fig, save=save_path)
 
-def plot_typical_week(hourly_generation, date_start, date_end, climate=2006, methane=True, save_path=None,
+def plot_typical_week(hourly_generation, date_start, date_end, climate=2006, methane=True, hydrogen=False, save_path=None,
                       y_min=None, y_max=None, x_min=None, x_max=None):
     hourly_generation_subset = hourly_generation.copy()
     hourly_generation_subset["date"] = hourly_generation_subset.apply(
@@ -2203,6 +2215,10 @@ def plot_typical_week(hourly_generation, date_start, date_end, climate=2006, met
         "battery4"]
     hourly_generation_subset["phs charging"] = - hourly_generation_subset["phs_in"]
     hourly_generation_subset["phs discharging"] = hourly_generation_subset["phs"]
+
+    hourly_generation_subset["hydrogen charging"] = - hourly_generation_subset["hydrogen_in"]
+    hourly_generation_subset["hydrogen discharging"] = hourly_generation_subset["hydrogen"]
+
     if "electrolysis_elec" in hourly_generation_subset.columns:  # we make two subcases, as the code changed, and i still want to process older versions of dataframes
         hourly_generation_subset["electrolysis"] = - hourly_generation_subset["electrolysis_elec"]  # we consider the electricity used by electrolysis !
     else:
@@ -2214,13 +2230,16 @@ def plot_typical_week(hourly_generation, date_start, date_end, climate=2006, met
     hourly_generation_subset["peaking plants"] = hourly_generation_subset["ocgt"] + hourly_generation_subset["ccgt"] + \
                                                  hourly_generation_subset["h2_ccgt"]
     if methane:
-        prod = hourly_generation_subset[
-            ["nuclear", "wind", "pv", "hydro", "battery charging", "battery discharging", "phs discharging", "phs charging", "peaking plants",
-             "electrolysis", "methanation", "methane"]]
+        sub = ["nuclear", "wind", "pv", "hydro", "battery charging", "battery discharging", "phs discharging", "phs charging", "peaking plants",
+             "electrolysis", "methanation", "methane"]
     else:
-        prod = hourly_generation_subset[
-            ["nuclear", "wind", "pv", "hydro", "battery charging", "battery discharging", "phs discharging", "phs charging", "peaking plants",
-             "electrolysis", "methanation"]]
+        sub = ["nuclear", "wind", "pv", "hydro", "battery charging", "battery discharging", "phs discharging", "phs charging", "peaking plants",
+             "electrolysis", "methanation"]
+
+    if hydrogen:  # we add the display of hydrogen
+        sub  = sub + ["hydrogen charging", "hydrogen discharging"]
+
+    prod = hourly_generation_subset[sub]
     elec_demand = hourly_generation_subset[["elec_demand"]].squeeze()
 
     if save_path is None:
@@ -2592,7 +2611,8 @@ def colormap(df, colors=None, format_y=lambda y, _: '{:.0f}'.format(y), save=Non
         fig, ax = plt.subplots(1, 1, figsize=(18, 9.6))
 
     if colors is None:
-        sns.heatmap(df, ax=ax, cmap='viridis', annot=True, fmt='.0f', annot_kws={"size": 16})
+        custom_cmap = sns.color_palette("viridis", as_cmap=True, n_colors=len(df)).reversed()
+        sns.heatmap(df, ax=ax, cmap=custom_cmap, annot=True, fmt='.0f', annot_kws={"size": 16})
     else:
         sns.heatmap(df, ax=ax, cmap=colors, annot=True, fmt='.0f', annot_kws={"size": 16})
 
@@ -2958,7 +2978,9 @@ def plot_ldmi_method(channel, CO2, start, end, colors=None, rotation=0, save=Non
 
 if __name__ == '__main__':
     print(os.getcwd())
-    total_system_costs_2050_df = colormap_simulations(overall_folder=Path('outputs') / Path('20231205'),
+    total_system_costs_2050_df = colormap_simulations(overall_folder=Path('outputs') / Path('20231210'),
                                                       config_ref= {'biogas': 'S3',
-                                                                   'capacity': 'N1'},
-                                                      save_path=Path('outputs') / Path('20231205'))
+                                                                   'capacity': 'N1',
+                                                                   'demand': 'Reference',
+                                                                   'profile': 'Reference'},
+                                                      save_path=Path('outputs') / Path('20231210'))

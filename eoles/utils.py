@@ -1289,6 +1289,12 @@ def modif_config_eoles(config_eoles, config_coupling):
     assert config_coupling["eoles"]["demand_scenario"] in ["Reference", "Reindustrialisation", "Sobriete", "Electrification+"], "Demand scenario is not specified correctly in config_coupling."
     config_eoles_update["demand_scenario"] = config_coupling["eoles"]["demand_scenario"]
 
+    if 'costs_supply' in config_coupling['eoles'].keys():  # we modify the costs of supply
+        if 'storage_capex' in config_coupling['eoles']['costs_supply'].keys():
+            config_eoles_update["storage_capex_variant"] = config_coupling['eoles']['costs_supply']['storage_capex']
+        if 'capex' in config_coupling['eoles']['costs_supply'].keys():
+            config_eoles_update["capex_variant"] = config_coupling['eoles']['costs_supply']['capex']
+
     if 'carbon_budget' in config_coupling['eoles'].keys():
         carbon_budget_spec = config_coupling["eoles"]['carbon_budget']
         config_eoles_update["carbon_budget"] = f"eoles/inputs/technical/{carbon_budget_spec}.csv"
@@ -1358,6 +1364,14 @@ def modif_config_resirf(config_resirf, config_coupling):
     if 'method_health_cost' in config_coupling.keys():  # in that case, we specify the method to estimate health costs
         config_resirf_update['method_health_cost'] = config_coupling['method_health_cost']
 
+    if 'hourly_profile' in config_coupling.keys():  # in that case, we specify the hourly profile to use
+        # assert Path(config_coupling['hourly_profile']).is_file(), "Hourly profile as specified is not a correct file"
+        if 'technical' in config_resirf_update.keys():
+            config_resirf_update['technical']['hourly_profile'] = config_coupling['hourly_profile']
+        else:  # we create the technical dictionary to modify the hourly profile
+            config_resirf_update['technical'] = {}
+            config_resirf_update['technical']['hourly_profile'] = config_coupling['hourly_profile']
+
     if 'policies' in config_coupling.keys():
         config_resirf_update['policies'] = config_coupling['policies']
 
@@ -1372,7 +1386,9 @@ def modif_config_resirf(config_resirf, config_coupling):
         config_resirf_update['renovation']["rational_behavior"]["social"] = config_coupling["subsidy"]['insulation']["social"]
 
     if "prices_constant" in config_coupling.keys():  # this hypothesis is always specified in the config_coupling dictionary
-        config_resirf_update["simple"]["prices_constant"] = config_coupling["prices_constant"]
+        if config_coupling["prices_constant"]:  # if prices are to stay constant, we add this option in the config_resirf file
+            config_resirf_update['simple'] = {}
+            config_resirf_update["simple"]["prices_constant"] = True
 
     if "information_rate" in config_coupling.keys():
         config_resirf_update['switch_heater']["information_rate"] = config_coupling["information_rate"]
@@ -1425,6 +1441,8 @@ def create_configs_coupling(list_design, config_coupling: dict, config_additiona
     :return:
     """
     check_required_keys_base(config_coupling)  # check that all required keys are included in the coupling configuration
+    if 'weather_year' not in config_coupling.keys():  # we accomodate all configuration files which did not include the specification for the weather year
+        config_coupling['weather_year'] = 2006
     check_required_keys_additional(config_additional)  # check that all required keys are included in the additional configuration
 
     config_coupling_update = deepcopy(config_coupling)
@@ -1440,6 +1458,13 @@ def create_configs_coupling(list_design, config_coupling: dict, config_additiona
     # config_coupling_update['electricity_constant'] = config_additional['electricity_constant']
     carbon_budget = config_additional['carbon_budget']
     district_heating_potential = config_additional['district_heating_potential']
+
+    if 'hourly_profile' in config_additional.keys():
+        hourly_profile = config_additional['hourly_profile']
+        config_coupling_update['hourly_profile'] = f'project/input/technical/{hourly_profile}.csv'
+
+    if 'costs_supply' in config_additional.keys():
+        config_coupling_update['eoles']['costs_supply'] = config_additional['costs_supply']
 
     if 'method_health_cost' in config_additional.keys():
         config_coupling_update['method_health_cost'] = config_additional['method_health_cost']
@@ -1460,14 +1485,17 @@ def create_configs_coupling(list_design, config_coupling: dict, config_additiona
             config_coupling_update['eoles']['carbon_budget_resirf'] = config_additional['carbon_budget_resirf']
     if district_heating_potential is not None:  # we specify another potential for district heating (based on one of ADEME scenario)
         config_coupling_update['eoles']['district_heating_potential'] = district_heating_potential
-    if 'load_factors' in config_additional.keys():  # we add specification for other weather years
-        config_coupling_update['eoles']['load_factors'] = config_additional['load_factors']
-        assert 'lake_inflows' in config_additional.keys(), 'Modification of load factors is specified, but missing specification for lake inflows'
-        config_coupling_update['eoles']['lake_inflows'] = config_additional['lake_inflows']
-        assert 'nb_years' in config_additional.keys(), 'Modification of load factors is specified, but missing specification for number of years'
-        config_coupling_update['eoles']['nb_years'] = config_additional['nb_years']
-        assert 'input_years' in config_additional.keys(), 'Modification of load factors is specified, but missing specification for included years'
-        config_coupling_update['eoles']['input_years'] = config_additional['input_years']
+    if 'weather' in config_additional.keys():  # we add specification for other weather years
+        assert 'load_factors' in config_additional['weather'].keys(), 'Modification of weather is specified, but missing specification for load factors'
+        config_coupling_update['eoles']['load_factors'] = config_additional['weather']['load_factors']
+        assert 'lake_inflows' in config_additional['weather'].keys(), 'Modification of weather is specified, but missing specification for lake inflows'
+        config_coupling_update['eoles']['lake_inflows'] = config_additional['weather']['lake_inflows']
+        assert 'nb_years' in config_additional['weather'].keys(), 'Modification of weather is specified, but missing specification for number of years'
+        config_coupling_update['eoles']['nb_years'] = config_additional['weather']['nb_years']
+        assert 'input_years' in config_additional['weather'].keys(), 'Modification of weather is specified, but missing specification for included years'
+        config_coupling_update['eoles']['input_years'] = config_additional['weather']['input_years']
+        config_coupling_update['weather_year'] = config_additional['weather']['input_years'][0]  # we specify the weather year for thermosensible demand in ResIRF.
+        # For now, only accomodates a single year as a stress test, not multiple years.
 
     if dict_configs is None:
         dict_configs = {}

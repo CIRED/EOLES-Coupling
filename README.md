@@ -18,6 +18,8 @@ git clone https://github.com/celiaescribe/eoles2.git
 conda env create -f env.yml
 ```
 
+Note that this step may take a few minutes, as the `pyomo` package takes time to install.
+
 ### Step 3: Activate the conda environment:
 
 ```bash
@@ -44,12 +46,12 @@ python main_coupling_resirf.py --cpu 1 --configdir "eoles/inputs/xps/20231205
 
 It is possible to create a folder with different configurations using the `scenarios_creation.ipynb` notebook.
 
-The command specifies:
-- `--cpu 1`: the number of CPUs to use
+The command specifies the configuration to use. There are two ways to specify that:
 - `--configdir "eoles/inputs/xps/20231205`: the folder where the configurations are stored
+- `--configfile`: the name of the configuration file to run if you do not want to run all configurations in a given folder (ex: `eoles/inputs/xps/20231205/biogasS3_capacityN1_demandReference_policyreference.json`)
 
 Note that other parameters are allowed:
-- `--configfile`: the name of the configuration file to run if you do not want to run all configurations in a given folder (default: `base.json`)
+- `--cpu 1`: the number of CPUs to use
 - `--patterns`: specify patterns to select configurations (default: `"*.json"`)
 - `--exclude-patterns`: specify patterns to exclude configurations (default: `"base.json"`)
 
