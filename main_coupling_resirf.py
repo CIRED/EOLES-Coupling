@@ -107,7 +107,10 @@ def save_simulation_results(output, buildings, name_config_coupling, config_coup
             pass
 
         if not config_coupling["greenfield"]:  # si greenfield, on ne veut pas plotter l'évolution des quantités, car pas d'optimisation dynamique
-            plot_simulation(output, save_path=os.path.join(export_results, "plots"))
+            try:
+                plot_simulation(output, save_path=os.path.join(export_results, "plots"))
+            except:
+                pass
             # save_summary_pdf(path=export_results)  # saving summary as pdf
     return export_results, output["Output global ResIRF ()"]
 

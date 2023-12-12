@@ -115,12 +115,15 @@ def colormap_simulations(overall_folder, config_ref, save_path=None, pdf=False, 
             config = {}
             new_configuration = ''
             for e in tmp:
-                for k in config_ref.keys():
-                    if k in e:
-                        config[k] = e[len(k):]
-                        if e[len(k):] != config_ref[k]:  # we only keep the parameters that are different from the reference configuration
-                            new_configuration += e[len(k):] + ' '
-                        break
+                if config_ref is not None:
+                    for k in config_ref.keys():
+                        if k in e:
+                            config[k] = e[len(k):]
+                            if e[len(k):] != config_ref[k]:  # we only keep the parameters that are different from the reference configuration
+                                new_configuration += e[len(k):] + ' '
+                            break
+                else:
+                    new_configuration = configuration
 
             if config == config_ref:  # in this case, this is the reference configuration without any variant
                 configuration = 'Reference'
@@ -2984,10 +2987,11 @@ def plot_ldmi_method(channel, CO2, start, end, colors=None, rotation=0, save=Non
 
 if __name__ == '__main__':
     print(os.getcwd())
-    total_system_costs_2050_df = colormap_simulations(overall_folder=Path('outputs') / Path('20231210'),
-                                                      config_ref= {'biogas': 'S3',
-                                                                   'capacity': 'N1',
-                                                                   'demand': 'Reference',
-                                                                   'profile': 'Reference',
-                                                                   'weather': 'Reference'},
-                                                      save_path=Path('outputs') / Path('20231210'))
+    total_system_costs_2050_df = colormap_simulations(overall_folder=Path('outputs') / Path('20231211'),
+                                                      config_ref=None,
+                                                      # config_ref= {'biogas': 'S3',
+                                                      #              'capacity': 'N1',
+                                                      #              'demand': 'Reference',
+                                                      #              'profile': 'Reference',
+                                                      #              'weather': 'Reference'},
+                                                      save_path=Path('outputs') / Path('20231211'))
