@@ -1,13 +1,7 @@
 {
-    "name_config": "ProfileFlat_policyBan",
+    "name_config": "Learning+_policyPackage2024",
     "policies": {
-        "file": "project/input/policies/current/policies_ambitious.json",
-        "restriction_gas": {
-            "start": 2025,
-            "end": 2051,
-            "value": "Natural gas",
-            "policy": "restriction_energy"
-        }
+        "file": "project/input/policies/current/policies_ambitious.json"
     },
     "greenfield": false,
     "prices_constant": false,
@@ -27,6 +21,13 @@
     "demand_scenario": "Reference",
     "method_health_cost": "epc",
     "technical": {
-        "hourly_profile": "hourly_profile_flat"
+        "technical_progress": {
+            "heater": {
+                "activated": true,
+                "start": 2019,
+                "end": 2035,
+                "value_end": -0.5
+            }
+        }
     }
 }

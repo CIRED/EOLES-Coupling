@@ -1,13 +1,7 @@
 {
-    "name_config": "ProfileFlat_policyBan",
+    "name_config": "ProfileFlat_policyPackage2024",
     "policies": {
-        "file": "project/input/policies/current/policies_ambitious.json",
-        "restriction_gas": {
-            "start": 2025,
-            "end": 2051,
-            "value": "Natural gas",
-            "policy": "restriction_energy"
-        }
+        "file": "project/input/policies/current/policies_ambitious.json"
     },
     "greenfield": false,
     "prices_constant": false,

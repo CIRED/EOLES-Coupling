@@ -1,5 +1,5 @@
 {
-    "name_config": "DHS2_policyBan",
+    "name_config": "HCHeating_policyBan",
     "policies": {
         "file": "project/input/policies/current/policies_ambitious.json",
         "restriction_gas": {
@@ -25,8 +25,5 @@
     "cap_MWh": 1000,
     "cap_tCO2": 2000,
     "demand_scenario": "Reference",
-    "method_health_cost": "epc",
-    "switch_heater": {
-        "district_heating": "project/input/energy/district_heating_s2.csv"
-    }
+    "method_health_cost": "heating_intensity"
 }

@@ -1,7 +1,7 @@
 {
-    "name_config": "ProfileFlat_policyBan",
+    "name_config": "Elasticity-_policyBanNoPolicy",
     "policies": {
-        "file": "project/input/policies/current/policies_ambitious.json",
+        "file": "project/input/policies/current/policies_calibration.json",
         "restriction_gas": {
             "start": 2025,
             "end": 2051,
@@ -26,7 +26,10 @@
     "cap_tCO2": 2000,
     "demand_scenario": "Reference",
     "method_health_cost": "epc",
-    "technical": {
-        "hourly_profile": "hourly_profile_flat"
+    "switch_heater": {
+        "scale": {
+            "option": "price_elasticity",
+            "target": -1
+        }
     }
 }

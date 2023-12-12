@@ -1,5 +1,5 @@
 {
-    "name_config": "ProfileFlat_policyBan",
+    "name_config": "Reindustrialisation_policyBan",
     "policies": {
         "file": "project/input/policies/current/policies_ambitious.json",
         "restriction_gas": {
@@ -24,9 +24,6 @@
     "dict_configs": null,
     "cap_MWh": 1000,
     "cap_tCO2": 2000,
-    "demand_scenario": "Reference",
-    "method_health_cost": "epc",
-    "technical": {
-        "hourly_profile": "hourly_profile_flat"
-    }
+    "demand_scenario": "Reindustrialisation",
+    "method_health_cost": "epc"
 }

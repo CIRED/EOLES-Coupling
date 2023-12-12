@@ -50,7 +50,7 @@
       }
     },
     "technical": {
-      "cost_heater": "project/input/technical/cost_heater.csv",
+      "cost_heater": "project/input/technical/cost_heater_kw.csv",
       "efficiency": "project/input/technical/efficiency.csv",
       "lifetime_heater": "project/input/technical/lifetime_heater.csv",
       "cost_insulation": "project/input/technical/cost_insulation.csv",
@@ -72,10 +72,12 @@
       },
       "footprint_construction": "project/input/technical/footprint_construction.csv",
       "footprint_renovation": "project/input/technical/footprint_renovation.csv",
-      "residual_rate": 0,
       "surface": "project/input/technical/surface.csv",
       "ratio_surface": "project/input/technical/ratio_surface.csv",
-      "hourly_profile": "project/input/technical/hourly_profile_rte.csv"
+      "residual_rate": 0,
+      "hourly_profile": "project/input/technical/hourly_profile_rte.csv",
+      "constraint_heat_pumps": true,
+      "variable_size_heater": false
     },
     "energy": {
       "energy_prices": {
@@ -92,7 +94,7 @@
       "energy_vta": "project/input/energy/energy_vta.csv",
       "carbon_emission": "project/input/energy/carbon_emission_tend.csv",
       "renewable_gas": "project/input/energy/renewable_gas_tend.csv"
-      },
+    },
     "macro": {
       "construction": true,
       "flow_construction": "project/input/macro/flow_construction_tend.csv",

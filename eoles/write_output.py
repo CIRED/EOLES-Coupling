@@ -62,6 +62,15 @@ DICT_TRANSFORM_LEGEND = {
     "natural_gas": "natural gas"
 }
 
+DICT_LEGEND_WATERFALL = {
+    "Investment electricity costs": "Investment \nenergy mix",
+    "Functionment costs": "Energy \noperational costs",
+    "Investment heater costs": "Investment switch heater",
+    "Investment insulation costs": "Investment insulation",
+    "Carbon cost": "Carbon cost",
+    "Health costs": "Health costs",
+}
+
 
 DICT_XLABELS = {
     "Uniform": "Uniform \n Uniform insulation \n ad valorem subsidies \n Heat pump subsidy",
@@ -509,9 +518,9 @@ def comparison_simulations_new(dict_output: dict, ref, greenfield=False, health=
             save_path_plot = os.path.join(save_path, f"waterfall_total_system_costs.{extension}")
 
         tmp = total_system_costs_diff_df.loc[total_system_costs_diff_df.index.get_level_values('Policy scenario') == 'Ban'].droplevel('Policy scenario')
-        tmp = tmp.drop(index=['Total costs', 'Total costs HC excluded'])
-        waterfall_chart(tmp, colors=None, rotation=0, save=save_path_plot, format_y=lambda y, _: '{:.0f}'.format(y), title=None,
-                        y_label=None)
+        tmp = tmp.drop(index=['Total costs HC excluded'])
+        waterfall_chart(tmp, colors=resources_data["colors_eoles"], rotation=90, save=save_path_plot, format_y=lambda y, _: '{:.0f}'.format(y), title=None,
+                        y_label=None, hline=True, dict_legend=DICT_TRANSFORM_LEGEND, legend_loc='right')
     if health:
         scatter = 'Total costs'
         if carbon_constraint:
@@ -752,7 +761,7 @@ def comparison_simulations_new(dict_output: dict, ref, greenfield=False, health=
                                     y_label="Electricity capacity (GW)",
                                     colors=resources_data["new_colors_eoles"], format_y=lambda y, _: '{:.0f}'.format(y),
                                     dict_legend=DICT_TRANSFORM_LEGEND, save=save_path_plot, ref=ref,
-                                    drop=True, hline=True, ranking_policy_scenario=ranking_policy_scenario)
+                                    drop=True, hline=True, ranking_policy_scenario=ranking_policy_scenario, legend_loc='right')
 
         # Flexible capacity evolution
         if save_path is None:
@@ -2966,10 +2975,11 @@ def plot_blackbox_optimization(dict_optimizer, save_path, two_stage_optim=False)
 
 
 def waterfall_chart(df, colors=None, rotation=0, save=None, format_y=lambda y, _: '{:.0f}'.format(y), title=None,
-                    y_label=None):
+                    y_label=None, hline=False, dict_legend=None, legend_loc='lower'):
     if isinstance(df, pd.DataFrame):
         df = df.squeeze()
     blank = df.cumsum().shift(1).fillna(0)  # will be used as start point for the bar plot
+    blank[-1] = 0
     # blank[-1] = 0
     fig, ax = plt.subplots(1, 1, figsize=(14, 9.6))
     if colors is not None:
@@ -2996,7 +3006,7 @@ def waterfall_chart(df, colors=None, rotation=0, save=None, format_y=lambda y, _
             else:
                 y -= neg_offset
         if loop > 0:
-            ax.annotate("{:+,.0f} %".format(val), (loop, y), ha="center")
+            ax.annotate("{:+,.0f} B€".format(val), (loop, y), ha="center")
         loop += 1
 
     y_max = blank.max() * 1.1
@@ -3012,6 +3022,20 @@ def waterfall_chart(df, colors=None, rotation=0, save=None, format_y=lambda y, _
 
     if y_label is not None:
         ax.set_ylabel(y_label, color='dimgrey', fontsize=20)
+
+    if hline:
+        ax.axhline(y=0)
+
+    handles, labels = ax.get_legend_handles_labels()
+    if dict_legend is not None:
+        labels = [dict_legend[e] if e in dict_legend.keys() else e for e in labels]
+
+    if legend_loc == 'lower':
+        fig.legend(handles, labels, loc='lower center', frameon=False, ncol=3,
+                   bbox_to_anchor=(0.5, -0.1))
+    else:
+        fig.legend(handles, labels, loc='center left', frameon=False, ncol=1,
+                   bbox_to_anchor=(1, 0.5))
 
     plt.setp(ax.xaxis.get_majorticklabels(), rotation=rotation)
     ax.tick_params(axis='both', which='major', labelsize=18)

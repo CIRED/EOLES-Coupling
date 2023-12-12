@@ -1,7 +1,13 @@
 {
-    "name_config": "reference_policyAmbitious",
+    "name_config": "Elasticity-_policyBan",
     "policies": {
-        "file": "project/input/policies/current/policies_ambitious.json"
+        "file": "project/input/policies/current/policies_ambitious.json",
+        "restriction_gas": {
+            "start": 2025,
+            "end": 2051,
+            "value": "Natural gas",
+            "policy": "restriction_energy"
+        }
     },
     "greenfield": false,
     "prices_constant": false,
@@ -20,5 +26,10 @@
     "cap_tCO2": 2000,
     "demand_scenario": "Reference",
     "method_health_cost": "epc",
-    "reference": {}
+    "switch_heater": {
+        "scale": {
+            "option": "price_elasticity",
+            "target": -1
+        }
+    }
 }

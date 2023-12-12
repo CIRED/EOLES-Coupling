@@ -162,6 +162,7 @@ colors_eoles = {
     "Annualized investment heater costs": '#029E73',
     "Annualized investment insulation costs": '#FBAFE4',
     "Annualized health costs": '#0173B2',
+    "Total costs": 'grey',
     "Investment electricity costs": '#56B4E9',
     "Functionment costs": 'yellow',
     "Investment heater costs": '#029E73',

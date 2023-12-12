@@ -1,7 +1,7 @@
 {
-    "name_config": "ProfileFlat_policyBan",
+    "name_config": "ProfileFlat_policyBanRef",
     "policies": {
-        "file": "project/input/policies/current/policies_ambitious.json",
+        "file": "project/input/policies/current/policies_ref.json",
         "restriction_gas": {
             "start": 2025,
             "end": 2051,

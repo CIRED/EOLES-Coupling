@@ -1,12 +1,16 @@
 {
-    "name_config": "ProfileFlat_policyBan",
+    "name_config": "costsREN+_policyBanStandalone",
     "policies": {
         "file": "project/input/policies/current/policies_ambitious.json",
-        "restriction_gas": {
+        "restriction_indiv_gas": {
             "start": 2025,
             "end": 2051,
-            "value": "Natural gas",
-            "policy": "restriction_energy"
+            "value": [
+                "Natural gas-Standard boiler",
+                "Natural gas-Performance boiler"
+            ],
+            "policy": "restriction_heater",
+            "target": "Single-family"
         }
     },
     "greenfield": false,
@@ -26,7 +30,7 @@
     "cap_tCO2": 2000,
     "demand_scenario": "Reference",
     "method_health_cost": "epc",
-    "technical": {
-        "hourly_profile": "hourly_profile_flat"
+    "costs_supply": {
+        "capex": "overnight_capex_evolution_50p"
     }
 }

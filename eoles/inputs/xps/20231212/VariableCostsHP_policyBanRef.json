@@ -1,7 +1,7 @@
 {
-    "name_config": "ProfileFlat_policyBan",
+    "name_config": "VariableCostsHP_policyBanRef",
     "policies": {
-        "file": "project/input/policies/current/policies_ambitious.json",
+        "file": "project/input/policies/current/policies_ref.json",
         "restriction_gas": {
             "start": 2025,
             "end": 2051,
@@ -27,6 +27,6 @@
     "demand_scenario": "Reference",
     "method_health_cost": "epc",
     "technical": {
-        "hourly_profile": "hourly_profile_flat"
+        "variable_size_heater": true
     }
 }

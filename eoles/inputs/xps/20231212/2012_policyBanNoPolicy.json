@@ -1,7 +1,7 @@
 {
-    "name_config": "ProfileFlat_policyBan",
+    "name_config": "2012_policyBanNoPolicy",
     "policies": {
-        "file": "project/input/policies/current/policies_ambitious.json",
+        "file": "project/input/policies/current/policies_calibration.json",
         "restriction_gas": {
             "start": 2025,
             "end": 2051,
@@ -26,7 +26,12 @@
     "cap_tCO2": 2000,
     "demand_scenario": "Reference",
     "method_health_cost": "epc",
-    "technical": {
-        "hourly_profile": "hourly_profile_flat"
+    "weather": {
+        "load_factors": "vre_profiles_2012",
+        "lake_inflows": "lake_2012",
+        "nb_years": 1,
+        "input_years": [
+            2012
+        ]
     }
 }

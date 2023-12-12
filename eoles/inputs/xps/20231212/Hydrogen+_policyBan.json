@@ -1,5 +1,5 @@
 {
-    "name_config": "ProfileFlat_policyBan",
+    "name_config": "Hydrogen+_policyBan",
     "policies": {
         "file": "project/input/policies/current/policies_ambitious.json",
         "restriction_gas": {
@@ -26,7 +26,9 @@
     "cap_tCO2": 2000,
     "demand_scenario": "Reference",
     "method_health_cost": "epc",
-    "technical": {
-        "hourly_profile": "hourly_profile_flat"
+    "costs_supply": {
+        "storage_capex": {
+            "hydrogen": 0
+        }
     }
 }

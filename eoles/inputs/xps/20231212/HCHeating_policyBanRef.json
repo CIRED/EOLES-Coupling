@@ -1,7 +1,7 @@
 {
-    "name_config": "ProfileFlat_policyBan",
+    "name_config": "HCHeating_policyBanRef",
     "policies": {
-        "file": "project/input/policies/current/policies_ambitious.json",
+        "file": "project/input/policies/current/policies_ref.json",
         "restriction_gas": {
             "start": 2025,
             "end": 2051,
@@ -25,8 +25,5 @@
     "cap_MWh": 1000,
     "cap_tCO2": 2000,
     "demand_scenario": "Reference",
-    "method_health_cost": "epc",
-    "technical": {
-        "hourly_profile": "hourly_profile_flat"
-    }
+    "method_health_cost": "heating_intensity"
 }
