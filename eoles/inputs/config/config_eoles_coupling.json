@@ -9,6 +9,7 @@
   "capex": "eoles/inputs/technology_characteristics/overnight_capex_evolution.csv",
   "carbon_budget": "eoles/inputs/technical/carbon_budget_tight.csv",
   "carbon_budget_resirf": "eoles/inputs/technical/carbon_budget_resirf.csv",
+  "carbon_content": "eoles/inputs/technical/carbon_content.csv",
   "conversion_efficiency": "eoles/inputs/technology_characteristics/conversion_efficiency.csv",
   "demand": "eoles/inputs/demand/demand2050_RTE.csv",
   "demand_scenario": "Reindustrialisation",
@@ -42,5 +43,6 @@
   "prediction_transport_offshore": "eoles/inputs/technology_characteristics/prediction_transport_offshore_annuity.csv",
   "lifetime": "eoles/inputs/technology_characteristics/lifetime.csv",
   "storage_capex": "eoles/inputs/technology_characteristics/storage_capex_evolution.csv",
-  "vOM": "eoles/inputs/technology_characteristics/vO&M_elec_new.csv"
+  "vOM": "eoles/inputs/technology_characteristics/vO&M_elec_new.csv",
+  "wood_carbon_neutral": false
 }

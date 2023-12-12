@@ -9,7 +9,7 @@ import json
 import os
 import math
 from eoles.utils import get_pandas, process_RTE_demand, calculate_annuities_capex, calculate_annuities_storage_capex, \
-    update_ngas_cost, define_month_hours, calculate_annuities_renovation, get_technical_cost, extract_hourly_generation, \
+    update_vom_costs_scc, define_month_hours, calculate_annuities_renovation, get_technical_cost, extract_hourly_generation, \
     extract_spot_price, extract_capacities, extract_energy_capacity, extract_supply_elec, extract_primary_gene, \
     extract_use_elec, extract_renovation_rates, extract_heat_gene, calculate_LCOE_gene_tec, calculate_LCOE_conv_tec, \
     extract_charging_capacity, extract_annualized_costs_investment_new_capa, extract_CH4_to_power, extract_power_to_CH4, \
@@ -103,6 +103,7 @@ class ModelEOLES():
         self.existing_annualized_costs_CH4_biogas = existing_annualized_costs_CH4_biogas
         self.existing_annualized_costs_H2 = existing_annualized_costs_H2
         self.calibration = calibration  # whether we rely on the coupling for the forecast of electricity demand or not
+        self.wood_carbon_neutral = self.config['wood_carbon_neutral']  # whether we consider that wood is carbon neutral or not
 
         assert hourly_heat_elec is not None, "Hourly electricity heat profile should be provided to the model"
         assert hourly_heat_gas is not None, "Hourly gas heat profile should be provided to the model"
@@ -214,6 +215,7 @@ class ModelEOLES():
         self.carbon_budget = data_static["carbon_budget"]
         self.vOM["wood"], self.vOM["oil"] = self.energy_prices["wood"] * 1e-3, self.energy_prices["oil"] * 1e-3  # €/kWh
         self.vOM["natural_gas"], self.vOM['coal'] = self.energy_prices["natural_gas"] * 1e-3, self.energy_prices["coal"] * 1e-3
+        self.carbon_content = data_static["carbon_content"]
 
         # calculate annuities
         self.annuities = calculate_annuities_capex(self.discount_rate, self.capex, self.construction_time,
@@ -223,10 +225,11 @@ class ModelEOLES():
 
         if not self.carbon_constraint:  # on prend en compte le scc mais pas de contrainte sur le budget
             # Update natural gaz vOM based on social cost of carbon
-            self.vOM.loc["natural_gas"] = update_ngas_cost(self.vOM.loc["natural_gas"], scc=self.anticipated_scc, emission_rate=0.2295)  # €/kWh
-            self.vOM["oil"] = update_ngas_cost(self.vOM["oil"], scc=self.anticipated_scc, emission_rate=0.324)  # to check !!
-            self.vOM["coal"] = update_ngas_cost(self.vOM["coal"], scc=self.anticipated_scc, emission_rate=0.986)
-            self.vOM["wood"] = update_ngas_cost(self.vOM["wood"], scc=self.anticipated_scc, emission_rate=0)  # to check !!
+            self.vOM.loc["natural_gas"] = update_vom_costs_scc(self.vOM.loc["natural_gas"], scc=self.anticipated_scc, emission_rate=self.carbon_content['natural_gas'])  # €/kWh
+            self.vOM["oil"] = update_vom_costs_scc(self.vOM["oil"], scc=self.anticipated_scc, emission_rate=self.carbon_content['oil'])
+            self.vOM["coal"] = update_vom_costs_scc(self.vOM["coal"], scc=self.anticipated_scc, emission_rate=self.carbon_content['coal'])
+            if not self.wood_carbon_neutral:
+                self.vOM["wood"] = update_vom_costs_scc(self.vOM["wood"], scc=self.anticipated_scc, emission_rate=self.carbon_content['wood'])
 
         # defining needed time steps
         self.first_hour = 0
@@ -573,8 +576,12 @@ class ModelEOLES():
 
         def carbon_budget_constraint_rule(model, y):
             """Constraint on carbon budget in MtCO2."""
-            # TODO: vérifier la valeur utilisée pour l'intensité carbone du fioul
-            return sum(model.gene["natural_gas", h] for h in range(8760*y,8760*(y+1)-1)) * 0.2295 / 1000 + self.oil_consumption * 0.324 / 1000 <= self.carbon_budget
+            if self.wood_carbon_neutral:
+                return sum(model.gene["natural_gas", h] for h in range(8760*y,8760*(y+1)-1)) * self.carbon_content['natural_gas'] / 1000 +\
+                    self.oil_consumption * self.carbon_content['oil'] / 1000 <= self.carbon_budget
+            else:
+                return sum(model.gene["natural_gas", h] for h in range(8760 * y, 8760 * (y + 1) - 1)) * self.carbon_content['natural_gas'] / 1000 + \
+                    self.oil_consumption * self.carbon_content['oil'] / 1000 + self.wood_consumption * self.carbon_content['wood'] / 1000 <= self.carbon_budget
 
 
         self.model.generation_vre_constraint = \
@@ -656,14 +663,7 @@ class ModelEOLES():
                         (model.energy_capacity[storage_tecs] - self.existing_energy_capacity[storage_tecs]) *
                         self.storage_annuities[
                             storage_tecs] for storage_tecs in model.str)
-                    # + sum(
-                    #     (model.charging_capacity[storage_tecs] - self.existing_charging_capacity[storage_tecs]) *
-                    #     self.charging_capex[
-                    #         storage_tecs] * self.nb_years for storage_tecs in model.str)
                     + sum(model.capacity[tec] * self.fOM[tec] for tec in model.tec)
-                    # + sum(
-                    #     model.charging_capacity[storage_tecs] * self.charging_opex[storage_tecs] * self.nb_years
-                    #     for storage_tecs in model.str)
                     + sum(sum(model.gene[tec, h] * self.vOM[tec] for h in model.h) for tec in model.tec) / self.nb_years
                     + self.oil_consumption * self.vOM["oil"] / self.nb_years
                     + (self.wood_consumption + sum(model.gene["central_wood_boiler", h] for h in model.h)) * self.vOM["wood"] / self.nb_years  # we add variable costs from wood and fuel
@@ -726,12 +726,13 @@ class ModelEOLES():
         """
         # get value of objective function
         self.objective = self.solver_results["Problem"][0]["Upper bound"]
-        self.technical_cost, self.emissions = get_technical_cost(self.model, self.objective, self.anticipated_scc, self.oil_consumption, self.nb_years)
+        self.technical_cost, self.emissions = get_technical_cost(self.model, self.objective, self.anticipated_scc, self.oil_consumption,
+                                                                 self.wood_consumption, self.nb_years, self.carbon_content, self.wood_carbon_neutral)
         self.hourly_generation = extract_hourly_generation(self.model, elec_demand=self.elec_demand,  CH4_demand=list(self.CH4_demand.values()),
                                                            H2_demand=list(self.H2_demand.values()), conversion_efficiency=self.conversion_efficiency,
                                                            hourly_heat_elec=self.hourly_heat_elec, hourly_heat_gas=self.hourly_heat_gas)
         self.gas_carbon_content, self.dh_carbon_content, self.heat_elec_carbon_content, self.heat_elec_carbon_content_day = \
-            get_carbon_content(self.hourly_generation, self.conversion_efficiency)
+            get_carbon_content(self.hourly_generation, self.conversion_efficiency, self.carbon_content)
         self.peak_electricity_load_info = extract_peak_load(self.hourly_generation, self.conversion_efficiency, self.input_years)
         self.peak_heat_load_info = extract_peak_heat_load(self.hourly_generation, self.input_years)
         self.spot_price = extract_spot_price(self.model, self.last_hour)
@@ -767,8 +768,8 @@ class ModelEOLES():
                                                          self.storage_annuities)  # pd.Series
         self.functionment_cost = extract_functionment_cost(self.model, self.capacities, self.fOM, self.vOM,
                                                            pd.Series(self.generation_per_technology) * 1000, self.oil_consumption, self.wood_consumption,
-                                                           self.anticipated_scc, self.actual_scc, carbon_constraint=self.carbon_constraint,
-                                                           nb_years=self.nb_years)  # pd.Series
+                                                           self.anticipated_scc, self.actual_scc, self.carbon_content, self.wood_carbon_neutral,
+                                                           carbon_constraint=self.carbon_constraint, nb_years=self.nb_years)  # pd.Series
         self.results = {'objective': self.objective, 'summary': self.summary,
                         'hourly_generation': self.hourly_generation,
                         'capacities': self.capacities, 'energy_capacity': self.energy_capacity,
@@ -852,9 +853,8 @@ def read_technology_data(config, year):
                                lambda x: pd.read_csv(x, index_col=0).squeeze("columns"))
     prediction_transport_offshore_annuity = get_pandas(config["prediction_transport_offshore"],
                                lambda x: pd.read_csv(x, index_col=0).squeeze("columns"))
-    # biomass_potential = get_pandas(config["biomass_potential"],
-    #                                lambda x: pd.read_csv(x, index_col=0))  # 1e6€/GW
-    # biomass_potential = biomass_potential[[str(year)]].squeeze()  # get storage capex for year of interest
+    carbon_content = get_pandas(config["carbon_content"],
+                        lambda x: pd.read_csv(x, index_col=0, header=None).squeeze("columns"))
 
     o = dict()
     o["epsilon"] = epsilon
@@ -879,7 +879,7 @@ def read_technology_data(config, year):
     o["miscellaneous"] = miscellaneous
     o["prediction_transport_and_distrib_annuity"] = prediction_transport_and_distrib_annuity
     o["prediction_transport_offshore_annuity"] = prediction_transport_offshore_annuity
-    # o["biomass_potential"] = biomass_potential
+    o["carbon_content"] = carbon_content
     return o
 
 
@@ -1169,7 +1169,7 @@ def compute_costs_noSCC(model, annuities, fOM, vOM, storage_annuities, anticipat
                             existing_annualized_costs_H2, nb_years):
     """Same as compute_costs, but only includes technical costs, and no SCC."""
     new_vOM = vOM.copy()
-    new_vOM.loc["natural_gas"] = update_ngas_cost(new_vOM.loc["natural_gas"], scc=(0 - anticipated_scc),
+    new_vOM.loc["natural_gas"] = update_vom_costs_scc(new_vOM.loc["natural_gas"], scc=(0 - anticipated_scc),
                                                   emission_rate=0.2295)  # we go back to initial cost without the SCC
     costs_elec = existing_annualized_costs_elec + sum(
         (value(model.capacity[tec]) - existing_capacity[tec]) * (annuities[tec] + fOM[tec]) * nb_years + gene_per_tec[

@@ -254,7 +254,7 @@ def calculate_annuities_resirf(capex, lifetime, discount_rate):
     return capex * discount_rate / (1 - (1 + discount_rate) ** (-lifetime))
 
 
-def update_ngas_cost(vOM_init, scc, emission_rate=0.2295):
+def update_vom_costs_scc(vOM_init, scc, emission_rate):
     """Add emission cost related to social cost of carbon to the natural gas vOM cost.
     :param vOM_init: float
         Initial vOM in M€/GWh
@@ -319,13 +319,18 @@ def define_month_hours(first_month, nb_years, months_hours, hours_by_months):
 
 ### Processing output
 
-def get_technical_cost(model, objective, scc, heat_oil, nb_years, emission_rate_gas=0.2295, emission_rate_oil=0.324, emission_rate_coal=0.986):
+def get_technical_cost(model, objective, scc, heat_oil, heat_wood, nb_years, carbon_content, wood_neutral):
     """Returns technical cost (social cost without CO2 emissions-related cost"""
     gene_ngas = sum(value(model.gene["natural_gas", hour]) for hour in model.h)   # GWh
     gene_coal = sum(value(model.gene['coal', hour]) for hour in model.h)  # GWh
-    net_emissions = gene_ngas * emission_rate_gas / 1000 + heat_oil * emission_rate_oil / 1000  + gene_coal * emission_rate_coal / 1000  # MtCO2
-    emissions = pd.Series({"natural_gas": gene_ngas * emission_rate_gas / 1000 / nb_years, "Oil fuel": heat_oil * emission_rate_oil / 1000 / nb_years,
-                           'Coal': gene_coal * emission_rate_coal / 1000 / nb_years})
+    net_emissions = gene_ngas * carbon_content['natural_gas'] / 1000 + heat_oil * carbon_content['oil'] / 1000  + gene_coal * carbon_content['coal'] / 1000  # MtCO2
+    if not wood_neutral:
+        net_emissions += heat_wood * carbon_content['wood'] / 1000
+        emissions = pd.Series({"natural_gas": gene_ngas * carbon_content['natural_gas'] / 1000 / nb_years, "Oil fuel": heat_oil * carbon_content['oil'] / 1000 / nb_years,
+                               "Wood fuel": heat_wood * carbon_content['wood'] / 1000 / nb_years, 'Coal': gene_coal * carbon_content['coal'] / 1000 / nb_years})
+    else:
+        emissions = pd.Series({"natural_gas": gene_ngas * carbon_content['natural_gas'] / 1000 / nb_years, "Oil fuel": heat_oil * carbon_content['oil'] / 1000 / nb_years,
+                               'Coal': gene_coal * carbon_content['coal'] / 1000 / nb_years})
     technical_cost = objective - net_emissions * scc / 1000
     return technical_cost, emissions
 
@@ -447,13 +452,13 @@ def extract_hourly_generation(model, elec_demand, CH4_demand, H2_demand, convers
     return hourly_generation  # GWh
 
 
-def get_carbon_content(hourly_generation, conversion, emission_rate_gas=0.2295, emission_rate_coal=0.986, climate=2006, nb_years=1):
+def get_carbon_content(hourly_generation, conversion, carbon_content, climate=2006, nb_years=1):
     """Estimates the carbon content of gas and of electric heating, based on methodology by ADEME and RTE (méthode moyenne horaire).
     Returns the result in gCO2/kWh"""
     assert 'heat_elec' in hourly_generation.columns, "Column heat_elec should be included to estimate carbon content of electric heating"
 
     # Estimate carbon content of gas
-    gas_carbon_content = (hourly_generation['natural_gas'].sum() * emission_rate_gas) / (hourly_generation['natural_gas'] +
+    gas_carbon_content = (hourly_generation['natural_gas'].sum() * carbon_content['natural_gas']) / (hourly_generation['natural_gas'] +
                                                                                      hourly_generation['methanization'] + hourly_generation['pyrogazification']).sum()
 
     # Estimate carbon content of district heating (based on previously estimated carbon content of gas)
@@ -467,7 +472,7 @@ def get_carbon_content(hourly_generation, conversion, emission_rate_gas=0.2295, 
 
     hourly_generation['carbon_content'] = hourly_generation.apply(lambda row: (row['ocgt'] / conversion['ocgt'] * gas_carbon_content +
                                                                                row['ccgt'] /  conversion['ccgt'] * gas_carbon_content +
-                                                                               row['coal'] * emission_rate_coal) / sum(
+                                                                               row['coal'] * carbon_content['coal']) / sum(
             row[tec] for tec in elec_gene), axis=1)
     tot_heat_elec = hourly_generation.heat_elec.sum()
     hourly_generation['carbon_content_heat'] = hourly_generation.apply(lambda row: row['carbon_content'] * row['heat_elec'] / tot_heat_elec, axis=1)
@@ -475,13 +480,13 @@ def get_carbon_content(hourly_generation, conversion, emission_rate_gas=0.2295, 
 
     if nb_years <= 1:
         hourly_generation["date"] = hourly_generation.apply(lambda row: datetime.datetime(climate, 1, 1, 0) + datetime.timedelta(hours=row["hour"]),
-            axis=1)
+            axis=1)  # we just use this feature to group by day, climate does not really matter here
         hourly_generation["date_only"] = hourly_generation["date"].apply(lambda x: x.date())
 
         hourly_generation_day = hourly_generation.copy().groupby("date_only")[
             elec_gene + ['heat_elec']].sum().reset_index()
         hourly_generation_day['carbon_content'] = hourly_generation_day.apply(
-            lambda row: (row['ocgt'] / conversion['ocgt'] * gas_carbon_content + row['ccgt'] / conversion['ccgt'] * gas_carbon_content + row['coal'] * emission_rate_coal) / sum(row[tec] for tec in elec_gene), axis=1)
+            lambda row: (row['ocgt'] / conversion['ocgt'] * gas_carbon_content + row['ccgt'] / conversion['ccgt'] * gas_carbon_content + row['coal'] * carbon_content['coal']) / sum(row[tec] for tec in elec_gene), axis=1)
 
         hourly_generation_day['carbon_content_heat'] = hourly_generation_day.apply(lambda row: row['carbon_content'] * row['heat_elec'] / tot_heat_elec, axis=1)
 
@@ -681,8 +686,8 @@ def extract_annualized_costs_investment_new_capa_nofOM(capacities, energy_capaci
     return costs_new_capacity[["annualized_costs"]], costs_new_energy_capacity[["annualized_costs"]]
 
 
-def extract_functionment_cost(model, capacities, fOM, vOM, generation, oil_consumption, wood_consumption, anticipated_scc, actual_scc, carbon_constraint=True,
-                              nb_years=1):
+def extract_functionment_cost(model, capacities, fOM, vOM, generation, oil_consumption, wood_consumption, anticipated_scc, actual_scc, carbon_content,
+                              wood_neutral=False, carbon_constraint=True, nb_years=1):
     """Returns functionment cost, including fOM and vOM. vOM for gas and oil include the SCC. Unit: 1e6€/yr
     This function has to update vOM for natural gas and fossil fuel based on the actual scc, and no longer based on the
     anticipated_scc which was used to find optimal investment and dispatch.
@@ -693,14 +698,18 @@ def extract_functionment_cost(model, capacities, fOM, vOM, generation, oil_consu
         Actual social cost of carbon, used to calculate functionment cost.
     """
     # New version
-    if not carbon_constraint:  # we include cost of carbon
+    if not carbon_constraint:  # optimization under social cost of carbon
         vOM_no_scc = vOM.copy()  # we remove the SCC in this vOM
-        vOM_no_scc.loc["natural_gas"] = update_ngas_cost(vOM_no_scc.loc["natural_gas"], scc=(-anticipated_scc), emission_rate=0.2295)  # €/kWh
-        vOM_no_scc["oil"] = update_ngas_cost(vOM_no_scc["oil"], scc=(- anticipated_scc), emission_rate=0.324)
+        vOM_no_scc.loc["natural_gas"] = update_vom_costs_scc(vOM_no_scc.loc["natural_gas"], scc=(-anticipated_scc), emission_rate=carbon_content['natural_gas'])  # €/kWh
+        vOM_no_scc["oil"] = update_vom_costs_scc(vOM_no_scc["oil"], scc=(- anticipated_scc), emission_rate=carbon_content['oil'])
+        if not wood_neutral:
+            vOM_no_scc["wood"] = update_vom_costs_scc(vOM_no_scc["wood"], scc=(- anticipated_scc), emission_rate=carbon_content['wood'])
 
         vOM_SCC_only = (vOM - vOM_no_scc).copy()  # variable cost only due to actual scc, not anticipated scc
-        vOM_SCC_only.loc["natural_gas"] = update_ngas_cost(vOM_SCC_only.loc["natural_gas"], scc=(actual_scc - anticipated_scc), emission_rate=0.2295)  # €/kWh
-        vOM_SCC_only["oil"] = update_ngas_cost(vOM_SCC_only["oil"], scc=(actual_scc - anticipated_scc), emission_rate=0.324)
+        vOM_SCC_only.loc["natural_gas"] = update_vom_costs_scc(vOM_SCC_only.loc["natural_gas"], scc=(actual_scc - anticipated_scc), emission_rate=carbon_content['natural_gas'])  # €/kWh
+        vOM_SCC_only["oil"] = update_vom_costs_scc(vOM_SCC_only["oil"], scc=(actual_scc - anticipated_scc), emission_rate=carbon_content['oil'])
+        if not wood_neutral:
+            vOM_SCC_only["wood"] = update_vom_costs_scc(vOM_SCC_only["wood"], scc=(actual_scc - anticipated_scc), emission_rate=carbon_content['wood'])
 
         system_fOM_vOM = pd.concat([capacities, fOM, vOM_no_scc, vOM_SCC_only, generation/nb_years], axis=1, ignore_index=True).rename(
             columns={0: "capacity", 1: "fOM", 2: "vOM_no_scc", 3: "vOM_SCC_only", 4: "generation"})
