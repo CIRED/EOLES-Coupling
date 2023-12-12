@@ -26,7 +26,5 @@
     "cap_tCO2": 2000,
     "demand_scenario": "Reference",
     "method_health_cost": "epc",
-    "technical": {
-        "hourly_profile": "project/input/technical/hourly_profile_flat.csv"
-    }
+    "hourly_profile": "hourly_profile_flat"
 }

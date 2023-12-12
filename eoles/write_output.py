@@ -77,7 +77,8 @@ DICT_XLABELS = {
 }
 
 
-def colormap_simulations(overall_folder, config_ref, save_path=None, pdf=False, carbon_constraint=True, eoles=True):
+def colormap_simulations(overall_folder, config_ref, save_path=None, pdf=False, carbon_constraint=True, eoles=True,
+                         subset_configs=None):
     """
     Processes the total system costs for the different simulations and saves the colormap figure
     :param overall_folder: str
@@ -98,6 +99,8 @@ def colormap_simulations(overall_folder, config_ref, save_path=None, pdf=False, 
         extension = "pdf"
     else:
         extension = "png"
+    if subset_configs is None:
+        subset_configs = []
     total_system_costs_2050_df, complete_system_costs_2050_df = pd.DataFrame(dtype=float), pd.DataFrame(dtype=float)
     if save_path is not None:
         save_path = Path(save_path)
@@ -110,63 +113,66 @@ def colormap_simulations(overall_folder, config_ref, save_path=None, pdf=False, 
             subfolder_names = subfolder.split('_')
             date, scenario, configuration = subfolder_names[0], subfolder_names[-1][6:], '_'.join(subfolder_names[1:-1])
 
-            # change name for Reference configuration
-            tmp = configuration.split('_')  # get values for different parameters
-            config = {}
-            new_configuration = ''
-            for e in tmp:
-                if config_ref is not None:
-                    for k in config_ref.keys():
-                        if k in e:
-                            config[k] = e[len(k):]
-                            if e[len(k):] != config_ref[k]:  # we only keep the parameters that are different from the reference configuration
-                                new_configuration += e[len(k):] + ' '
-                            break
-                else:
-                    new_configuration = configuration
-
-            if config == config_ref:  # in this case, this is the reference configuration without any variant
-                configuration = 'Reference'
+            if scenario in subset_configs:
+                pass
             else:
-                configuration =  new_configuration
+                # change name for Reference configuration
+                tmp = configuration.split('_')  # get values for different parameters
+                config = {}
+                new_configuration = ''
+                for e in tmp:
+                    if config_ref is not None:
+                        for k in config_ref.keys():
+                            if k in e:
+                                config[k] = e[len(k):]
+                                if e[len(k):] != config_ref[k]:  # we only keep the parameters that are different from the reference configuration
+                                    new_configuration += e[len(k):] + ' '
+                                break
+                    else:
+                        new_configuration = configuration
+
+                if config == config_ref:  # in this case, this is the reference configuration without any variant
+                    configuration = 'Reference'
+                else:
+                    configuration =  new_configuration
 
 
 
-            with open(Path(overall_folder) /Path(subfolder) / Path('coupling_results.pkl'), "rb") as file:
-                output = load(file)
-                # Total system costs
-                annualized_new_investment_df = output["Annualized new investments (1e9€/yr)"]
-                if 2020 in annualized_new_investment_df.columns:
-                    annualized_new_investment_df = annualized_new_investment_df.drop(columns=[2020])
-                annualized_new_energy_capacity_df = output["Annualized costs new energy capacity (1e9€/yr)"]
-                if 2020 in annualized_new_energy_capacity_df.columns:
-                    annualized_new_energy_capacity_df = annualized_new_energy_capacity_df.drop(columns=[2020])
-                functionment_costs_df = output["System functionment (1e9€/yr)"]
-                if 2020 in functionment_costs_df.columns:
-                    functionment_costs_df = functionment_costs_df.drop(columns=[2020])
+                with open(Path(overall_folder) /Path(subfolder) / Path('coupling_results.pkl'), "rb") as file:
+                    output = load(file)
+                    # Total system costs
+                    annualized_new_investment_df = output["Annualized new investments (1e9€/yr)"]
+                    if 2020 in annualized_new_investment_df.columns:
+                        annualized_new_investment_df = annualized_new_investment_df.drop(columns=[2020])
+                    annualized_new_energy_capacity_df = output["Annualized costs new energy capacity (1e9€/yr)"]
+                    if 2020 in annualized_new_energy_capacity_df.columns:
+                        annualized_new_energy_capacity_df = annualized_new_energy_capacity_df.drop(columns=[2020])
+                    functionment_costs_df = output["System functionment (1e9€/yr)"]
+                    if 2020 in functionment_costs_df.columns:
+                        functionment_costs_df = functionment_costs_df.drop(columns=[2020])
 
-                passed_cc = True  # check if all time steps were passed
-                if 2050 not in annualized_new_investment_df.columns:
-                    passed_cc = False
-                total_system_costs_2050, total_operational_costs = process_total_costs(annualized_new_investment_df,
-                                                              annualized_new_energy_capacity_df,
-                                                              functionment_costs_df, carbon_constraint=carbon_constraint,
-                                                              eoles=eoles, year=2050)
-                total_system_costs_2050 = total_system_costs_2050.to_frame().rename(columns={0: scenario})
-                total_system_costs_2050.index.name = 'Costs'
-                second_level_index = pd.MultiIndex.from_product([total_system_costs_2050.columns, [configuration]],
-                                                                names=["Gas scenario", "Policy scenario"])
-                total_system_costs_2050.columns = second_level_index
-
-                if passed_cc:
-                    capacities_df = output["Capacities (GW)"]
-                    capacities_battery = max(capacities_df.loc['battery1', 2050], capacities_df.loc['battery4', 2050])
-                    if capacities_battery > 100:  # we consider that the amount of batteries is not realistic.
+                    passed_cc = True  # check if all time steps were passed
+                    if 2050 not in annualized_new_investment_df.columns:
                         passed_cc = False
+                    total_system_costs_2050, total_operational_costs = process_total_costs(annualized_new_investment_df,
+                                                                  annualized_new_energy_capacity_df,
+                                                                  functionment_costs_df, carbon_constraint=carbon_constraint,
+                                                                  eoles=eoles, year=2050)
+                    total_system_costs_2050 = total_system_costs_2050.to_frame().rename(columns={0: scenario})
+                    total_system_costs_2050.index.name = 'Costs'
+                    second_level_index = pd.MultiIndex.from_product([total_system_costs_2050.columns, [configuration]],
+                                                                    names=["Gas scenario", "Policy scenario"])
+                    total_system_costs_2050.columns = second_level_index
 
-                if not passed_cc:
-                    total_system_costs_2050 = total_system_costs_2050.applymap(lambda x: np.nan)
-                total_system_costs_2050_df = pd.concat([total_system_costs_2050_df, total_system_costs_2050], axis=1)
+                    if passed_cc:
+                        capacities_df = output["Capacities (GW)"]
+                        capacities_battery = max(capacities_df.loc['battery1', 2050], capacities_df.loc['battery4', 2050])
+                        if capacities_battery > 100:  # we consider that the amount of batteries is not realistic.
+                            passed_cc = False
+
+                    if not passed_cc:
+                        total_system_costs_2050 = total_system_costs_2050.applymap(lambda x: np.nan)
+                    total_system_costs_2050_df = pd.concat([total_system_costs_2050_df, total_system_costs_2050], axis=1)
 
     total_system_costs_2050_df = total_system_costs_2050_df.T['Total costs'].reset_index().pivot(columns='Gas scenario', index='Policy scenario',
                                                                     values='Total costs')
@@ -191,7 +197,7 @@ def colormap_simulations(overall_folder, config_ref, save_path=None, pdf=False, 
 def comparison_simulations_new(dict_output: dict, ref, greenfield=False, health=False, x_min=0, x_max=None, y_min=0, y_max=None,
                            rotation=90, save_path=None, pdf=False, carbon_constraint=True, percent=False, eoles=True,
                            coordinates=None, secondary_y=None, secondary_axis_spec=None, smallest_size=100, biggest_size=400,
-                           fontsize=18, remove_legend=False, s_min=None, s_max=None):
+                           fontsize=18, remove_legend=False, s_min=None, s_max=None, waterfall=False):
     if pdf:
         extension = "pdf"
     else:
@@ -496,6 +502,16 @@ def comparison_simulations_new(dict_output: dict, ref, greenfield=False, health=
     reference_rows = total_system_costs_2050_df.loc[total_system_costs_2050_df.index.get_level_values('Policy scenario') == ref]
     total_system_costs_diff_df = total_system_costs_2050_df.subtract(reference_rows.reset_index(level=1, drop=True), level=0)
 
+    if waterfall:
+        if save_path is None:
+            save_path_plot = None
+        else:
+            save_path_plot = os.path.join(save_path, f"waterfall_total_system_costs.{extension}")
+
+        tmp = total_system_costs_diff_df.loc[total_system_costs_diff_df.index.get_level_values('Policy scenario') == 'Ban'].droplevel('Policy scenario')
+        tmp = tmp.drop(index=['Total costs', 'Total costs HC excluded'])
+        waterfall_chart(tmp, colors=None, rotation=0, save=save_path_plot, format_y=lambda y, _: '{:.0f}'.format(y), title=None,
+                        y_label=None)
     if health:
         scatter = 'Total costs'
         if carbon_constraint:
@@ -2228,8 +2244,8 @@ def plot_load_profile(hourly_generation1, hourly_generation2, date_start, date_e
     if x_max is not None:
         ax.set_xlim(xmax=x_max)
 
-    format_legend(ax)
-    plt.axhline(y=0)
+    # format_legend(ax)
+    # ax.get_legend().remove()
 
     save_fig(fig, save=save_path)
 
@@ -2948,6 +2964,59 @@ def plot_blackbox_optimization(dict_optimizer, save_path, two_stage_optim=False)
                 optimizer.plot_convergence(filename=os.path.join(save_path, "plots", f"optimizer_{key}_{stage}_convergence.png"))
                 optimizer.plot_acquisition(filename=os.path.join(save_path, "plots", f"optimizer_{key}_{stage}_acquisition.png"))
 
+
+def waterfall_chart(df, colors=None, rotation=0, save=None, format_y=lambda y, _: '{:.0f}'.format(y), title=None,
+                    y_label=None):
+    if isinstance(df, pd.DataFrame):
+        df = df.squeeze()
+    blank = df.cumsum().shift(1).fillna(0)  # will be used as start point for the bar plot
+    # blank[-1] = 0
+    fig, ax = plt.subplots(1, 1, figsize=(14, 9.6))
+    if colors is not None:
+        df.plot(kind='bar', stacked=True, bottom=blank, title=None, ax=ax, color=[colors[i] for i in df.index])
+    else:
+        df.plot(kind='bar', stacked=True, bottom=blank, title=None, ax=ax)
+
+    y_height = df.cumsum().shift(1).fillna(0)
+    max = df.max()
+    neg_offset, pos_offset = max / 20, max / 50
+
+    # Start label loop
+    loop = 0
+    for (index, val) in df.iteritems():
+        # For the last item in the list, we don't want to double count
+        if val == df.iloc[-1]:
+            y = y_height[loop]
+            y += pos_offset  # in the case of the final item, we do not want a negative offset even if value is negative
+        else:
+            y = y_height[loop] + val
+            # Determine if we want a neg or pos offset
+            if val > 0:
+                y += pos_offset
+            else:
+                y -= neg_offset
+        if loop > 0:
+            ax.annotate("{:+,.0f} %".format(val), (loop, y), ha="center")
+        loop += 1
+
+    y_max = blank.max() * 1.1
+    y_min = blank.min() * 1.1
+    ax.spines['left'].set_visible(False)
+    ax.set_ylim(ymax=y_max)
+    ax.set_ylim(ymin=y_min)
+    ax.set_xlabel('')
+    ax = format_ax_new(ax, format_y=format_y, xinteger=True)
+
+    if title is not None:
+        ax.set_title(title, fontweight='bold', color='dimgrey', pad=-1.6, fontsize=16)
+
+    if y_label is not None:
+        ax.set_ylabel(y_label, color='dimgrey', fontsize=20)
+
+    plt.setp(ax.xaxis.get_majorticklabels(), rotation=rotation)
+    ax.tick_params(axis='both', which='major', labelsize=18)
+
+    save_fig(fig, save=save)
 
 def plot_ldmi_method(channel, CO2, start, end, colors=None, rotation=0, save=None, format_y=lambda y, _: '{:.0f}'.format(y),
                      title=None, y_label="Emissions (MtCO2)"):

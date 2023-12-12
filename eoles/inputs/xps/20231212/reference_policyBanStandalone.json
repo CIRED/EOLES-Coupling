@@ -29,5 +29,6 @@
     "cap_MWh": 1000,
     "cap_tCO2": 2000,
     "demand_scenario": "Reference",
-    "method_health_cost": "epc"
+    "method_health_cost": "epc",
+    "reference": {}
 }
