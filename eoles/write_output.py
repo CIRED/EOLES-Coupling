@@ -148,7 +148,7 @@ def colormap_simulations(overall_folder, config_ref, save_path=None, pdf=False, 
                 passed_cc = True  # check if all time steps were passed
                 if 2050 not in annualized_new_investment_df.columns:
                     passed_cc = False
-                total_system_costs_2050 = process_total_costs(annualized_new_investment_df,
+                total_system_costs_2050, total_operational_costs = process_total_costs(annualized_new_investment_df,
                                                               annualized_new_energy_capacity_df,
                                                               functionment_costs_df, carbon_constraint=carbon_constraint,
                                                               eoles=eoles, year=2050)
@@ -177,6 +177,8 @@ def colormap_simulations(overall_folder, config_ref, save_path=None, pdf=False, 
         save_path_plot = Path(save_path) / Path(f"total_system_costs.{extension}")
 
     # sort again dataframe to have Reference as first row
+    if 'reference' in total_system_costs_2050_df.index:
+        total_system_costs_2050_df = total_system_costs_2050_df.rename(index={'reference': 'Reference'})
     if 'Reference' in total_system_costs_2050_df.index:
         total_system_costs_2050_df = total_system_costs_2050_df.reindex(['Reference'] + [i for i in total_system_costs_2050_df.index if i != 'Reference'])
     if 'reference' in total_system_costs_2050_df.columns:
@@ -194,7 +196,7 @@ def comparison_simulations_new(dict_output: dict, ref, greenfield=False, health=
         extension = "pdf"
     else:
         extension = "png"
-    total_system_costs_2050_df, total_system_costs_2030_df, complete_system_costs_2050_df = pd.DataFrame(dtype=float), pd.DataFrame(dtype=float), pd.DataFrame(dtype=float)
+    total_system_costs_2050_df, total_system_costs_2030_df, total_operational_costs_2050_df, complete_system_costs_2050_df = pd.DataFrame(dtype=float), pd.DataFrame(dtype=float), pd.DataFrame(dtype=float), pd.DataFrame(dtype=float)
     consumption_savings_tot_df, consumption_resirf_df = pd.DataFrame(dtype=float), pd.DataFrame(dtype=float)
     stock_heat_pump_df = pd.DataFrame(dtype=float)
     generation_df, generation_evolution_df, conversion_generation_df = pd.DataFrame(dtype=float), pd.DataFrame(dtype=float), pd.DataFrame(dtype=float)
@@ -226,10 +228,10 @@ def comparison_simulations_new(dict_output: dict, ref, greenfield=False, health=
                 functionment_costs_df = output["System functionment (1e9€/yr)"]
                 if 2020 in functionment_costs_df.columns:
                     functionment_costs_df = functionment_costs_df.drop(columns=[2020])
-                total_system_costs_2050 = process_total_costs(annualized_new_investment_df, annualized_new_energy_capacity_df,
+                total_system_costs_2050, total_operational_costs_2050 = process_total_costs(annualized_new_investment_df, annualized_new_energy_capacity_df,
                                                          functionment_costs_df, carbon_constraint=carbon_constraint,
                                                          eoles=eoles, year=2050)
-                total_system_costs_2030 = process_total_costs(annualized_new_investment_df, annualized_new_energy_capacity_df,
+                total_system_costs_2030, total_operational_costs_2030 = process_total_costs(annualized_new_investment_df, annualized_new_energy_capacity_df,
                                                          functionment_costs_df, carbon_constraint=carbon_constraint,
                                                          eoles=eoles, year=2030)
                 total_system_costs_2050 = total_system_costs_2050.to_frame().rename(columns={0: scenario})
@@ -237,6 +239,14 @@ def comparison_simulations_new(dict_output: dict, ref, greenfield=False, health=
                 second_level_index = pd.MultiIndex.from_product([total_system_costs_2050.columns, [name_config]], names=["Gas scenario", "Policy scenario"])
                 total_system_costs_2050.columns = second_level_index
                 total_system_costs_2050_df = pd.concat([total_system_costs_2050_df, total_system_costs_2050], axis=1)
+
+                total_operational_costs_2050 = total_operational_costs_2050.to_frame()
+                total_operational_costs_2050 = aggregate_capacities(total_operational_costs_2050)
+                total_operational_costs_2050 = total_operational_costs_2050.rename(columns={0: scenario})
+                total_operational_costs_2050.index.name = 'Costs'
+                second_level_index = pd.MultiIndex.from_product([total_operational_costs_2050.columns, [name_config]], names=["Gas scenario", "Policy scenario"])
+                total_operational_costs_2050.columns = second_level_index
+                total_operational_costs_2050_df = pd.concat([total_operational_costs_2050_df, total_operational_costs_2050], axis=1)
 
                 total_system_costs_2030 = total_system_costs_2030.to_frame().rename(columns={0: scenario})
                 total_system_costs_2030.index.name = 'Costs'
@@ -341,7 +351,8 @@ def comparison_simulations_new(dict_output: dict, ref, greenfield=False, health=
                     capacities_df.loc['peaking plants'] = capacities_df.loc['ocgt'] + capacities_df.loc['ccgt'] + capacities_df.loc['h2_ccgt']
 
                     subset_cap = ['onshore', 'offshore', 'pv', 'nuclear', 'hydro', 'phs', 'battery', 'ocgt', 'ccgt', 'h2_ccgt', 'peaking plants']
-                    capacities_evolution = capacities_df.loc[subset_cap]
+                    # capacities_evolution = capacities_df.loc[subset_cap]
+                    capacities_evolution = capacities_df.copy()
                     capacities_evolution.index.name = 'Technology'
                     second_level_index = pd.MultiIndex.from_product([capacities_evolution.index, [name_config]],
                                                                     names=["Technology", "Policy scenario"])
@@ -517,6 +528,20 @@ def comparison_simulations_new(dict_output: dict, ref, greenfield=False, health=
                                 drop=True, hline=True, ranking_exogenous_scenario=ranking_exogenous_scenario,
                                 ranking_policy_scenario=ranking_policy_scenario, legend_loc='right')
 
+    total_operational_costs_2050_df = total_operational_costs_2050_df.stack(level="Policy scenario")
+    reference_rows = total_operational_costs_2050_df.loc[total_operational_costs_2050_df.index.get_level_values('Policy scenario') == ref]
+    total_operational_costs_diff_df = total_operational_costs_2050_df.subtract(reference_rows.reset_index(level=1, drop=True), level=0)
+    if save_path is None:
+        save_path_plot = None
+    else:
+        save_path_plot = os.path.join(save_path, f"difference_total_operational_costs.{extension}")
+
+    make_clusterstackedbar_plot(total_operational_costs_diff_df, groupby='Costs',
+                                y_label="", format_y=lambda y, _: '{:.0f} B€'.format(y),
+                                dict_legend=DICT_TRANSFORM_LEGEND, save=save_path_plot, ref=ref,
+                                drop=True, hline=True, ranking_exogenous_scenario=ranking_exogenous_scenario,
+                                ranking_policy_scenario=ranking_policy_scenario, legend_loc='right')
+
     hc_excluded_2030 = total_system_costs_2030_df.loc['Total costs'].sub(total_system_costs_2030_df.loc['Health costs'])
     hc_excluded_2030.index = pd.MultiIndex.from_product([['Total costs HC excluded'], hc_excluded_2030.index], names=['Costs', 'Policy scenario'])
     total_system_costs_2030_df = pd.concat([total_system_costs_2030_df, hc_excluded_2030], axis=0)
@@ -535,46 +560,6 @@ def comparison_simulations_new(dict_output: dict, ref, greenfield=False, health=
                                 dict_legend=DICT_TRANSFORM_LEGEND, save=save_path_plot, scatter=scatter, ref=ref,
                                 drop=True, hline=True, ranking_exogenous_scenario=ranking_exogenous_scenario,
                                 ranking_policy_scenario=ranking_policy_scenario)
-
-    # total_system_costs_diff_df = total_system_costs_df.T.copy()
-    # total_system_costs_diff_df["Total costs HC excluded"] = total_system_costs_diff_df["Total costs"] - \
-    #                                                         total_system_costs_diff_df["Health costs"]
-    # total_system_costs_diff_df = total_system_costs_diff_df.T
-    #
-    # for col in total_system_costs_diff_df.columns:
-    #     if col != ref:
-    #         total_system_costs_diff_df[col] = total_system_costs_diff_df[col] - total_system_costs_diff_df[ref]
-
-
-    # if len(total_system_costs_diff_df.columns) >= 3:  # ie, at least two scenarios to compare to the ref
-    #     if health:
-    #         make_stacked_investment_plot(df=total_system_costs_diff_df.drop(columns=[ref]).T,
-    #                                      # y_label="Difference of total system costs over 2025-2050 (Billion €)",
-    #                                      y_label="Total costs (Billion EUR)",
-    #                                      subset=subset_costs,
-    #                                      scatter=total_system_costs_diff_df.drop(columns=[ref]).T[
-    #                                          ["Total costs"]].squeeze(),
-    #                                      save=save_path_plot, colors=resources_data["colors_eoles"],
-    #                                      format_y=lambda y, _: '{:.0f}'.format(y), rotation=rotation,
-    #                                      dict_legend=DICT_TRANSFORM_LEGEND, dict_xlabels=None)
-    #     else:
-    #         make_stacked_investment_plot(df=total_system_costs_diff_df.drop(columns=[ref]).T,
-    #                                      y_label="Difference of total system costs over 2025-2050 (Billion €)",
-    #                                      subset=subset_costs,
-    #                                      scatter=total_system_costs_diff_df.drop(columns=[ref]).T[
-    #                                          ["Total costs HC excluded"]].squeeze(),
-    #                                      save=save_path_plot, colors=resources_data["colors_eoles"],
-    #                                      format_y=lambda y, _: '{:.0f}'.format(y), rotation=rotation,
-    #                                      dict_legend=DICT_TRANSFORM_LEGEND, dict_xlabels=None)
-    #
-    # else:
-    #     make_stacked_investment_plot(df=total_system_costs_diff_df.drop(columns=[ref]).T,
-    #                                  y_label="Difference of total system costs over 2025-2050 (Billion €)",
-    #                                  subset=subset_costs,
-    #                                  scatter=total_system_costs_diff_df.drop(columns=[ref]).T["Total costs"],
-    #                                  save=save_path_plot, colors=resources_data["colors_eoles"],
-    #                                  format_y=lambda y, _: '{:.0f}'.format(y), rotation=rotation,
-    #                                  dict_legend=DICT_TRANSFORM_LEGEND, dict_xlabels=None)
 
     # Complete system costs in 2050
     if carbon_constraint:
@@ -654,7 +639,7 @@ def comparison_simulations_new(dict_output: dict, ref, greenfield=False, health=
         else:
             save_path_plot = os.path.join(save_path, f"electricity_generation.{extension}")
 
-        make_clusterstackedbar_plot(generation_evolution_df, groupby='Technology', subset=elec_gene,
+        make_clusterstackedbar_plot(generation_evolution_df.loc[:,2050].to_frame(), groupby='Technology', subset=elec_gene,
                                     y_label="Electricity generation (TWh)",
                                     colors=resources_data["new_colors_eoles"], format_y=lambda y, _: '{:.0f}'.format(y),
                                     dict_legend=DICT_TRANSFORM_LEGEND, save=save_path_plot,
@@ -666,7 +651,7 @@ def comparison_simulations_new(dict_output: dict, ref, greenfield=False, health=
         else:
             save_path_plot = os.path.join(save_path, f"gas_generation.{extension}")
 
-        make_clusterstackedbar_plot(generation_evolution_df, groupby='Technology', subset=gas_gene,
+        make_clusterstackedbar_plot(generation_evolution_df.loc[:,2050].to_frame(), groupby='Technology', subset=gas_gene,
                                     y_label="Gas generation (TWh)",
                                     colors=resources_data["colors_eoles"], format_y=lambda y, _: '{:.0f}'.format(y),
                                     dict_legend=DICT_TRANSFORM_LEGEND, save=save_path_plot,
@@ -681,7 +666,7 @@ def comparison_simulations_new(dict_output: dict, ref, greenfield=False, health=
         else:
             save_path_plot = os.path.join(save_path, f"electricity_generation_difference.{extension}")
 
-        make_clusterstackedbar_plot(generation_elec_diff_df, groupby='Technology', subset=elec_gene,
+        make_clusterstackedbar_plot(generation_elec_diff_df.loc[:,2050].to_frame(), groupby='Technology', subset=elec_gene,
                                     y_label="Electricity generation (TWh)",
                                     colors=resources_data["new_colors_eoles"], format_y=lambda y, _: '{:.0f}'.format(y),
                                     dict_legend=DICT_TRANSFORM_LEGEND, save=save_path_plot, ref=ref,
@@ -692,7 +677,7 @@ def comparison_simulations_new(dict_output: dict, ref, greenfield=False, health=
         else:
             save_path_plot = os.path.join(save_path, f"gas_generation_difference.{extension}")
 
-        make_clusterstackedbar_plot(generation_elec_diff_df, groupby='Technology', subset=gas_gene,
+        make_clusterstackedbar_plot(generation_elec_diff_df.loc[:,2050].to_frame(), groupby='Technology', subset=gas_gene,
                                     y_label="Gas generation (TWh)",
                                     colors=resources_data["colors_eoles"], format_y=lambda y, _: '{:.0f}'.format(y),
                                     dict_legend=DICT_TRANSFORM_LEGEND, save=save_path_plot, ref=ref,
@@ -721,7 +706,33 @@ def comparison_simulations_new(dict_output: dict, ref, greenfield=False, health=
         else:
             save_path_plot = os.path.join(save_path, f"electricity_capacity_difference.{extension}")
 
-        make_clusterstackedbar_plot(capacities_evolution_diff_df, groupby='Technology', subset=subset_elec,
+        make_clusterstackedbar_plot(capacities_evolution_diff_df.loc[:,2050].to_frame(), groupby='Technology', subset=subset_elec,
+                                    y_label="Electricity capacity (GW)",
+                                    colors=resources_data["new_colors_eoles"], format_y=lambda y, _: '{:.0f}'.format(y),
+                                    dict_legend=DICT_TRANSFORM_LEGEND, save=save_path_plot, ref=ref,
+                                    drop=True, hline=True, ranking_policy_scenario=ranking_policy_scenario)
+
+        # All capacity evolution
+        if save_path is None:
+            save_path_plot = None
+        else:
+            save_path_plot = os.path.join(save_path, f"all_capacity.{extension}")
+
+        subset_all = ['onshore', 'offshore', 'pv', 'nuclear', 'hydro', 'peaking plants', 'battery', 'methanization', 'pyrogazification', 'electrolysis', 'methanation']
+        # we only consider year 2050 for the plot
+        make_clusterstackedbar_plot(capacities_evolution_df.loc[:,2050].to_frame(), groupby='Technology', subset=subset_all,
+                                    y_label="Electricity capacity",
+                                    colors=resources_data["new_colors_eoles"], format_y=lambda y, _: '{:.0f} GW'.format(y),
+                                    dict_legend=DICT_TRANSFORM_LEGEND, save=save_path_plot, display_title=False,
+                                    ranking_policy_scenario=ranking_policy_scenario, legend_loc='right', reorder_labels=True
+                                    )
+
+        if save_path is None:
+            save_path_plot = None
+        else:
+            save_path_plot = os.path.join(save_path, f"all_capacity_difference.{extension}")
+
+        make_clusterstackedbar_plot(capacities_evolution_diff_df.loc[:,2050].to_frame(), groupby='Technology', subset=subset_all,
                                     y_label="Electricity capacity (GW)",
                                     colors=resources_data["new_colors_eoles"], format_y=lambda y, _: '{:.0f}'.format(y),
                                     dict_legend=DICT_TRANSFORM_LEGEND, save=save_path_plot, ref=ref,
@@ -734,7 +745,7 @@ def comparison_simulations_new(dict_output: dict, ref, greenfield=False, health=
             save_path_plot = os.path.join(save_path, f"flexible_capacity.{extension}")
 
         subset_flex = ['nuclear', "phs", 'battery', 'peaking plants']
-        make_clusterstackedbar_plot(capacities_evolution_df, groupby='Technology', subset=subset_flex,
+        make_clusterstackedbar_plot(capacities_evolution_df.loc[:,2050].to_frame(), groupby='Technology', subset=subset_flex,
                                     y_label="Flexible capacity (GW)",
                                     colors=resources_data["new_colors_eoles"], format_y=lambda y, _: '{:.0f}'.format(y),
                                     dict_legend=DICT_TRANSFORM_LEGEND, save=save_path_plot,
@@ -746,7 +757,7 @@ def comparison_simulations_new(dict_output: dict, ref, greenfield=False, health=
         else:
             save_path_plot = os.path.join(save_path, f"flexible_capacity_difference.{extension}")
 
-        make_clusterstackedbar_plot(capacities_evolution_diff_df, groupby='Technology', subset=subset_flex,
+        make_clusterstackedbar_plot(capacities_evolution_diff_df.loc[:,2050].to_frame(), groupby='Technology', subset=subset_flex,
                                     y_label="Flexible capacity (GW)",
                                     colors=resources_data["new_colors_eoles"], format_y=lambda y, _: '{:.0f}'.format(y),
                                     dict_legend=DICT_TRANSFORM_LEGEND, save=save_path_plot, ref=ref,
@@ -1133,7 +1144,7 @@ def comparison_simulations(dict_output: dict, ref, greenfield=False, health=Fals
             annualized_new_investment_df = output["Annualized new investments (1e9€/yr)"]
             annualized_new_energy_capacity_df = output["Annualized costs new energy capacity (1e9€/yr)"]
             functionment_costs_df = output["System functionment (1e9€/yr)"]
-            total_system_costs = process_total_costs(annualized_new_investment_df, annualized_new_energy_capacity_df,
+            total_system_costs, total_operational_costs = process_total_costs(annualized_new_investment_df, annualized_new_energy_capacity_df,
                                                      functionment_costs_df, carbon_constraint=carbon_constraint, eoles=eoles)
             total_system_costs = total_system_costs.to_frame().rename(columns={0: name_config})
             total_system_costs_df = pd.concat([total_system_costs_df, total_system_costs], axis=1)
@@ -1730,8 +1741,29 @@ def process_total_costs(annualized_new_investment_df, annualized_new_energy_capa
                 index=["Investment heater costs", "Investment insulation costs",
                        "Functionment costs", "Health costs", "Carbon cost", "Total costs"],
                 data=[heater_inv, insulation_inv, functionment_cost, health_costs, carbon_cost, total_costs])
-    return total_system_costs
+    return total_system_costs, functionment_costs_df_copy.drop(index=["health_costs"]).sum(axis=1)
 
+
+def aggregate_capacities(df):
+    tmp = df.copy()
+    offshore = tmp.loc[['offshore_f','offshore_g'],:].sum()
+    offshore = offshore.to_frame().T.rename(index={0: 'offshore'})
+
+    peaking_plants = tmp.loc[['ocgt','ccgt','h2_ccgt'],:].sum()
+    peaking_plants = peaking_plants.to_frame().T.rename(index={0: 'peaking plants'})
+
+    pv = tmp.loc[['pv_g','pv_c'],:].sum()
+    pv = pv.to_frame().T.rename(index={0: 'pv'})
+
+    battery = tmp.loc[['battery1','battery4'],:].sum()
+    battery = battery.to_frame().T.rename(index={0: 'battery'})
+
+    hydro = tmp.loc[['river','lake'],:].sum()
+    hydro = hydro.to_frame().T.rename(index={0: 'hydro'})
+
+    tmp = pd.concat([tmp, offshore, peaking_plants, pv, battery, hydro], axis=0).drop(index=['offshore_f','offshore_g','ocgt','ccgt','h2_ccgt','pv_g','pv_c','battery1','battery4','river','lake'])
+    tmp = tmp.drop(index=['coal', 'uiom', 'CTES'])
+    return tmp
 
 def process_evolution_annualized_energy_system_cost(annualized_new_investment_df, annualized_new_energy_capacity_df,
                                                     functionment_costs_df,
@@ -2156,7 +2188,7 @@ def plot_typical_demand(hourly_generation, date_start, date_end, climate=2006, s
     save_fig(fig, save=save_path)
 
 
-def plot_load_profile(hourly_generation1, hourly_generation2, date_start, date_end, climate=2006, save_path=None,
+def plot_load_profile(hourly_generation1, hourly_generation2, date_start, date_end, profile, label1, label2, climate=2006, save_path=None,
                       y_min=None, y_max=None, x_min=None, x_max=None):
     hourly_generation_subset1 = hourly_generation1.copy()
     hourly_generation_subset1["date"] = hourly_generation_subset1.apply(
@@ -2179,13 +2211,13 @@ def plot_load_profile(hourly_generation1, hourly_generation2, date_start, date_e
     else:  # we change figure size when saving figure
         fig, ax = plt.subplots(1, 1, figsize=(12.8, 9.6))
 
-    hourly_generation_subset1[["heat_elec"]].squeeze().plot(ax=ax, style='-', c='red', label="2050")
-    hourly_generation_subset2[["heat_elec"]].squeeze().plot(ax=ax, style='-', c='blue', label="2020")
+    hourly_generation_subset1[[profile]].squeeze().plot(ax=ax, style='-', c='red', label=label1)
+    hourly_generation_subset2[[profile]].squeeze().plot(ax=ax, style='-', c='blue', label=label2)
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
     ax.spines['bottom'].set_visible(True)
     ax.spines['left'].set_visible(True)
-    ax.set_title("Hourly production and demand (GW)", loc='left', color='black')
+    ax.set_title("Hourly demand (GW)", loc='left', color='black')
     ax.set_xlabel('')
     if y_min is not None:
         ax.set_ylim(ymin=y_min)

@@ -1,7 +1,7 @@
 import matplotlib
 import seaborn as sns
 
-color_palette = sns.color_palette("colorblind", n_colors=10)
+color_palette = sns.color_palette("colorblind", n_colors=14)
 
 resources_data = dict()
 
@@ -200,7 +200,10 @@ new_colors_eoles = {
     'ocgt': color_palette[5],
     'ccgt': color_palette[3],
     'h2_ccgt': color_palette[1],
-    'phs': color_palette[4]
+    'electrolysis': color_palette[10],
+    'methanization': color_palette[11],
+    'pyrogazification': color_palette[12],
+    'methanation': color_palette[13]
 }
 
 
