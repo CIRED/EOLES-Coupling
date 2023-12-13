@@ -1918,7 +1918,8 @@ if __name__ == '__main__':
                   'Uniform': "outputs/1015_optim_pricefeedback/1015_144041_uniform_S3_N1_pricefeedback",
                   'DR': "outputs/1015_optim_pricefeedback/1015_140727_DR_S3_N1_pricefeedback",
                   'Proportiona': "outputs/1015_optim_pricefeedback/1105_153045_proportional_S3_N1_pricefeedback"}
-    list_path = {'Centralized': "outputs/1122_optim/1122_063338_centralized_insulation_S3_N1_hcDPE"}
+    list_path = {'Ambitious': "outputs/20231210/1211004316_biogasS3_capacityN1_demandReference_profileReference_policyambitious"}
+    list_path = {'Ban': "outputs/20231210/1210235222_biogasS3_capacityN1_demandReference_profileReference_policyban"}
     for scenario, path in zip(list_path.keys(), list_path.values()):
         with open(os.path.join(path, 'coupling_results.pkl'), "rb") as file:
             output = load(file)
@@ -1929,8 +1930,9 @@ if __name__ == '__main__':
         result, emissions = ldmi_method_resirf(output_resirf, carbon_content)
         plot_ldmi_method(result, emissions, 2020, 2050, colors=resources_data['colors_coupling'], rotation=0,
                          title=None,
-                         save="outputs/images submission/ldmi.pdf"
-                         # save=None
+                         save=f"outputs/20231210/ldmi_{scenario}.png",
+                         # save=None,
+                         format_y=lambda y, _: '{:.0f} MtCO2'.format(y)
                          )
 
     # path = "outputs/1016_policies_exogenous_cc_pricefeedback_hcDPE/1013_201614_S2p_N1_ref_cc_pricefeedback_hcDPE"

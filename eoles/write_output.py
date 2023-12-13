@@ -3,6 +3,7 @@ import json
 import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
+from  matplotlib.colors import LinearSegmentedColormap
 import os
 from os import listdir
 import seaborn as sns
@@ -65,10 +66,10 @@ DICT_TRANSFORM_LEGEND = {
 DICT_LEGEND_WATERFALL = {
     "Investment electricity costs": "Investment \nenergy mix",
     "Functionment costs": "Energy \noperational costs",
-    "Investment heater costs": "Investment switch heater",
-    "Investment insulation costs": "Investment insulation",
-    "Carbon cost": "Carbon cost",
+    "Investment heater costs": "Investment \nswitch heater",
+    "Investment insulation costs": "Investment \ninsulation",
     "Health costs": "Health costs",
+    'Total costs': 'Total costs'
 }
 
 
@@ -87,7 +88,7 @@ DICT_XLABELS = {
 
 
 def colormap_simulations(overall_folder, config_ref, save_path=None, pdf=False, carbon_constraint=True, eoles=True,
-                         subset_configs=None):
+                         subset_configs=None, percent=False, reorder=None, dict_scenario=None, dict_config_demandsupply=None):
     """
     Processes the total system costs for the different simulations and saves the colormap figure
     :param overall_folder: str
@@ -108,8 +109,8 @@ def colormap_simulations(overall_folder, config_ref, save_path=None, pdf=False, 
         extension = "pdf"
     else:
         extension = "png"
-    if subset_configs is None:
-        subset_configs = []
+    # if subset_configs is None:
+    #     subset_configs = []
     total_system_costs_2050_df, complete_system_costs_2050_df = pd.DataFrame(dtype=float), pd.DataFrame(dtype=float)
     if save_path is not None:
         save_path = Path(save_path)
@@ -122,7 +123,7 @@ def colormap_simulations(overall_folder, config_ref, save_path=None, pdf=False, 
             subfolder_names = subfolder.split('_')
             date, scenario, configuration = subfolder_names[0], subfolder_names[-1][6:], '_'.join(subfolder_names[1:-1])
 
-            if scenario in subset_configs:
+            if (subset_configs is not None) and (scenario not in subset_configs):
                 pass
             else:
                 # change name for Reference configuration
@@ -199,7 +200,29 @@ def colormap_simulations(overall_folder, config_ref, save_path=None, pdf=False, 
     if 'reference' in total_system_costs_2050_df.columns:
         total_system_costs_2050_df = total_system_costs_2050_df.reindex(columns=
             ['reference'] + [i for i in total_system_costs_2050_df.columns if i != 'reference'])
-    colormap(total_system_costs_2050_df, save=save_path_plot)
+    # total_system_costs_2050_df = total_system_costs_2050_df.iloc[:,0:1]
+    if percent:  # in this case, we want to do a comparison of the second column compared to the first
+        for i in range(1, len(total_system_costs_2050_df.columns)):
+            total_system_costs_2050_df.iloc[:,i] = (total_system_costs_2050_df.iloc[:,i] - total_system_costs_2050_df.iloc[:,0])/total_system_costs_2050_df.iloc[:,0] * 100
+        total_system_costs_2050_df = total_system_costs_2050_df.drop(columns=total_system_costs_2050_df.columns[0])
+
+    if reorder is not None:
+        assert isinstance(reorder, list), 'Reorder parameter should be a list'
+        total_system_costs_2050_df = total_system_costs_2050_df.reindex(columns=reorder)
+    if percent:
+        custom_cmap = LinearSegmentedColormap.from_list('rg',["g", "w", "r"], N=256)
+    else:
+        custom_cmap = None
+
+    if dict_scenario is not None:  # we rename the scenarios
+        dict_rename = {e: dict_scenario[e] if e in dict_scenario.keys() else e for e in total_system_costs_2050_df.columns}
+        total_system_costs_2050_df = total_system_costs_2050_df.rename(columns=dict_rename)
+
+    if dict_config_demandsupply is not None:  # we rename the configurations
+        total_system_costs_2050_df = total_system_costs_2050_df.drop(index=[e for e in total_system_costs_2050_df.index if e not in dict_config_demandsupply.keys()])
+        dict_rename = {e: dict_config_demandsupply[e] for e in total_system_costs_2050_df.index}
+        total_system_costs_2050_df = total_system_costs_2050_df.rename(index=dict_rename)
+    colormap(total_system_costs_2050_df, save=save_path_plot, percent=percent, custom_cmap=custom_cmap)
     return total_system_costs_2050_df
 
 
@@ -519,8 +542,9 @@ def comparison_simulations_new(dict_output: dict, ref, greenfield=False, health=
 
         tmp = total_system_costs_diff_df.loc[total_system_costs_diff_df.index.get_level_values('Policy scenario') == 'Ban'].droplevel('Policy scenario')
         tmp = tmp.drop(index=['Total costs HC excluded'])
-        waterfall_chart(tmp, colors=resources_data["colors_eoles"], rotation=90, save=save_path_plot, format_y=lambda y, _: '{:.0f}'.format(y), title=None,
-                        y_label=None, hline=True, dict_legend=DICT_TRANSFORM_LEGEND, legend_loc='right')
+        tmp = tmp.reindex(['Investment heater costs', 'Investment insulation costs', 'Investment electricity costs', 'Functionment costs', 'Health costs'])
+        waterfall_chart(tmp, colors=resources_data["colors_eoles"], rotation=0, save=save_path_plot, format_y=lambda y, _: '{:.0f} B€'.format(y),
+                        title="Difference in total system costs", y_label=None, hline=True, dict_legend=DICT_LEGEND_WATERFALL)
     if health:
         scatter = 'Total costs'
         if carbon_constraint:
@@ -762,6 +786,12 @@ def comparison_simulations_new(dict_output: dict, ref, greenfield=False, health=
                                     colors=resources_data["new_colors_eoles"], format_y=lambda y, _: '{:.0f}'.format(y),
                                     dict_legend=DICT_TRANSFORM_LEGEND, save=save_path_plot, ref=ref,
                                     drop=True, hline=True, ranking_policy_scenario=ranking_policy_scenario, legend_loc='right')
+
+        tmp = capacities_evolution_diff_df.loc[capacities_evolution_diff_df.index.get_level_values('Policy scenario') == 'Ban'].droplevel('Policy scenario')
+        tmp = tmp.drop(index=['Total costs HC excluded'])
+        tmp = tmp.reindex(['Investment heater costs', 'Investment insulation costs', 'Investment electricity costs', 'Functionment costs', 'Health costs'])
+        waterfall_chart(tmp, colors=resources_data["colors_eoles"], rotation=0, save=save_path_plot, format_y=lambda y, _: '{:.0f} B€'.format(y),
+                        title="Difference in total system costs", y_label=None, hline=True, dict_legend=DICT_LEGEND_WATERFALL)
 
         # Flexible capacity evolution
         if save_path is None:
@@ -2666,20 +2696,30 @@ def make_cluster_scatterplot(df, x, y, y_label, colors=None, format_y=lambda y, 
     save_fig(fig, save=save)
 
 
-def colormap(df, colors=None, format_y=lambda y, _: '{:.0f}'.format(y), save=None, y_label=None, rotation=0,
-             title=None):
+def colormap(df, custom_cmap=None, format_y=lambda y, _: '{:.0f}'.format(y), save=None, y_label=None, rotation=0,
+             title=None, percent=False):
     if save is None:
         fig, ax = plt.subplots(1, 1)
     else:  # we change figure size when saving figure
         fig, ax = plt.subplots(1, 1, figsize=(18, 9.6))
 
-    if colors is None:
+    if custom_cmap is None:
         custom_cmap = sns.color_palette("viridis", as_cmap=True, n_colors=len(df)).reversed()
-        sns.heatmap(df, ax=ax, cmap=custom_cmap, annot=True, fmt='.0f', annot_kws={"size": 16})
+        if percent:
+            sns.heatmap(df, ax=ax, cmap=custom_cmap, annot=True, fmt='.1f', annot_kws={"size": 16})
+            for t in ax.texts:
+                t.set_text(t.get_text() + " %")
+        else:
+            sns.heatmap(df, ax=ax, cmap=custom_cmap, annot=True, fmt='.0f', annot_kws={"size": 16})
         # ax.xaxis.tick_top()
         # ax.xaxis.set_label_position('top')
     else:
-        sns.heatmap(df, ax=ax, cmap=colors, annot=True, fmt='.0f', annot_kws={"size": 16})
+        if percent:
+            sns.heatmap(df, ax=ax, cmap=custom_cmap, annot=True, fmt='.1f', annot_kws={"size": 16})
+            for t in ax.texts:
+                t.set_text(t.get_text() + " %")
+        else:
+            sns.heatmap(df, ax=ax, cmap=custom_cmap, annot=True, fmt='.0f', annot_kws={"size": 16})
     ax.tick_params(labelbottom=False, labeltop=True)
 
     # ax = format_ax_new(ax, format_y=format_y, xinteger=True)
@@ -2688,6 +2728,7 @@ def colormap(df, colors=None, format_y=lambda y, _: '{:.0f}'.format(y), save=Non
     # ax.spines['left'].set_visible(False)
     ax.set_xlabel('')
     ax.xaxis.set_label_position('top')
+    ax.set_ylabel('')
 
     plt.yticks(rotation=0)
     plt.setp(ax.xaxis.get_majorticklabels(), rotation=rotation)
@@ -2978,6 +3019,9 @@ def waterfall_chart(df, colors=None, rotation=0, save=None, format_y=lambda y, _
                     y_label=None, hline=False, dict_legend=None, legend_loc='lower'):
     if isinstance(df, pd.DataFrame):
         df = df.squeeze()
+    if dict_legend is not None:
+        new_index = {e: dict_legend[e] if e in dict_legend.keys() else e for e in df.index}
+        df = df.rename(new_index)
     blank = df.cumsum().shift(1).fillna(0)  # will be used as start point for the bar plot
     blank[-1] = 0
     # blank[-1] = 0
@@ -3005,12 +3049,12 @@ def waterfall_chart(df, colors=None, rotation=0, save=None, format_y=lambda y, _
                 y += pos_offset
             else:
                 y -= neg_offset
-        if loop > 0:
-            ax.annotate("{:+,.0f} B€".format(val), (loop, y), ha="center")
+        # if loop > 0:
+        ax.annotate("{:+,.0f} B€".format(val), (loop, y), ha="center")
         loop += 1
 
     y_max = blank.max() * 1.1
-    y_min = blank.min() * 1.1
+    y_min = blank.min() * 2
     ax.spines['left'].set_visible(False)
     ax.set_ylim(ymax=y_max)
     ax.set_ylim(ymin=y_min)
@@ -3024,18 +3068,15 @@ def waterfall_chart(df, colors=None, rotation=0, save=None, format_y=lambda y, _
         ax.set_ylabel(y_label, color='dimgrey', fontsize=20)
 
     if hline:
-        ax.axhline(y=0)
+        ax.axhline(y=0, c='black')
 
-    handles, labels = ax.get_legend_handles_labels()
-    if dict_legend is not None:
-        labels = [dict_legend[e] if e in dict_legend.keys() else e for e in labels]
 
-    if legend_loc == 'lower':
-        fig.legend(handles, labels, loc='lower center', frameon=False, ncol=3,
-                   bbox_to_anchor=(0.5, -0.1))
-    else:
-        fig.legend(handles, labels, loc='center left', frameon=False, ncol=1,
-                   bbox_to_anchor=(1, 0.5))
+    # if legend_loc == 'lower':
+    #     fig.legend(handles, labels, loc='lower center', frameon=False, ncol=3,
+    #                bbox_to_anchor=(0.5, -0.1))
+    # else:
+    #     fig.legend(handles, labels, loc='center left', frameon=False, ncol=1,
+    #                bbox_to_anchor=(1, 0.5))
 
     plt.setp(ax.xaxis.get_majorticklabels(), rotation=rotation)
     ax.tick_params(axis='both', which='major', labelsize=18)
@@ -3043,7 +3084,7 @@ def waterfall_chart(df, colors=None, rotation=0, save=None, format_y=lambda y, _
     save_fig(fig, save=save)
 
 def plot_ldmi_method(channel, CO2, start, end, colors=None, rotation=0, save=None, format_y=lambda y, _: '{:.0f}'.format(y),
-                     title=None, y_label="Emissions (MtCO2)"):
+                     title=None, y_label="Emissions "):
     """Plots LDMI decomposition method."""
     new_index = []
     for c in channel.index:
@@ -3111,7 +3152,6 @@ def plot_ldmi_method(channel, CO2, start, end, colors=None, rotation=0, save=Non
 
 
 if __name__ == '__main__':
-    print(os.getcwd())
     total_system_costs_2050_df = colormap_simulations(overall_folder=Path('outputs') / Path('20231211'),
                                                       config_ref=None,
                                                       # config_ref= {'biogas': 'S3',
@@ -3119,4 +3159,24 @@ if __name__ == '__main__':
                                                       #              'demand': 'Reference',
                                                       #              'profile': 'Reference',
                                                       #              'weather': 'Reference'},
-                                                      save_path=Path('outputs') / Path('20231211'))
+                                                      save_path=Path('outputs') / Path('20231211'),
+                                                      subset_configs=['Ban', 'BanRef', 'BanNoPolicy'],
+                                                      percent=True,
+                                                      reorder=['BanRef', 'BanNoPolicy'],
+                                                      dict_scenario={
+                                                          'BanRef': 'Package 2021 + Ban',
+                                                          'BanNoPolicy': 'No Policy + Ban'
+                                                      },
+                                                      dict_config_demandsupply={
+                                                          'Elasticity-': 'Lower Elasticity HP',
+                                                          'LearningHP+': 'Technical Progress HP',
+                                                          'biogasBiogas-': 'Lower Biogas Potential',
+                                                          'capaNuc-': 'Lower Nuclear Potential',
+                                                          'capaRen-': 'Lower Renewable Potential',
+                                                          'capaRen+': 'Higher Renewable Potential',
+                                                          'costscostsREN+': 'Higher Renewable Costs',
+                                                          'demandReindustrialisation': 'Higher Electricity Demand',
+                                                          'demandSobriete': 'Lower Electricity Demand',
+                                                          'weather2012': 'Colder Weather'
+                                                      }
+                                                        )

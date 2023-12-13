@@ -1,0 +1,74 @@
+{
+    "no_subsidies": true,
+    "subsidies_specified": false,
+    "calibration": true,
+    "max_iter": 100,
+    "health": true,
+    "discount_rate": 0.032,
+    "carbon_constraint": true,
+    "fix_sub_heater": false,
+    "fix_sub_insulation": false,
+    "list_year": [
+        2020,
+        2025,
+        2030,
+        2035,
+        2040,
+        2045
+    ],
+    "list_trajectory_scc": [
+        0,
+        250,
+        350,
+        500,
+        650,
+        775
+    ],
+    "eoles": {
+        "biomass_potential_scenario": "S2",
+        "aggregated_potential": true,
+        "maximum_capacity_scenario": "N1",
+        "demand_scenario": "Reference",
+        "carbon_budget": "carbon_budget_tight_convex"
+    },
+    "subsidy": {
+        "proportional_uniform": null,
+        "heater": {
+            "policy": "subsidy_ad_valorem",
+            "proportional": null,
+            "cap": null
+        },
+        "insulation": {
+            "policy": "subsidy_ad_valorem",
+            "rational_behavior": false,
+            "target": null,
+            "proportional": null,
+            "cap": null
+        }
+    },
+    "scenario_cost_eoles": {
+        "fix_capacities": {
+            "uiom": 0,
+            "CTES": 0
+        }
+    },
+    "greenfield": false,
+    "prices_constant": false,
+    "price_feedback": true,
+    "lifetime_insulation": 5,
+    "optim_eoles": true,
+    "method_health_cost": "epc",
+    "policies": {
+        "file": "project/input/policies/current/policies_calibration.json",
+        "restriction_gas": {
+            "start": 2025,
+            "end": 2051,
+            "value": "Natural gas",
+            "policy": "restriction_energy"
+        }
+    },
+    "calibration_elec_lcoe": 1.146213368865647,
+    "calibration_elec_transport_distrib": 1.2281413825373888,
+    "calibration_naturalgas_lcoe": 1.6798561151079137,
+    "calibration_biogas_lcoe": 1.2
+}
