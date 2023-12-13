@@ -1,9 +1,9 @@
 #!/bin/bash
 
 ## BEGIN SBATCH directives
-#SBATCH --job-name=batch4
-#SBATCH --output="eoles/outputs/batch4.txt"
-#SBATCH --error="eoles/outputs/error_batch4.txt"
+#SBATCH --job-name=batch1
+#SBATCH --output="eoles/outputs/batch1.txt"
+#SBATCH --error="eoles/outputs/error_batch1.txt"
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=20
 #SBATCH --time=100:00:00
@@ -20,4 +20,4 @@ module load gurobi
 export GRB_LICENSE_FILE="/mnt/beegfs/softs/opt/core/gurobi/9.5.2/linux64/gurobi.19.lic"
 conda activate envCoupling
 
-python main_coupling_resirf.py --cpu 6 --configdir "eoles/inputs/xps/20231212"
+python main_coupling_resirf.py --cpu 6 --configdir "eoles/inputs/xps/20231212" --patterns "2012*.json" "Biogas*.json" "Nuc-*.json" "Ren-*.json." "reference*.json" "Reindustri*.json" "*Flat*.json" "*Learning*.json" "Variable*.json"
