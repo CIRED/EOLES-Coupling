@@ -229,7 +229,7 @@ def colormap_simulations(overall_folder, config_ref, save_path=None, pdf=False, 
 def comparison_simulations_new(dict_output: dict, ref, greenfield=False, health=False, x_min=0, x_max=None, y_min=0, y_max=None,
                            rotation=90, save_path=None, pdf=False, carbon_constraint=True, percent=False, eoles=True,
                            coordinates=None, secondary_y=None, secondary_axis_spec=None, smallest_size=100, biggest_size=400,
-                           fontsize=18, remove_legend=False, s_min=None, s_max=None, waterfall=False):
+                           fontsize=18, remove_legend=False, s_min=None, s_max=None, waterfall=False, ref_waterfall='Package 2024 + Ban'):
     if pdf:
         extension = "pdf"
     else:
@@ -540,9 +540,9 @@ def comparison_simulations_new(dict_output: dict, ref, greenfield=False, health=
         else:
             save_path_plot = os.path.join(save_path, f"waterfall_total_system_costs.{extension}")
 
-        tmp = total_system_costs_diff_df.loc[total_system_costs_diff_df.index.get_level_values('Policy scenario') == 'Ban'].droplevel('Policy scenario')
+        tmp = total_system_costs_diff_df.loc[total_system_costs_diff_df.index.get_level_values('Policy scenario') == ref_waterfall].droplevel('Policy scenario')
         tmp = tmp.drop(index=['Total costs HC excluded'])
-        tmp = tmp.reindex(['Investment heater costs', 'Investment insulation costs', 'Investment electricity costs', 'Functionment costs', 'Health costs'])
+        tmp = tmp.reindex(['Investment heater costs', 'Investment insulation costs', 'Investment electricity costs', 'Functionment costs', 'Health costs', 'Total costs'])
         waterfall_chart(tmp, colors=resources_data["colors_eoles"], rotation=0, save=save_path_plot, format_y=lambda y, _: '{:.0f} B€'.format(y),
                         title="Difference in total system costs", y_label=None, hline=True, dict_legend=DICT_LEGEND_WATERFALL)
     if health:
@@ -770,7 +770,7 @@ def comparison_simulations_new(dict_output: dict, ref, greenfield=False, health=
         subset_all = ['onshore', 'offshore', 'pv', 'nuclear', 'hydro', 'peaking plants', 'battery', 'methanization', 'pyrogazification', 'electrolysis', 'methanation']
         # we only consider year 2050 for the plot
         make_clusterstackedbar_plot(capacities_evolution_df.loc[:,2050].to_frame(), groupby='Technology', subset=subset_all,
-                                    y_label="Electricity capacity",
+                                    y_label="Energy capacity",
                                     colors=resources_data["new_colors_eoles"], format_y=lambda y, _: '{:.0f} GW'.format(y),
                                     dict_legend=DICT_TRANSFORM_LEGEND, save=save_path_plot, display_title=False,
                                     ranking_policy_scenario=ranking_policy_scenario, legend_loc='right', reorder_labels=True
@@ -782,16 +782,23 @@ def comparison_simulations_new(dict_output: dict, ref, greenfield=False, health=
             save_path_plot = os.path.join(save_path, f"all_capacity_difference.{extension}")
 
         make_clusterstackedbar_plot(capacities_evolution_diff_df.loc[:,2050].to_frame(), groupby='Technology', subset=subset_all,
-                                    y_label="Electricity capacity (GW)",
+                                    y_label="Energy capacity (GW)",
                                     colors=resources_data["new_colors_eoles"], format_y=lambda y, _: '{:.0f}'.format(y),
                                     dict_legend=DICT_TRANSFORM_LEGEND, save=save_path_plot, ref=ref,
                                     drop=True, hline=True, ranking_policy_scenario=ranking_policy_scenario, legend_loc='right')
 
-        tmp = capacities_evolution_diff_df.loc[capacities_evolution_diff_df.index.get_level_values('Policy scenario') == 'Ban'].droplevel('Policy scenario')
-        tmp = tmp.drop(index=['Total costs HC excluded'])
-        tmp = tmp.reindex(['Investment heater costs', 'Investment insulation costs', 'Investment electricity costs', 'Functionment costs', 'Health costs'])
-        waterfall_chart(tmp, colors=resources_data["colors_eoles"], rotation=0, save=save_path_plot, format_y=lambda y, _: '{:.0f} B€'.format(y),
-                        title="Difference in total system costs", y_label=None, hline=True, dict_legend=DICT_LEGEND_WATERFALL)
+        if waterfall:
+            if save_path is None:
+                save_path_plot = None
+            else:
+                save_path_plot = os.path.join(save_path, f"waterfall_all_capacity.{extension}")
+
+            tmp = capacities_evolution_diff_df.loc[subset_all,2050].to_frame()
+            tmp = tmp.loc[tmp.index.get_level_values('Policy scenario') == ref_waterfall].droplevel('Policy scenario')
+            tmp = tmp.loc[~(abs(tmp)<=0.1).all(axis=1)]
+            # tmp = tmp.reindex(['Investment heater costs', 'Investment insulation costs', 'Investment electricity costs', 'Functionment costs', 'Health costs'])
+            waterfall_chart(tmp, colors=resources_data["new_colors_eoles"], rotation=0, save=save_path_plot, format_y=lambda y, _: '{:.0f} GW'.format(y),
+                            title="", y_label=None, hline=True, total=False, unit='GW', float_precision=1)
 
         # Flexible capacity evolution
         if save_path is None:
@@ -3016,14 +3023,15 @@ def plot_blackbox_optimization(dict_optimizer, save_path, two_stage_optim=False)
 
 
 def waterfall_chart(df, colors=None, rotation=0, save=None, format_y=lambda y, _: '{:.0f}'.format(y), title=None,
-                    y_label=None, hline=False, dict_legend=None, legend_loc='lower'):
+                    y_label=None, hline=False, dict_legend=None, total=True, unit='B€', float_precision=0):
     if isinstance(df, pd.DataFrame):
         df = df.squeeze()
     if dict_legend is not None:
         new_index = {e: dict_legend[e] if e in dict_legend.keys() else e for e in df.index}
         df = df.rename(new_index)
     blank = df.cumsum().shift(1).fillna(0)  # will be used as start point for the bar plot
-    blank[-1] = 0
+    if total:
+        blank[-1] = 0  # we display the total at the end
     # blank[-1] = 0
     fig, ax = plt.subplots(1, 1, figsize=(14, 9.6))
     if colors is not None:
@@ -3050,7 +3058,10 @@ def waterfall_chart(df, colors=None, rotation=0, save=None, format_y=lambda y, _
             else:
                 y -= neg_offset
         # if loop > 0:
-        ax.annotate("{:+,.0f} B€".format(val), (loop, y), ha="center")
+        if float_precision == 0:
+            ax.annotate("{:+,.0f} {}".format(val, unit), (loop, y), ha="center")
+        else:
+            ax.annotate("{:+,.1f} {}".format(val, unit), (loop, y), ha="center")
         loop += 1
 
     y_max = blank.max() * 1.1
@@ -3160,14 +3171,17 @@ if __name__ == '__main__':
                                                       #              'profile': 'Reference',
                                                       #              'weather': 'Reference'},
                                                       save_path=Path('outputs') / Path('20231211'),
-                                                      subset_configs=['Ban', 'BanRef', 'BanNoPolicy'],
+                                                      # subset_configs=['Ban', 'BanRef', 'BanNoPolicy'],
+                                                      subset_configs=['Ambitious', 'Ban'],
                                                       percent=True,
-                                                      reorder=['BanRef', 'BanNoPolicy'],
+                                                      # reorder=['Ambitious', 'Ban'],
                                                       dict_scenario={
+                                                          'Ambitious': 'Package 2024',
                                                           'BanRef': 'Package 2021 + Ban',
                                                           'BanNoPolicy': 'No Policy + Ban'
                                                       },
                                                       dict_config_demandsupply={
+                                                          'Reference': 'Reference',
                                                           'Elasticity-': 'Lower Elasticity HP',
                                                           'LearningHP+': 'Technical Progress HP',
                                                           'biogasBiogas-': 'Lower Biogas Potential',
