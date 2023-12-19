@@ -247,6 +247,7 @@ if __name__ == '__main__':
     parser.add_argument("--patterns", nargs="+", type=str, default=["*.json"], help="Patterns to filter files in the directory.")
     parser.add_argument("--exclude-patterns", nargs="+", type=str, default=["base.json"],help="Patterns to exclude files.")
 
+    # Test
     args = parser.parse_args()
     cpu = args.cpu  # we select the config we are interested in
     assert (args.configpath is not None) or (args.configdir is not None), "Parameters are not correctly specified"
