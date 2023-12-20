@@ -63,6 +63,9 @@ Note that other parameters are allowed:
 ### Step 3: explore outputs
 Output files are stored in `eoles/outputs`. 
 
+## Results
+Lucas Vivier, & Célia Escribe. (2023). Result from How to allocate mitigation efforts between home insulation, fuel switch and fuel decarbonization? Insights from the French residential sector. [Data set]. Zenodo. [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.10409404.svg)](https://doi.org/10.5281/zenodo.10409404)
+
 ## Contributing
 
 The development of the EOLES model was initiated by Behrang Shirizadeh and Philippe Quirion. The development of the Res-IRF package was originated by Louis-Gaëtan Giraudet. We rely on the latest version of Res-IRF, developed by Lucas Vivier. The coupling of the two models was developed by Célia Escribe and Lucas Vivier.
