@@ -40,17 +40,11 @@ logger.addHandler(console_handler)
 
 DICT_CONFIG_RESIRF = {
     "classic": "eoles/inputs/config/config_resirf.json",
-    "classic_premature3": "eoles/inputs/config/config_resirf_premature3.json",
-    "threshold": "eoles/inputs/config/config_resirf_threshold.json",
     "classic_simple": "eoles/inputs/config/config_resirf_simple.json",
 }
 
 DICT_CONFIG_EOLES = {
-    "eoles_classic": "eoles_coupling",
-    "eoles_biogasS2": "eoles_coupling_biogasS2",
-    "eoles_nobiogas": "eoles_coupling_nobiogas",
-    "eoles_nobiogas_nohydrogen": "eoles_coupling_nobiogas_nohydrogen",
-    "eoles_worst_case": "eoles_coupling_worst_case"
+    "eoles_classic": "eoles_coupling"
 }
 
 
