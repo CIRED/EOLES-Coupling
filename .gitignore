@@ -1,0 +1,18 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+**/__pycache__
+*.py[cod]
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+
+# macOS
+.DS_Store
+
+# PyCharm files
+.idea/
+
+# Additional files
+eoles/inputs/buildingstock_sdes2018_medium_3.csv
