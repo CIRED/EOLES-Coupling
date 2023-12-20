@@ -1,3 +1,5 @@
+[![DOI](https://zenodo.org/badge/544807204.svg)](https://zenodo.org/doi/10.5281/zenodo.10409265)
+
 # EOLES-ResIRF Coupling
 
 The EOLES-ResIRF Coupling model is a tool for studying integrated decarbonization pathways for the residential sector. It relies on coupling Res-IRF, a technically- and behaviorally-rich model of household energy demand in France, and EOLES, a technology-explicit model of the French energy system. The coupling framework can be used in two different ways. First, it can be used to test exogenous policy portfolio assumptions in the residential sector. Second, it can be used to optimize the value of energy efficiency subsidies, in combination with the energy system. 
