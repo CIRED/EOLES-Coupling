@@ -39,7 +39,6 @@ console_handler.setFormatter(logging.Formatter(LOG_FORMATTER))
 logger.addHandler(console_handler)
 
 DICT_CONFIG_RESIRF = {
-    "classic": "eoles/inputs/config/config_resirf.json",
     "classic_simple": "eoles/inputs/config/config_resirf_simple.json",
 }
 

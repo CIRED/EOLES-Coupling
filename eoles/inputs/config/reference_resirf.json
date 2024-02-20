@@ -10,8 +10,7 @@
       "saving_rate": "project/input/macro/saving_rate.csv",
       "duration": 15,
       "upfront_max": "project/input/macro/upfront_max.csv",
-      "debt_income_ratio": 0.1,
-      "constraint_liquidity": true
+      "debt_income_ratio": 0.05
     },
     "renovation": {
       "endogenous": true,
@@ -27,7 +26,7 @@
       },
       "rational_behavior": {
         "activated": false,
-        "social": false,
+        "social": true,
         "calibration": true
       },
       "exogenous": {
@@ -46,11 +45,11 @@
       "information_rate": 0.333,
       "scale": {
         "option": "price_elasticity",
-        "target": -1.2
+        "target": -1
       }
     },
     "technical": {
-      "cost_heater": "project/input/technical/cost_heater_kw.csv",
+      "cost_heater": "project/input/technical/cost_heater_kw_rte.csv",
       "efficiency": "project/input/technical/efficiency.csv",
       "lifetime_heater": "project/input/technical/lifetime_heater.csv",
       "cost_insulation": "project/input/technical/cost_insulation.csv",
@@ -64,7 +63,7 @@
           "value_end": -0.1
         },
         "heater": {
-          "activated": false,
+          "activated": true,
           "start": 2019,
           "end": 2035,
           "value_end": -0.2
@@ -76,7 +75,7 @@
       "ratio_surface": "project/input/technical/ratio_surface.csv",
       "residual_rate": 0,
       "hourly_profile": "project/input/technical/hourly_profile_rte.csv",
-      "constraint_heat_pumps": true,
+      "constraint_heat_pumps": ["E", "F", "G"],
       "variable_size_heater": false
     },
     "energy": {
@@ -91,7 +90,7 @@
         }
       },
       "energy_taxes": "project/input/energy/energy_taxes_ame2021.csv",
-      "energy_vta": "project/input/energy/energy_vta.csv",
+      "energy_vat": "project/input/energy/energy_vat.csv",
       "carbon_emission": "project/input/energy/carbon_emission_tend.csv",
       "renewable_gas": "project/input/energy/renewable_gas_tend.csv"
     },
@@ -101,7 +100,7 @@
       "share_single_family_construction": "project/input/macro/share_singlefamily_construction_tend.csv",
       "demolition_rate": "project/input/macro/demolition_rate_tend.csv",
       "income": "project/input/macro/income.csv",
-      "income_rate": 0.012,
+      "income_rate": 0.008,
       "rotation_rate": "project/input/macro/rotation_rate.csv",
       "consumption_ini": "project/input/macro/consumption_ini.csv",
       "preferences_saving": "project/input/investment/stated_preferences_saving.csv",
@@ -118,7 +117,7 @@
     "health_cost_income": "project/input/policies/health_cost_income.csv",
     "carbon_value": "project/input/policies/carbon_value.csv",
     "policies": {
-      "file": "project/input/policies/current/policies_ref.json"
+      "file": "project/input/policies/policies_2021.json"
     },
     "simple": {
       "figures": true,
@@ -129,15 +128,15 @@
       "stock": false,
       "current_policies": false,
       "no_policy": false,
-      "income": false,
+      "income_constant": false,
       "prices_constant": false,
       "heating_system": {
         "Oil fuel-Standard boiler": "Oil fuel-Performance boiler",
         "Natural gas-Standard boiler": "Natural gas-Performance boiler",
         "Wood fuel-Standard boiler": "Wood fuel-Performance boiler",
-        "Electricity-Heat pump air": "Electricity-Heat pump water",
         "Natural gas-Collective boiler": "Natural gas-Performance boiler",
-        "Oil fuel-Collective boiler": "Oil fuel-Performance boiler"
+        "Oil fuel-Collective boiler": "Oil fuel-Performance boiler",
+        "Electricity-Heat pump air": "Electricity-Heat pump water"
       },
       "insulation": false,
       "no_heating_switch": false,
