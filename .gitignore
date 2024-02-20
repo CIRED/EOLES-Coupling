@@ -14,5 +14,7 @@ __pycache__/
 # PyCharm files
 .idea/
 
+trash/
+
 # Additional files
 eoles/inputs/buildingstock_sdes2018_medium_3.csv

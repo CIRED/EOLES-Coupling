@@ -142,7 +142,7 @@ def run_scenario(config_coupling, name_config_coupling="default", save_folder=No
         level_logger=logging.NOTSET
         )
 
-    energy_taxes, energy_vta = get_energy_prices_and_taxes(config_resirf)
+    energy_taxes, energy_vat = get_energy_prices_and_taxes(config_resirf)
     calibration_elec_lcoe, calibration_elec_transport_distrib, calibration_gas, m_eoles = calibration_price(
         config_eoles, scc=100)
     config_coupling["calibration_elec_lcoe"] = calibration_elec_lcoe
@@ -199,7 +199,7 @@ def run_scenario(config_coupling, name_config_coupling="default", save_folder=No
                                                                           list_sub_heater=list_sub_heater,
                                                                           list_sub_insulation=list_sub_insulation,
                                                                           energy_taxes=energy_taxes,
-                                                                          energy_vta=energy_vta)
+                                                                          energy_vat=energy_vat)
 
     # Save results
     export_results, output_resirf = save_simulation_results(output, buildings, name_config_coupling, config_coupling, config_eoles, config_resirf,

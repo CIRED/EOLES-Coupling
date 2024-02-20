@@ -964,7 +964,7 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
                                   couplingparam : CouplingParam = CouplingParam(),
                                   optimization=True,
                                   list_sub_heater=None, list_sub_insulation=None,
-                                  energy_taxes=None, energy_vta=None, optimparam: OptimizationParam = OptimizationParam(),
+                                  energy_taxes=None, energy_vat=None, optimparam: OptimizationParam = OptimizationParam(),
                                   two_stage_optim=False):
     """Performs multistep optimization of capacities and subsidies.
     :param config_coupling: dict
@@ -978,7 +978,7 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
     :param list_sub_insulation: list
         Provided when optimization is set to False. Provides the list of insulation subsidies for the different time steps
     :param energy_taxes
-    :param energy_vta: pd.Series
+    :param energy_vat: pd.Series
     :param optimparam: OptimizationParam
         Dataclass OptimizationParam which includes required parameters for bayesian optimization
     :param couplingparam: CouplingParam
@@ -1343,7 +1343,7 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
                 output_dynamics['list_transport_distribution_lcoe'].append(transport_and_distribution_lcoe)
                 # energy_prices = new_projection_prices(energy_prices, elec_price_ht, energy_taxes, start=anticipated_year_eoles, end=anticipated_year_eoles+5)
                 inputs_dynamics['energy_prices'] = update_energy_prices(inputs_dynamics, elec_price_ht, gas_price_ht, energy_taxes,
-                                                               energy_vta=energy_vta, start=anticipated_year_eoles, end=anticipated_year_eoles+5)  # we update energy prices beliefs for the coming years
+                                                               energy_vat=energy_vat, start=anticipated_year_eoles, end=anticipated_year_eoles+5)  # we update energy prices beliefs for the coming years
             ### Spot price
             output_dynamics = post_processing_eoles_output(output_dynamics, m_eoles, anticipated_year_eoles, annuity_investment_heater_cost,
                                                            annuity_investment_insulation_cost, annuity_health_cost, annualized_costs_energy_capacity_historical,
@@ -1565,7 +1565,7 @@ def electricity_gas_price_ht(elec_lcoe, elec_transport_distrib, gas_furniture_co
     return elec_price_ht, gas_price_ht
 
 
-def update_energy_prices(inputs_dynamics, price_elec_ht, price_gas_ht, energy_taxes, energy_vta, start, end):
+def update_energy_prices(inputs_dynamics, price_elec_ht, price_gas_ht, energy_taxes, energy_vat, start, end):
     """Modification of energy prices (from SNBC) based on EOLES output
     :param energy_prices: pd.DataFrame
         Contains energy prices with tax, as estimated by SNBC.
@@ -1577,23 +1577,23 @@ def update_energy_prices(inputs_dynamics, price_elec_ht, price_gas_ht, energy_ta
 
     new_energy_prices = inputs_dynamics['energy_prices'].copy().loc[start:end-1, ["Electricity", "Natural gas"]]
 
-    # energy_prices = energy_prices - energy_prices_wt * (1 + energy_vta)  # we remove prices without tax, including TVA
+    # energy_prices = energy_prices - energy_prices_wt * (1 + energy_vat)  # we remove prices without tax, including TVA
 
     anticipated_energy_prices = pd.DataFrame(0, index=energy_prices.index, columns=energy_prices.columns)
 
-    energy_vta_with_year = pd.DataFrame(np.repeat(energy_vta[["Electricity", "Natural gas"]].values, len(new_energy_prices.index), axis=0))
-    energy_vta_with_year.index = new_energy_prices.index
-    energy_vta_with_year.columns = energy_vta[["Electricity", "Natural gas"]].columns
+    energy_vat_with_year = pd.DataFrame(np.repeat(energy_vat[["Electricity", "Natural gas"]].values, len(new_energy_prices.index), axis=0))
+    energy_vat_with_year.index = new_energy_prices.index
+    energy_vat_with_year.columns = energy_vat[["Electricity", "Natural gas"]].columns
 
     new_prices_wt = pd.DataFrame(0, index=energy_prices_wt.index, columns=energy_prices_wt.columns)
     new_prices_wt.loc[:, "Electricity"] = price_elec_ht / 1000  # €/kWh
     new_prices_wt.loc[:, "Natural gas"] = price_gas_ht / 1000  # €/kWh
-    new_prices_wt_vta = new_prices_wt.add(new_prices_wt * energy_vta_with_year, fill_value=0)  # we add energy VTA
+    new_prices_wt_vat = new_prices_wt.add(new_prices_wt * energy_vat_with_year, fill_value=0)  # we add energy VAT
 
-    new_energy_prices = new_energy_prices - energy_prices_wt * (1 + energy_vta_with_year) + new_prices_wt_vta  # we create new energy prices
+    new_energy_prices = new_energy_prices - energy_prices_wt * (1 + energy_vat_with_year) + new_prices_wt_vat  # we create new energy prices
     energy_prices.loc[start:end - 1, ["Electricity", "Natural gas"]] = new_energy_prices  # we update final values
 
-    # anticipated_energy_prices =  energy_prices - energy_prices_wt * (1 + energy_vta_with_year)  # we remove prices without tax, including TVA
+    # anticipated_energy_prices =  energy_prices - energy_prices_wt * (1 + energy_vat_with_year)  # we remove prices without tax, including TVA
     #
     # anticipated_energy_prices = energy_prices.loc[start:end-1, ["Electricity", "Natural gas"]]
     #
@@ -1603,14 +1603,14 @@ def update_energy_prices(inputs_dynamics, price_elec_ht, price_gas_ht, energy_ta
     # # anticipated_energy_prices.loc[start:end-1, "Electricity"] = price_elec_ht / 1000  # only interested in the given time interval. Unit: €/kWh
     # # new_energy_prices.loc[:, "Natural gas"] = price_gas_ht  # TODO: ajouter la modification du prix du gaz
     #
-    # energy_vta_with_year = pd.DataFrame(np.repeat(energy_vta[["Electricity", "Natural gas"]].values, len(anticipated_energy_prices.index), axis=0))
-    # energy_vta_with_year.index = anticipated_energy_prices.index
-    # energy_vta_with_year.columns = energy_vta[["Electricity", "Natural gas"]].columns
-    # energy_vta = anticipated_energy_prices * energy_vta_with_year
+    # energy_vat_with_year = pd.DataFrame(np.repeat(energy_vat[["Electricity", "Natural gas"]].values, len(anticipated_energy_prices.index), axis=0))
+    # energy_vat_with_year.index = anticipated_energy_prices.index
+    # energy_vat_with_year.columns = energy_vat[["Electricity", "Natural gas"]].columns
+    # energy_vat = anticipated_energy_prices * energy_vat_with_year
     # # TODO: vérifier si la TVA se calcule avant ou après les taxes
     #
     # anticipated_energy_prices = anticipated_energy_prices.add(energy_taxes.loc[start:end-1, ["Electricity", "Natural gas"]], fill_value=0)  # we add exogenous taxes, as we would in ResIRF
-    # anticipated_energy_prices = anticipated_energy_prices.add(energy_vta, fill_value=0)  # we add VTA
+    # anticipated_energy_prices = anticipated_energy_prices.add(energy_vat, fill_value=0)  # we add VAT
     # energy_prices.loc[start:end-1, ["Electricity", "Natural gas"]] = anticipated_energy_prices  # we update final values
     return energy_prices
 
@@ -1737,8 +1737,8 @@ def get_energy_prices_and_taxes(config):
             config_reference = json.load(file)
      # May be a source of problem with the new configuration file
     energy_taxes = get_pandas(config_reference['energy']['energy_taxes'], lambda x: pd.read_csv(x, index_col=[0]).rename_axis('Year').rename_axis('Heating energy', axis=1))  # Attention, this is only exogenous energy taxes, not endogenous taxes such as carbon tax
-    energy_vta = get_pandas(config_reference['energy']['energy_vta'], lambda x: pd.read_csv(x, header=None)).set_index(0).rename_axis("Heating energy").rename_axis("vta", axis=1).T
-    return energy_taxes, energy_vta
+    energy_vat = get_pandas(config_reference['energy']['energy_vat'], lambda x: pd.read_csv(x, header=None)).set_index(0).rename_axis("Heating energy").rename_axis("vat", axis=1).T
+    return energy_taxes, energy_vat
 
 
 def preprocessing_eoles(anticipated_year_eoles, new_capacity_tot, new_charging_capacity_tot, new_energy_capacity_tot,
