@@ -570,12 +570,16 @@ def comparison_simulations_new(dict_output: dict, ref, greenfield=False, health=
     else:
         save_path_plot = os.path.join(save_path, f"difference_total_system_costs.{extension}")
 
+    total_system_costs_diff_df = total_system_costs_diff_df.reindex(['Health costs', 'Functionment costs',
+                                                                     'Investment heater costs', 'Investment insulation costs',
+                                                                     'Investment electricity costs',
+                                                                     'Total costs', 'Total costs HC excluded'], level=0)  # we reindex for sorting the legend
     make_clusterstackedbar_plot(total_system_costs_diff_df, groupby='Costs', subset=subset_costs,
                                 y_label="Total system costs",
                                 colors=resources_data["colors_eoles"], format_y=lambda y, _: '{:.0f} B€'.format(y),
                                 dict_legend=DICT_TRANSFORM_LEGEND, save=save_path_plot, scatter=scatter, ref=ref,
                                 drop=True, hline=True, ranking_exogenous_scenario=ranking_exogenous_scenario,
-                                ranking_policy_scenario=ranking_policy_scenario, legend_loc='right')
+                                ranking_policy_scenario=ranking_policy_scenario, legend_loc='right', reorder_labels=True)
 
     total_operational_costs_2050_df = total_operational_costs_2050_df.stack(level="Policy scenario")
     reference_rows = total_operational_costs_2050_df.loc[total_operational_costs_2050_df.index.get_level_values('Policy scenario') == ref]
