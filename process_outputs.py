@@ -37,31 +37,14 @@ if __name__ == '__main__':
     sns.boxplot(data=scenarios_complete, x='learning', y='Total costs', hue='biogas')
     plt.show()
 
-    L = ['learning', 'elasticity']  # Add your variable names here
-
-    # Define the number of rows and columns for subplots based on the length of L
-    n = len(L)
-    ncols = 2  # Define number of columns per row
-    nrows = n // ncols + (n % ncols > 0)  # Calculate required number of rows
-
-    # Create a figure and a grid of subplots
-    fig, axes = plt.subplots(nrows, ncols, figsize=(15, nrows * 5))
-    fig.tight_layout(pad=5.0)
-
-    # Flatten axes array if more than one row
-    if nrows > 1:
-        axes = axes.flatten()
-    else:
-        axes = [axes]
-
-    # Iterate over variables and create a boxplot for each
-    for i, variable in enumerate(L):
+    variables = ['learning', 'elasticity', 'capacity']
+    # Create a figure and a set of subplots
+    fig, axes = plt.subplots(1, len(variables), figsize=(15, 5), sharey=True)
+    # Loop through the variables and create a boxplot for each
+    for i, variable in enumerate(variables):
         sns.boxplot(data=scenarios_complete, x=variable, y='Total costs', hue='biogas', ax=axes[i])
-        axes[i].set_title(f'Boxplot of Total costs by {variable} and biogas')
-        axes[i].tick_params(axis='x', rotation=45)  # Rotate x-axis labels for readability
-
-    # Hide any unused subplots if L does not fill up the entire grid
-    for j in range(i + 1, nrows * ncols):
-        fig.delaxes(axes[j])
-
+        axes[i].set_title(variable)  # Set the title to the variable name
+        if i > 0:  # Only show the legend for the first plot to avoid repetition
+            axes[i].get_legend().remove()
+    plt.tight_layout()  # Adjust the layout to make sure everything fits without overlapping
     plt.show()

@@ -1332,7 +1332,7 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
                 gas_furniture_cost = m_eoles.summary["lcoe_CH4_noSCC"]
                 naturalgas_furniture_cost = m_eoles.summary["lcoe_CH4_naturalgas_noSCC"]
                 biogas_furniture_cost = m_eoles.summary["lcoe_CH4_biogas_noSCC"]
-                elec_price_ht, gas_price_ht = electricity_gas_price_ht(lcoe_elec, transport_and_distribution_lcoe, gas_furniture_cost,
+                elec_price_ht, gas_price_ht = electricity_gas_price_ht(m_eoles.energy_prices, lcoe_elec, transport_and_distribution_lcoe, gas_furniture_cost,
                                                                        naturalgas_furniture_cost, biogas_furniture_cost,
                                                                        calib_elec_lcoe=config_coupling["calibration_elec_lcoe"],
                                                                        calib_elec_transport_distrib=config_coupling["calibration_elec_transport_distrib"],
@@ -1517,7 +1517,7 @@ def electricity_price_ht(system_lcoe, system_transport_and_distrib, calib_elec, 
     return price_ht
 
 
-def electricity_gas_price_ht(elec_lcoe, elec_transport_distrib, gas_furniture_cost, naturalgas_furniture_cost, biogas_furniture_cost,
+def electricity_gas_price_ht(energy_prices_evolution, elec_lcoe, elec_transport_distrib, gas_furniture_cost, naturalgas_furniture_cost, biogas_furniture_cost,
                              calib_elec_lcoe, calib_elec_transport_distrib, calib_naturalgas, calib_biogas, year,
                              endogenous_distribution=True):
     """
@@ -1558,7 +1558,6 @@ def electricity_gas_price_ht(elec_lcoe, elec_transport_distrib, gas_furniture_co
     # gas_price_ht = naturalgas_furniture_cost * calib_naturalgas + biogas_furniture_cost * calib_biogas + distribution_gas + transport_gas
 
     # TODO: Hypothesis: we only consider natural gas price from hypothesis:
-    energy_prices_evolution = get_pandas("eoles/inputs/energy_prices_evolution.csv", lambda x: pd.read_csv(x, index_col=0))
     naturalgas_furniture_cost = energy_prices_evolution[[str(year)]].squeeze()["natural_gas"]
     gas_price_ht = naturalgas_furniture_cost * calib_naturalgas + distribution_gas + transport_gas
 

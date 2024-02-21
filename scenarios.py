@@ -35,7 +35,9 @@ scenarios_demand = {
     'insulation': ['reference', 'NoPolicy'],
     'learning': ['reference', 'Learning+', 'Learning-'],
     # 'profile': ['reference', 'ProfileFlat'],
-    'elasticity': ['reference', 'Elasticity+', 'Elasticity-']
+    'elasticity': ['reference', 'Elasticity+', 'Elasticity-'],
+    'gasprices': ['reference', 'PriceGas+'],
+    'woodprices': ['reference', 'PriceWood+']
 }
 scenarios = {**scenarios_supply, **scenarios_demand}
 
@@ -64,7 +66,7 @@ for name_scenario, values_scenarios in scenarios.items():  #key: 'S0', values= '
                     new_config[map_scenarios_to_configs[name_variable][1]] = deepcopy(map_values[value_variable])
             elif map_scenarios_to_configs[name_variable][0] == 'policies':
                 temp = deepcopy(new_config['policies'])
-                temp.update(deepcopy(map_values[value_variable]))
+                temp.update(deepcopy(map_values[value_variable]))  # we add new policy information to the existing one
                 new_config['policies'] = deepcopy(temp)
             else:
                 raise KeyError('Key not found')

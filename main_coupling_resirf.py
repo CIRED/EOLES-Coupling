@@ -236,24 +236,27 @@ if __name__ == '__main__':
     parser.add_argument("--cpu", type=int, default=3, help="CPUs for multiprocessing")
     parser.add_argument("--configpath", type=str, help="config json file", default=None)
     parser.add_argument("--configdir", type=str, help="config directory", default=None)
+    parser.add_argument("--configref", type=str, help="base.json", default=None)
     parser.add_argument("--patterns", nargs="+", type=str, default=["*.json"], help="Patterns to filter files in the directory.")
-    parser.add_argument("--exclude-patterns", nargs="+", type=str, default=["base.json"],help="Patterns to exclude files.")
+    parser.add_argument("--exclude-patterns", nargs="+", type=str, default=["base.json", "settings_framework.json"],help="Patterns to exclude files.")
 
-    # Test
     args = parser.parse_args()
     cpu = args.cpu  # we select the config we are interested in
     assert (args.configpath is not None) or (args.configdir is not None), "Parameters are not correctly specified"
+
+    configref = Path(args.configref)
+    # assert configref.is_file(), "configref argument does not correspond to an existing file, reference configuration is not specified correctly."
 
     if args.configpath is not None:  # we have specified a json file
         configpath = Path(args.configpath)
         assert configpath.is_file(), "configpath argument does not correspond to an existing file"
         # assert os.path.isfile(configpath)
-        assert (configpath.resolve().parent / Path("base.json")).is_file(), "Directory does not contain the reference configuration file"
+        assert (configpath.resolve().parent / configref).is_file(), "Directory does not contain the reference configuration file"
 
         with open(configpath) as file:  # load additional configuration
             config_additional = json.load(file)
 
-        with open(configpath.resolve().parent / Path("base.json")) as file:  # load reference configuration for coupling
+        with open(configpath.resolve().parent / configref) as file:  # load reference configuration for coupling
             config_coupling = json.load(file)
 
         list_design = ['uniform', 'centralized_insulation', 'DR', 'proportional']
@@ -276,11 +279,10 @@ if __name__ == '__main__':
             pattern_path = configdir / pattern
             matching_files = glob.glob(str(pattern_path))
 
-            # Loop through the matching files and exclude those that match any exclude pattern, notably the base.json file
+            # Loop through the matching files and exclude those that match any exclude pattern, notably the reference config file
             for file in matching_files:
                 if all(file_match not in file for file_match in args.exclude_patterns):
                     config_files.append(file)
-        # config_files = [file for file in configdir.glob("*.json") if file.name != "base.json"]
 
         DICT_CONFIGS = {}
         for configpath in config_files:
@@ -288,8 +290,7 @@ if __name__ == '__main__':
             with open(configpath) as file:  # load additional configuration
                 config_additional = json.load(file)
 
-            with open(configpath.resolve().parent / Path(
-                    "base.json")) as file:  # load reference configuration for coupling
+            with open(configpath.resolve().parent / configref) as file:  # load reference configuration for coupling
                 config_coupling = json.load(file)
 
             list_design = ['uniform', 'centralized_insulation', 'DR', 'proportional']

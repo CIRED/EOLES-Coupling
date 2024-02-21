@@ -213,8 +213,8 @@ class ModelEOLES():
         self.total_H2_demand = data_static["demand_H2_RTE"]
         self.energy_prices = data_static["energy_prices"]
         self.carbon_budget = data_static["carbon_budget"]
-        self.vOM["wood"], self.vOM["oil"] = self.energy_prices["wood"] * 1e-3, self.energy_prices["oil"] * 1e-3  # €/kWh
-        self.vOM["natural_gas"], self.vOM['coal'] = self.energy_prices["natural_gas"] * 1e-3, self.energy_prices["coal"] * 1e-3
+        self.vOM["wood"], self.vOM["oil"] = self.energy_prices["wood"], self.energy_prices["oil"]  # €/kWh
+        self.vOM["natural_gas"], self.vOM['coal'] = self.energy_prices["natural_gas"], self.energy_prices["coal"]  # €/kWh
         self.carbon_content = data_static["carbon_content"]
 
         # calculate annuities
@@ -902,9 +902,16 @@ def read_annual_data(config, year):
                                    lambda x: pd.read_csv(x, index_col=0))  # 1e6€/GW
     district_heating_potential = district_heating_potential[[str(year)]].squeeze()  # get storage capex for year of interest
 
-    energy_prices = get_pandas(config["energy_prices"],
-                               lambda x: pd.read_csv(x, index_col=0))  # €/MWh
-    energy_prices = energy_prices[[str(year)]].squeeze()  # get storage capex for year of interest
+    energy_prices = get_pandas(config["energy_prices"]["ini"],
+                               lambda x: pd.read_csv(x, index_col=0)).squeeze()  # €/kWh
+    growth_rate = pd.Series(config["energy_prices"]["rate"])
+    energy_prices = energy_prices * (1+growth_rate)**(year-2020)  # we derive the new price, from the growth rate
+
+    # OLD methodology
+    # energy_prices = get_pandas(config["energy_prices"],
+    #                            lambda x: pd.read_csv(x, index_col=0))  # €/MWh
+    # energy_prices = energy_prices[[str(year)]].squeeze()
+
     carbon_budget_timesteps = get_pandas(config["carbon_budget"], lambda x: pd.read_csv(x, index_col=0).squeeze())
     carbon_budget = carbon_budget_timesteps[year]
 

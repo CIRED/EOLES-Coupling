@@ -4,7 +4,7 @@
     "end": 2051,
     "building_stock": "eoles/inputs/buildingstock_sdes2018_medium_3.csv",
     "policies": {
-      "file": "project/input/policies/coupling/policies_calibration_2025.json"
+      "file": "project/input/policies/policies_2024.json"
     }
   }
 }
