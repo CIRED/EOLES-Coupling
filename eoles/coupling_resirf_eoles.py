@@ -1077,10 +1077,6 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
         hourly_heat_elec = output_dynamics['hourly_heat_elec']
         adjust_demand = (43 * 1e3 - hourly_heat_elec.sum()) / 8760
         hourly_heat_elec = hourly_heat_elec + adjust_demand  # we calibrate electricity demand to 43 TWh, which is historical demand in 2017
-        # TODO: for debug only
-        # config_eoles_calib = config_eoles_copy
-        # existing_annualized_costs_CH4_naturalgas = annualized_costs_CH4_naturalgas
-        # existing_annualized_costs_CH4_biogas = annualized_costs_CH4_biogas
         m_eoles = ModelEOLES(name="trajectory", config=config_eoles_calib, path="eoles/outputs", logger=logger,
                              hourly_heat_elec=hourly_heat_elec, hourly_heat_gas=output_dynamics['hourly_heat_gas'], hourly_heat_district=output_dynamics['hourly_heat_district'],
                              wood_consumption=output_dynamics['wood_consumption'] * 1e3,  # GWh
@@ -1577,8 +1573,10 @@ def electricity_gas_price_ht(energy_prices_evolution, elec_lcoe, elec_transport_
     transport_gas = gas_prices_snbc_year["Transport network"]
     # gas_price_ht = naturalgas_furniture_cost * calib_naturalgas + biogas_furniture_cost * calib_biogas + distribution_gas + transport_gas
 
-    # TODO: Hypothesis: we only consider natural gas price from hypothesis:
-    naturalgas_furniture_cost = energy_prices_evolution["natural_gas"]
+    # TODO: a rechanger
+    # energy_prices_evolution = get_pandas("eoles/inputs/energy_prices_evolution.csv", lambda x: pd.read_csv(x, index_col=0)) * 1e3  # €/MWh
+    naturalgas_furniture_cost = energy_prices_evolution["natural_gas"]* 1e3  # €/MWh
+    print(naturalgas_furniture_cost)
     gas_price_ht = naturalgas_furniture_cost * calib_naturalgas + distribution_gas + transport_gas
 
     return elec_price_ht, gas_price_ht
@@ -1739,6 +1737,8 @@ def calibration_price(config_eoles, scc=40):
     snbc_gas_price = 23.35  # new value from AME2021
     calibration_gas = snbc_gas_price / lcoe_CH4_naturalgas_noSCC
 
+    # TODO: probleme, a modifier pour que ca remarche directement (a priori modifs de code sur les prix de l'énergie)
+    calibration_gas = 1.67
     return calibration_elec_lcoe, calibration_elec_transport_distrib, calibration_gas, m_eoles
 
 

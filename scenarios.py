@@ -16,7 +16,7 @@ N = 100
 folder_simu = Path('eoles') / Path('inputs') / Path('xps')
 
 date = datetime.now()
-date = date.strftime("%Y%m%d_3")  # formatting
+date = date.strftime("%Y%m%d")  # formatting
 folder_simu = folder_simu / Path(str(date))
 
 folder_simu.mkdir(parents=True, exist_ok=True)
@@ -49,24 +49,24 @@ name_scenarios, values_scenarios = zip(*scenarios.items())
 scenarios = [dict(zip(name_scenarios, v)) for v in product(*values_scenarios)]
 scenarios = {'S{}'.format(n): v for n, v in enumerate(scenarios)}
 
-if N is not None:
-    scenarios_counterfactual = deepcopy(scenarios)
-    for k, v in scenarios_counterfactual.items():
-        v.update({'ban': 'reference'})
-
-
-    scenarios_ban = deepcopy(scenarios)
-
-    for k, v in scenarios_ban.items():
-        v.update({'ban': 'Ban'})
-
-    # Randomly select N keys (knowing that 2 * N scenarios will be run)
-    selected_keys = random.sample(list(scenarios_counterfactual), N)
-
-    # If you need the key-value pairs
-    scenarios_counterfactual = {key: scenarios_counterfactual[key] for key in selected_keys}
-    scenarios_ban = {'{}-ban'.format(key): scenarios_ban[key] for key in selected_keys}
-    scenarios = {**scenarios_counterfactual, **scenarios_ban}
+# if N is not None:
+#     scenarios_counterfactual = deepcopy(scenarios)
+#     for k, v in scenarios_counterfactual.items():
+#         v.update({'ban': 'reference'})
+#
+#
+#     scenarios_ban = deepcopy(scenarios)
+#
+#     for k, v in scenarios_ban.items():
+#         v.update({'ban': 'Ban'})
+#
+#     # Randomly select N keys (knowing that 2 * N scenarios will be run)
+#     selected_keys = random.sample(list(scenarios_counterfactual), N)
+#
+#     # If you need the key-value pairs
+#     scenarios_counterfactual = {key: scenarios_counterfactual[key] for key in selected_keys}
+#     scenarios_ban = {'{}-ban'.format(key): scenarios_ban[key] for key in selected_keys}
+#     scenarios = {**scenarios_counterfactual, **scenarios_ban}
 
 path_file_config_reference = Path('eoles') / Path('inputs') / Path('config') / Path('config_coupling_reference.json')
 with open(path_file_config_reference, 'r') as file:

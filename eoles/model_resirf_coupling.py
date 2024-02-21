@@ -903,13 +903,14 @@ def read_annual_data(config, year):
                                    lambda x: pd.read_csv(x, index_col=0))  # 1e6€/GW
     district_heating_potential = district_heating_potential[[str(year)]].squeeze()  # get storage capex for year of interest
 
+    # TODO: a rechanger
     energy_prices = get_pandas(config["energy_prices"]["ini"],
                                lambda x: pd.read_csv(x, index_col=0)).squeeze()  # €/kWh
     growth_rate = pd.Series(config["energy_prices"]["rate"])
     energy_prices = energy_prices * (1+growth_rate)**(year-2020)  # we derive the new price, from the growth rate
     print(energy_prices)
 
-    # # OLD methodology
+    # OLD methodology
     # energy_prices = get_pandas(config["energy_prices"],
     #                            lambda x: pd.read_csv(x, index_col=0))  # €/MWh
     # energy_prices = energy_prices[[str(year)]].squeeze()
