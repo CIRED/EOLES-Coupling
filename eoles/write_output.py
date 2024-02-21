@@ -226,8 +226,10 @@ def colormap_simulations(overall_folder, config_ref, save_path=None, pdf=False, 
     return total_system_costs_2050_df
 
 
-def get_total_system_costs(dict_output, carbon_constraint=True, eoles=True):
+def get_total_system_costs(dict_output, carbon_constraint=True, eoles=True, health=False):
     total_system_costs_2050_df, total_system_costs_2030_df, total_operational_costs_2050_df = pd.DataFrame(dtype=float), pd.DataFrame(dtype=float), pd.DataFrame(dtype=float)
+    stock_df, consumption_df = pd.DataFrame(dtype=float), pd.DataFrame(dtype=float)
+    capacities_df, generation_df = pd.DataFrame(dtype=float), pd.DataFrame(dtype=float)
     for path, name_config in zip(dict_output.values(), [n for n in dict_output.keys()]):
         with open(os.path.join(path, 'coupling_results.pkl'), "rb") as file:
             output = load(file)
@@ -243,24 +245,55 @@ def get_total_system_costs(dict_output, carbon_constraint=True, eoles=True):
             if 2020 in functionment_costs_df.columns:
                 functionment_costs_df = functionment_costs_df.drop(columns=[2020])
 
-            if 2050 in annualized_new_investment_df.columns:
+            if 2050 in annualized_new_investment_df.columns:  # scenario passed the constraint
                 total_system_costs_2050, total_operational_costs_2050 = process_total_costs(annualized_new_investment_df,
                                                                                             annualized_new_energy_capacity_df,
                                                                                             functionment_costs_df,
                                                                                             carbon_constraint=carbon_constraint,
-                                                                                            eoles=eoles, year=2050)
-                total_system_costs_2030, total_operational_costs_2030 = process_total_costs(annualized_new_investment_df,
-                                                                                            annualized_new_energy_capacity_df,
-                                                                                            functionment_costs_df,
-                                                                                            carbon_constraint=carbon_constraint,
-                                                                                            eoles=eoles, year=2030)
+                                                                                            eoles=eoles, year=2050, health=health)
+
                 total_system_costs_2050 = total_system_costs_2050.to_frame().rename(columns={0: name_config})
+                total_system_costs_2050_df = pd.concat([total_system_costs_2050_df, total_system_costs_2050], axis=1)
+
+                output_resirf = output["Output global ResIRF ()"]
+                stock = pd.Series(output_resirf.loc[['Stock Heat pump (Million)', 'Stock Direct electric (Million)', 'Stock Natural gas (Million)', 'Stock Wood fuel (Million)']][2049]).to_frame().rename(columns={2049: name_config})
+                stock_df = pd.concat([stock_df, stock], axis=1)
+
+                consumption = pd.Series(output_resirf.loc[["Consumption Electricity (TWh)", "Consumption Natural gas (TWh)", "Consumption Wood fuel (TWh)"]][2049]).to_frame().rename(columns={2049: name_config})
+                consumption_df = pd.concat([consumption_df, consumption], axis=1)
+
+                capacities = output["Capacities (GW)"]
+                capacities.loc["offshore"] = capacities.loc["offshore_f"] + capacities.loc["offshore_g"]
+                capacities.loc["pv"] = capacities.loc["pv_g"] + capacities.loc["pv_c"]
+                capacities.loc["battery"] = capacities.loc["battery1"] + capacities.loc["battery4"]
+                capacities.loc['hydro'] = capacities.loc['river'] + capacities.loc['lake']
+                capacities.loc['peaking plants'] = capacities.loc['ocgt'] + capacities.loc['ccgt'] + capacities.loc['h2_ccgt']
+
+                capacities = capacities.loc[['offshore', 'onshore', 'pv', 'battery', 'hydro', 'peaking plants', 'methanization', 'pyrogazification']]
+                capacities = pd.Series(capacities[2050]).to_frame().rename(columns={2050: name_config})
+                capacities_df = pd.concat([capacities_df, capacities], axis=1)
+
+                generation = output["Generation (TWh)"]
+                generation = pd.Series(generation.loc[['methanization', 'pyrogazification']][2050]).to_frame().rename(columns={2050: name_config})
+                generation = generation.rename(index={
+                    'methanization': 'Generation methanization (TWh)',
+                    'pyrogazification': 'Generation pyrogazification (TWh)'
+                })
+                generation_df = pd.concat([generation_df, generation], axis=1)
             else:
-                index = ['Investment electricity costs', 'Investment heater costs', 'Investment insulation costs', 'Functionment costs', 'Health costs', 'Total costs']
-                # create a series with this index and only np.nan values
-                total_system_costs_2050 = pd.Series(index=index, data=[np.nan]*len(index)).to_frame().rename(columns={0: name_config})
-            total_system_costs_2050_df = pd.concat([total_system_costs_2050_df, total_system_costs_2050], axis=1)
-    return total_system_costs_2050_df
+                pass
+                # index = ['Investment electricity costs', 'Investment heater costs', 'Investment insulation costs', 'Functionment costs', 'Health costs', 'Total costs']
+                # # create a series with this index and only np.nan values
+                # total_system_costs_2050 = pd.Series(index=index, data=[np.nan]*len(index)).to_frame().rename(columns={0: name_config})
+
+    o = {
+        'costs': total_system_costs_2050_df,
+        'stock': stock_df,
+        'consumption': consumption_df,
+        'capacity': capacities_df,
+        'generation': generation_df
+    }
+    return o
 
 def comparison_simulations_new(dict_output: dict, ref, greenfield=False, health=False, x_min=0, x_max=None, y_min=0, y_max=None,
                            rotation=90, save_path=None, pdf=False, carbon_constraint=True, percent=False, eoles=True,
@@ -1776,7 +1809,7 @@ def save_subsidies_again(dict_output, save_path):
 
 
 def process_total_costs(annualized_new_investment_df, annualized_new_energy_capacity_df, functionment_costs_df,
-                        carbon_constraint=True, eoles=True, year=2050):
+                        carbon_constraint=True, eoles=True, year=2050, health=True):
     """
     Calculates total system (new) costs over the considered time period. This adds investment annuity for each year when the investment was present.
     Remark: we only include new costs, not costs of historical capacities.
@@ -1814,13 +1847,19 @@ def process_total_costs(annualized_new_investment_df, annualized_new_energy_capa
         functionment_cost = functionment_costs_df_copy.drop(index=["health_costs"]).sum().sum()
         health_costs = functionment_costs_df_copy.T[["health_costs"]].sum().sum()
         if eoles:
-            total_costs = elec_inv + heater_inv + insulation_inv + functionment_cost + health_costs
+            if health:
+                total_costs = elec_inv + heater_inv + insulation_inv + functionment_cost + health_costs
+            else:
+                total_costs = elec_inv + heater_inv + insulation_inv + functionment_cost
             total_system_costs = pd.Series(
                 index=["Investment electricity costs", "Investment heater costs", "Investment insulation costs",
                        "Functionment costs", "Health costs", "Total costs"],
                 data=[elec_inv, heater_inv, insulation_inv, functionment_cost, health_costs, total_costs])
         else:  # we only include ResIRF costs
-            total_costs = heater_inv + insulation_inv + functionment_cost + health_costs
+            if health:
+                total_costs = heater_inv + insulation_inv + functionment_cost + health_costs
+            else:
+                total_costs = heater_inv + insulation_inv + functionment_cost
             total_system_costs = pd.Series(
                 index=["Investment heater costs", "Investment insulation costs",
                        "Functionment costs", "Health costs", "Total costs"],
@@ -1836,13 +1875,19 @@ def process_total_costs(annualized_new_investment_df, annualized_new_energy_capa
         health_costs = functionment_costs_df_copy.T[["health_costs"]].sum().sum()
         carbon_cost = functionment_costs_df_copy.T[["carbon_cost"]].sum().sum()
         if eoles:
-            total_costs = elec_inv + heater_inv + insulation_inv + functionment_cost + health_costs + carbon_cost
+            if health:
+                total_costs = elec_inv + heater_inv + insulation_inv + functionment_cost + health_costs + carbon_cost
+            else:
+                total_costs = elec_inv + heater_inv + insulation_inv + functionment_cost + carbon_cost
             total_system_costs = pd.Series(
                 index=["Investment electricity costs", "Investment heater costs", "Investment insulation costs",
                        "Functionment costs", "Health costs", "Carbon cost", "Total costs"],
                 data=[elec_inv, heater_inv, insulation_inv, functionment_cost, health_costs, carbon_cost, total_costs])
         else:
-            total_costs = heater_inv + insulation_inv + functionment_cost + health_costs + carbon_cost
+            if health:
+                total_costs = heater_inv + insulation_inv + functionment_cost + health_costs + carbon_cost
+            else:
+                total_costs = heater_inv + insulation_inv + functionment_cost + carbon_cost
             total_system_costs = pd.Series(
                 index=["Investment heater costs", "Investment insulation costs",
                        "Functionment costs", "Health costs", "Carbon cost", "Total costs"],
