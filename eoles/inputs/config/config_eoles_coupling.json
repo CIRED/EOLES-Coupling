@@ -19,14 +19,13 @@
   "demand_H2_timesteps": "eoles/inputs/demand/demand_H2_timesteps.csv",
   "district_heating_potential": "eoles/inputs/technology_potential/district_heating_potential_S2.csv",
   "energy_prices": {
-        "ini": "eoles/inputs/technical/energy_prices_evolution_new.csv",
-        "rate": {
-          "natural_gas": 0.0158,
-          "wood": 0.0126,
-          "oil": 0.0173,
-          "coal": 0.0233
-        }
-  },
+    "ini": "eoles/inputs/technical/energy_prices_evolution_new.csv",
+    "rate": {
+      "natural_gas": 0.0158,
+      "wood": 0.0126,
+      "oil": 0.0173,
+      "coal": 0.0233
+    }},
   "epsilon": "eoles/inputs/technology_characteristics/reserve_requirements_new.csv",
   "eta_in": "eoles/inputs/technology_characteristics/eta_in.csv",
   "eta_out": "eoles/inputs/technology_characteristics/eta_out.csv",

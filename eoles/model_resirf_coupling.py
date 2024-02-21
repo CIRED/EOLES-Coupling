@@ -334,9 +334,10 @@ class ModelEOLES():
 
         def capacity_bounds(model, i):
             if i in self.maximum_capacity.keys():  # there exists a max capacity
-                return self.existing_capacity[i], self.maximum_capacity[
-                    i]  # existing capacity is always the lower bound
+                # print(self.maximum_capacity[i])
+                return self.existing_capacity[i], self.maximum_capacity[i]  # existing capacity is always the lower bound
             else:
+                # print(f'nomax{i}')
                 return self.existing_capacity[i], None  # in this case, only lower bound exists
 
         def charging_capacity_bounds(model, i):
@@ -906,8 +907,9 @@ def read_annual_data(config, year):
                                lambda x: pd.read_csv(x, index_col=0)).squeeze()  # €/kWh
     growth_rate = pd.Series(config["energy_prices"]["rate"])
     energy_prices = energy_prices * (1+growth_rate)**(year-2020)  # we derive the new price, from the growth rate
+    print(energy_prices)
 
-    # OLD methodology
+    # # OLD methodology
     # energy_prices = get_pandas(config["energy_prices"],
     #                            lambda x: pd.read_csv(x, index_col=0))  # €/MWh
     # energy_prices = energy_prices[[str(year)]].squeeze()

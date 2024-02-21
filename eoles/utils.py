@@ -1306,7 +1306,7 @@ def modif_config_eoles(config_eoles, config_coupling):
             'oil': new_rate["Oil fuel"]
         }
         config_eoles_update['energy_prices']['rate'].update(rate)  # we modify growth rate for eoles as well
-
+        print(config_eoles_update['energy_prices'])
 
     if 'costs_supply' in config_coupling['eoles'].keys():  # we modify the costs of supply
         if 'storage_capex_variant' in config_coupling['eoles']['costs_supply'].keys():  # variant for some technologies

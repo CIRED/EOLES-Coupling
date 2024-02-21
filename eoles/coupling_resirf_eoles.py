@@ -1077,6 +1077,10 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
         hourly_heat_elec = output_dynamics['hourly_heat_elec']
         adjust_demand = (43 * 1e3 - hourly_heat_elec.sum()) / 8760
         hourly_heat_elec = hourly_heat_elec + adjust_demand  # we calibrate electricity demand to 43 TWh, which is historical demand in 2017
+        # TODO: for debug only
+        # config_eoles_calib = config_eoles_copy
+        # existing_annualized_costs_CH4_naturalgas = annualized_costs_CH4_naturalgas
+        # existing_annualized_costs_CH4_biogas = annualized_costs_CH4_biogas
         m_eoles = ModelEOLES(name="trajectory", config=config_eoles_calib, path="eoles/outputs", logger=logger,
                              hourly_heat_elec=hourly_heat_elec, hourly_heat_gas=output_dynamics['hourly_heat_gas'], hourly_heat_district=output_dynamics['hourly_heat_district'],
                              wood_consumption=output_dynamics['wood_consumption'] * 1e3,  # GWh
@@ -1090,6 +1094,22 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
                              existing_annualized_costs_CH4_biogas=existing_annualized_costs_CH4_biogas,
                              existing_annualized_costs_H2=existing_annualized_costs_H2, carbon_constraint=config_coupling["carbon_constraint"],
                              discount_rate=config_coupling["discount_rate"], calibration=True)
+
+        # For debug
+        # m_eoles = ModelEOLES(name="trajectory", config=config_eoles_copy, path="eoles/outputs", logger=logger,
+        #                      hourly_heat_elec=hourly_heat_elec, hourly_heat_gas=hourly_heat_gas,
+        #                      wood_consumption=0, oil_consumption=0,
+        #                      existing_capacity=existing_capacity, existing_charging_capacity=existing_charging_capacity,
+        #                      existing_energy_capacity=existing_energy_capacity, maximum_capacity=maximum_capacity,
+        #                      method_hourly_profile="valentin",
+        #                      anticipated_social_cost_of_carbon=scc, actual_social_cost_of_carbon=scc,
+        #                      year=anticipated_year + 5, anticipated_year=anticipated_year,
+        #                      scenario_cost=None, existing_annualized_costs_elec=existing_annualized_costs_elec,
+        #                      existing_annualized_costs_CH4=existing_annualized_costs_CH4,
+        #                      existing_annualized_costs_H2=existing_annualized_costs_H2,
+        #                      existing_annualized_costs_CH4_naturalgas=annualized_costs_CH4_naturalgas,
+        #                      existing_annualized_costs_CH4_biogas=annualized_costs_CH4_biogas, carbon_constraint=False,
+        #                      discount_rate=0.032)
 
         m_eoles.build_model()
         solver_results, status, termination_condition = m_eoles.solve(solver_name="gurobi")
@@ -1558,7 +1578,7 @@ def electricity_gas_price_ht(energy_prices_evolution, elec_lcoe, elec_transport_
     # gas_price_ht = naturalgas_furniture_cost * calib_naturalgas + biogas_furniture_cost * calib_biogas + distribution_gas + transport_gas
 
     # TODO: Hypothesis: we only consider natural gas price from hypothesis:
-    naturalgas_furniture_cost = energy_prices_evolution[[str(year)]].squeeze()["natural_gas"]
+    naturalgas_furniture_cost = energy_prices_evolution["natural_gas"]
     gas_price_ht = naturalgas_furniture_cost * calib_naturalgas + distribution_gas + transport_gas
 
     return elec_price_ht, gas_price_ht

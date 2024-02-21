@@ -7,14 +7,16 @@ from itertools import product
 import json
 from copy import deepcopy
 import glob
+import random
 
 from settings_scenarios import map_values, map_scenarios_to_configs
 
+N = 100
 
 folder_simu = Path('eoles') / Path('inputs') / Path('xps')
 
 date = datetime.now()
-date = date.strftime("%Y%m%d")  # formatting
+date = date.strftime("%Y%m%d_3")  # formatting
 folder_simu = folder_simu / Path(str(date))
 
 folder_simu.mkdir(parents=True, exist_ok=True)
@@ -26,24 +28,45 @@ copy2(path_file_settings, folder_simu)
 
 scenarios_supply = {
     'biogas': ['reference', 'Biogas-'],
-    'capacity_nuc': ['reference', 'Nuc-'],
+    # 'capacity_nuc': ['reference', 'Nuc-'],
     'capacity_ren': ['reference', 'Ren-'],
+    'capacity_offshore': ['reference', 'Offshore-'],
+    'capacity_pv': ['reference', 'PV-'],
     'demand': ['reference', 'Sufficiency', 'Reindustrialisation']
 }
 scenarios_demand = {
-    'ban': ['reference', 'Ban'],
     'insulation': ['reference', 'NoPolicy'],
     'learning': ['reference', 'Learning+', 'Learning-'],
     # 'profile': ['reference', 'ProfileFlat'],
     'elasticity': ['reference', 'Elasticity+', 'Elasticity-'],
     'gasprices': ['reference', 'PriceGas+'],
-    'woodprices': ['reference', 'PriceWood+']
+    'woodprices': ['reference', 'PriceWood+'],
+    'cop': ['reference', 'COP+']
 }
 scenarios = {**scenarios_supply, **scenarios_demand}
 
 name_scenarios, values_scenarios = zip(*scenarios.items())
 scenarios = [dict(zip(name_scenarios, v)) for v in product(*values_scenarios)]
 scenarios = {'S{}'.format(n): v for n, v in enumerate(scenarios)}
+
+if N is not None:
+    scenarios_counterfactual = deepcopy(scenarios)
+    for k, v in scenarios_counterfactual.items():
+        v.update({'ban': 'reference'})
+
+
+    scenarios_ban = deepcopy(scenarios)
+
+    for k, v in scenarios_ban.items():
+        v.update({'ban': 'Ban'})
+
+    # Randomly select N keys (knowing that 2 * N scenarios will be run)
+    selected_keys = random.sample(list(scenarios_counterfactual), N)
+
+    # If you need the key-value pairs
+    scenarios_counterfactual = {key: scenarios_counterfactual[key] for key in selected_keys}
+    scenarios_ban = {'{}-ban'.format(key): scenarios_ban[key] for key in selected_keys}
+    scenarios = {**scenarios_counterfactual, **scenarios_ban}
 
 path_file_config_reference = Path('eoles') / Path('inputs') / Path('config') / Path('config_coupling_reference.json')
 with open(path_file_config_reference, 'r') as file:

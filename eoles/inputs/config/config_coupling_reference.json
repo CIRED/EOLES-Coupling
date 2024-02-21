@@ -1,7 +1,7 @@
 {
     "name_config": "reference",
     "policies": {
-        "file": "project/input/policies/current/policies_2024.json"
+        "file": "project/input/policies/policies_2024.json"
     },
     "greenfield": false,
     "prices_constant": false,

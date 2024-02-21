@@ -3,7 +3,10 @@
 map_values_eoles = {
     'Biogas-': 'S2',
     'Nuc-': 'N1nuc',
-    'Ren-': 'N1ren2',
+    'Ren-': 'N1ren',
+    'Offshore-': 'N1offshore',
+    'Onshore-': 'N1onshore',
+    'PV-': 'N1pv',
     'Sufficiency': 'Sobriete',
     'Reindustrialisation': 'Reindustrialisation',
     'cold': {'load_factors': 'vre_profiles_2012',
@@ -55,6 +58,7 @@ map_values_resirf = {
         "target": 1.5
       }
     },
+    'COP+' : {"temp_sink": "project/input/technical/temp_sink_progress.csv"},
     'ProfileFlat': {
             "hourly_profile": "project/input/technical/hourly_profile_flat.csv"
         },
@@ -88,12 +92,16 @@ map_scenarios_to_configs = {
     'biogas': ['supply', 'biomass_potential_scenario'],
     'capacity_ren': ['supply', 'maximum_capacity_scenario'],
     'capacity_nuc': ['supply', 'maximum_capacity_scenario'],
+    'capacity_offshore': ['supply', 'maximum_capacity_scenario'],
+    'capacity_onshore': ['supply', 'maximum_capacity_scenario'],
+    'capacity_pv': ['supply', 'maximum_capacity_scenario'],
     'weather': ['supply', 'weather'],
     'ban': ['policies'],
     'insulation': ['policies'],
     'demand': ['supply', 'demand_scenario'],
     'technical': ['demand'],
     'learning': ['demand', 'technical'],
+    'cop': ['demand', 'technical'],
     'profile': ['demand', 'technical'],
     'elasticity': ['demand', 'switch_heater'],
     'gasprices': ['demand', 'energy'],
