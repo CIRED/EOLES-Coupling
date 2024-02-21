@@ -211,7 +211,6 @@ def run_scenario(config_coupling, name_config_coupling="default", save_folder=No
 def run_multiple_configs(dict_config, cpu: int, folder_to_save=None):
     """Run multiple configs in parallel"""
     logger.info('Scenarios: {}'.format(', '.join(dict_config.keys())))
-
     if folder_to_save is not None: # we create the folder to save the results
         folder_to_save = Path('eoles') / Path('outputs') / Path(folder_to_save)
         if not folder_to_save.is_dir():
