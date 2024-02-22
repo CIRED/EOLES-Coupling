@@ -121,8 +121,8 @@
       "file": "project/input/policies/policies_2024.json"
     },
     "simple": {
-      "figures": true,
-      "detailed_output": true,
+      "figures": false,
+      "detailed_output": false,
       "quintiles": true,
       "surface": false,
       "ratio_surface": false,
