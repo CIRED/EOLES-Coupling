@@ -33,6 +33,3 @@ if __name__ == '__main__':
     # run main_coupling_resirf.py
     command = f'python main_coupling_resirf.py --configdir {folder_simu} --cpu {cpu} --configref settings_framework.json'
     subprocess.run(command.split())
-
-    scenarios = pd.read_csv(Path(folder_simu) / Path('scenarios.csv'), index_col=0)
-    scenarios.to_csv()
