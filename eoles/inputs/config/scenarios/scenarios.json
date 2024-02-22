@@ -13,8 +13,10 @@
     "demand" : {
         "insulation": ["reference", "NoPolicy"],
         "learning": ["reference", "Learning+", "Learning-"],
-        "elasticity": ["reference", "Elasticity-"],
+        "elasticity": ["reference", "Elasticity-"]
+    },
+   "prices": {
         "gasprices": ["reference", "PriceGas+"],
         "woodprices": ["reference", "PriceWood+"]
-    }
+  }
 }

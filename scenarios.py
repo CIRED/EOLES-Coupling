@@ -29,7 +29,7 @@ def creation_scenarios(file=Path('eoles/inputs/config/scenarios/scenarios.json')
     with open(file, 'r') as file:
         scenarios = json.load(file)
 
-    scenarios = {**scenarios['demand'], **scenarios['supply']}
+    scenarios = {**scenarios['demand'], **scenarios['supply'], **scenarios['prices']}
 
     if montecarlo:
         name_scenarios, values_scenarios = zip(*scenarios.items())
@@ -71,25 +71,26 @@ def creation_scenarios(file=Path('eoles/inputs/config/scenarios/scenarios.json')
     with open(path_file_config_reference, 'r') as file:
         config_reference = json.load(file)
 
-    for name_scenario, values_scenarios in scenarios.items():  #key: 'S0', values= 'biogas'
+    for name_scenario, values_scenarios in scenarios.items():
         new_config = deepcopy(config_reference)
         new_config['name_config'] = name_scenario
-        for name_variable, value_variable in values_scenarios.items():  # i: 'biogas', v: 'Biogas-'
+        for name_variable, value_variable in values_scenarios.items():
             if value_variable == 'reference':  # no modification to the configuration
                 pass
             else:
                 if map_scenarios_to_configs[name_variable][0] == 'supply':
                     new_config[map_scenarios_to_configs[name_variable][1]] = deepcopy(map_values[value_variable])
-                    print(new_config)
+                elif map_scenarios_to_configs[name_variable][0] == 'prices':
+                    new_config[map_scenarios_to_configs[name_variable][1]] = deepcopy(map_values[value_variable])  # we just add a prices argument to the dictionary
                 elif map_scenarios_to_configs[name_variable][0] == 'demand':
-                    if map_scenarios_to_configs[name_variable][1] == 'energy':  # we have to modify prices, which requires a specific handling of this case
-                        assert 'energy' in new_config.keys(), 'Energy should be a key of the configuration'
-                        new_config['energy']['energy_prices']['rate'].update(deepcopy(map_values[value_variable]['energy_prices']['rate']))  # we only modify the rate for the given scenario
+                    # if map_scenarios_to_configs[name_variable][1] == 'energy':  # we have to modify prices, which requires a specific handling of this case
+                    #     assert 'energy' in new_config.keys(), 'Energy should be a key of the configuration'
+                    #     new_config['energy']['energy_prices']['rate'].update(deepcopy(map_values[value_variable]['resirf']['rate']))  # we only modify the rate for the given scenario
+                    # else:
+                    if map_scenarios_to_configs[name_variable][1] in new_config.keys():
+                        new_config[map_scenarios_to_configs[name_variable][1]].update(deepcopy(map_values[value_variable]))
                     else:
-                        if map_scenarios_to_configs[name_variable][1] in new_config.keys():
-                            new_config[map_scenarios_to_configs[name_variable][1]].update(deepcopy(map_values[value_variable]))
-                        else:
-                            new_config[map_scenarios_to_configs[name_variable][1]] = deepcopy(map_values[value_variable])
+                        new_config[map_scenarios_to_configs[name_variable][1]] = deepcopy(map_values[value_variable])
                 elif map_scenarios_to_configs[name_variable][0] == 'policies':
                     temp = deepcopy(new_config['policies'])
                     temp.update(deepcopy(map_values[value_variable]))  # we add new policy information to the existing one

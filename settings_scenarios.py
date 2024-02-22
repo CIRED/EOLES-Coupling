@@ -63,15 +63,23 @@ map_values_resirf = {
             "hourly_profile": "project/input/technical/hourly_profile_flat.csv"
         },
     'PriceGas+':  {
-        "energy_prices": {
-        "ini": "project/input/energy/energy_prices_wt_ame2021.csv",
-        "rate": {
-          "Natural gas": 0.0104 * 2,
-        }
+        "eoles": {
+            "rate": {
+                "natural_gas": 0.0158 * 2,
+            }
+        },
+        "resirf": {
+            "rate": {
+                "Natural gas": 0.0104 * 2,
+            }
       }},
     'PriceWood+': {
-        "energy_prices": {
-            "ini": "project/input/energy/energy_prices_wt_ame2021.csv",
+        "eoles": {
+            "rate": {
+                "wood": 0.0126 * 2,
+            }
+        },
+        "resirf": {
             "rate": {
                 "Wood fuel": 0.0127 * 2,
             }
@@ -96,6 +104,6 @@ map_scenarios_to_configs = {
     'cop': ['demand', 'technical'],
     'profile': ['demand', 'technical'],
     'elasticity': ['demand', 'switch_heater'],
-    'gasprices': ['demand', 'energy'],
-    'woodprices': ['demand', 'energy']
+    'gasprices': ['prices', 'prices'],
+    'woodprices': ['prices', 'prices']
 }
