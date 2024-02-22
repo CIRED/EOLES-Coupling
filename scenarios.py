@@ -12,6 +12,8 @@ import random
 from settings_scenarios import map_values, map_scenarios_to_configs
 
 N = 100
+montecarlo = False
+
 
 folder_simu = Path('eoles') / Path('inputs') / Path('xps')
 
@@ -45,28 +47,34 @@ scenarios_demand = {
 }
 scenarios = {**scenarios_supply, **scenarios_demand}
 
-name_scenarios, values_scenarios = zip(*scenarios.items())
-scenarios = [dict(zip(name_scenarios, v)) for v in product(*values_scenarios)]
-scenarios = {'S{}'.format(n): v for n, v in enumerate(scenarios)}
+if montecarlo:
+    name_scenarios, values_scenarios = zip(*scenarios.items())
+    scenarios = [dict(zip(name_scenarios, v)) for v in product(*values_scenarios)]
+    scenarios = {'S{}'.format(n): v for n, v in enumerate(scenarios)}
+    if N is not None:
+        scenarios_counterfactual = deepcopy(scenarios)
+        for k, v in scenarios_counterfactual.items():
+         v.update({'ban': 'reference'})
 
-# if N is not None:
-#     scenarios_counterfactual = deepcopy(scenarios)
-#     for k, v in scenarios_counterfactual.items():
-#         v.update({'ban': 'reference'})
-#
-#
-#     scenarios_ban = deepcopy(scenarios)
-#
-#     for k, v in scenarios_ban.items():
-#         v.update({'ban': 'Ban'})
-#
-#     # Randomly select N keys (knowing that 2 * N scenarios will be run)
-#     selected_keys = random.sample(list(scenarios_counterfactual), N)
-#
-#     # If you need the key-value pairs
-#     scenarios_counterfactual = {key: scenarios_counterfactual[key] for key in selected_keys}
-#     scenarios_ban = {'{}-ban'.format(key): scenarios_ban[key] for key in selected_keys}
-#     scenarios = {**scenarios_counterfactual, **scenarios_ban}
+        scenarios_ban = deepcopy(scenarios)
+
+        for k, v in scenarios_ban.items():
+         v.update({'ban': 'Ban'})
+
+        # Randomly select N keys (knowing that 2 * N scenarios will be run)
+        selected_keys = random.sample(list(scenarios_counterfactual), N)
+
+        # If you need the key-value pairs
+        scenarios_counterfactual = {key: scenarios_counterfactual[key] for key in selected_keys}
+        scenarios_ban = {'{}-ban'.format(key): scenarios_ban[key] for key in selected_keys}
+        scenarios = {**scenarios_counterfactual, **scenarios_ban}
+else:
+    temp, k = {}, 0
+    for key, value in scenarios.items():
+        for v in value:
+            if v != 'reference':
+                temp['S{}'.format(k)] = {key: v}
+                k += 1
 
 path_file_config_reference = Path('eoles') / Path('inputs') / Path('config') / Path('config_coupling_reference.json')
 with open(path_file_config_reference, 'r') as file:
