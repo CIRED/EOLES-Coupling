@@ -1298,15 +1298,13 @@ def modif_config_eoles(config_eoles, config_coupling):
     assert config_coupling["eoles"]["demand_scenario"] in ["Reference", "Reindustrialisation", "Sobriete", "Electrification+"], "Demand scenario is not specified correctly in config_coupling."
     config_eoles_update["demand_scenario"] = config_coupling["eoles"]["demand_scenario"]
 
-    if 'energy' in config_coupling.keys():  # we also need to modify EOLES configuration file
-        new_rate = config_coupling['energy']['energy_prices']['rate']
-        rate = {
-            'natural_gas': new_rate["Natural gas"],
-            'wood': new_rate["Wood fuel"],
-            'oil': new_rate["Oil fuel"]
-        }
-        config_eoles_update['energy_prices']['rate'].update(rate)  # we modify growth rate for eoles as well
-        print(config_eoles_update['energy_prices'])
+    if 'prices' in config_coupling['eoles'].keys():
+        config_eoles_update['energy_prices']['rate'].update(config_coupling['eoles']['prices']['rate'])
+
+    # if 'energy' in config_coupling['resirf'].keys():  # we also need to modify EOLES configuration file
+    #     new_rate = config_coupling['resirf']['energy']['eoles']['rate']
+    #     config_eoles_update['energy_prices']['rate'].update(new_rate)  # we modify growth rate for eoles as well
+    #     print(config_eoles_update['energy_prices'])
 
     if 'costs_supply' in config_coupling['eoles'].keys():  # we modify the costs of supply
         if 'storage_capex_variant' in config_coupling['eoles']['costs_supply'].keys():  # variant for some technologies
@@ -1404,7 +1402,9 @@ def modif_config_resirf(config_resirf, config_coupling):
         else:  # we create the technical dictionary
             config_resirf_update['technical'] = config_coupling['resirf']['technical']
 
-    if 'energy' in config_coupling['resirf'].keys():
+    if 'prices' in config_coupling['resirf'].keys():
+        assert 'energy' in config_coupling['resirf'].keys(), 'Energy should be defined in the keys of the configuration'
+        config_coupling['resirf']['energy']['energy_prices']['rate'].update(deepcopy(config_coupling['resirf']['prices']['rate']))  # we update prices
         if 'energy' in config_resirf_update.keys():  # there is already a dictionary specifying some options for energy
             for k,v in config_resirf_update['energy'].items():
                 if k in config_coupling['resirf']['energy'].keys():  # needs updating in this case
@@ -1414,6 +1414,17 @@ def modif_config_resirf(config_resirf, config_coupling):
                         config_resirf_update['energy'][k] = config_coupling['resirf']['energy'][k]
         else:  # we create the energy dictionary
             config_resirf_update['energy'] = config_coupling['resirf']['energy']
+
+    # if 'energy' in config_coupling['resirf'].keys():
+    #     if 'energy' in config_resirf_update.keys():  # there is already a dictionary specifying some options for energy
+    #         for k,v in config_resirf_update['energy'].items():
+    #             if k in config_coupling['resirf']['energy'].keys():  # needs updating in this case
+    #                 if isinstance(v, dict):
+    #                     v.update(config_coupling['resirf']['energy'][k])
+    #                 else:
+    #                     config_resirf_update['energy'][k] = config_coupling['resirf']['energy'][k]
+    #     else:  # we create the energy dictionary
+    #         config_resirf_update['energy'] = config_coupling['resirf']['energy']
 
     if 'switch_heater' in config_coupling['resirf'].keys():
         if 'switch_heater' in config_resirf_update.keys():  # there is already a dictionary specifying some options for switch_heater
@@ -1514,11 +1525,17 @@ def create_configs_coupling(list_design, config_coupling: dict, config_additiona
     district_heating_potential = config_additional['district_heating_potential']
 
     config_coupling_update['resirf'] = {}  # we create a dictionary for the ResIRF configuration specs
+
+    if 'prices' in config_additional.keys():
+        config_coupling_update['resirf']['prices'] = config_additional['prices']['resirf']
+        config_coupling_update['resirf']['energy'] = config_additional['energy']  # necessary to update prices afterwards
+        config_coupling_update['eoles']['prices'] = config_additional['prices']['eoles']
+
     if 'technical' in config_additional.keys():  # we modify the specification for the Res-IRF configuration
         config_coupling_update['resirf']['technical'] = config_additional['technical']
 
-    if 'energy' in config_additional.keys():  # we modify the specification for the Res-IRF configuration
-        config_coupling_update['resirf']['energy'] = config_additional['energy']
+    # if 'energy' in config_additional.keys():  # we modify the specification for the Res-IRF configuration
+    #     config_coupling_update['resirf']['energy'] = config_additional['energy']
 
     if 'switch_heater' in config_additional.keys():  # we modify the specification for the Res-IRF configuration
         config_coupling_update['resirf']['switch_heater'] = config_additional['switch_heater']
