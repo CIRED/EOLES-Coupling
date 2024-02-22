@@ -51,6 +51,10 @@ def save_simulation_results(output, buildings, name_config_coupling, config_coup
                             dict_optimizer, optimization=True, save_folder=None):
     """Save simulation results."""
     date = datetime.datetime.now().strftime("%m%d%H%M%S")
+
+    if not (Path('eoles') / Path('outputs')).is_dir():  # creation of outputs folder if nonexisting
+        os.mkdir(Path('eoles') / Path('outputs'))
+
     if save_folder is not None:
         export_results = Path(save_folder) / Path(f'{date}_{name_config_coupling}')
     else:
