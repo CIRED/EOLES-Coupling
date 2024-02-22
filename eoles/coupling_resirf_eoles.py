@@ -1560,7 +1560,6 @@ def electricity_gas_price_ht(energy_prices_evolution, elec_lcoe, elec_transport_
     # TODO: a rechanger
     # energy_prices_evolution = get_pandas("eoles/inputs/energy_prices_evolution.csv", lambda x: pd.read_csv(x, index_col=0)) * 1e3  # €/MWh
     naturalgas_furniture_cost = energy_prices_evolution["natural_gas"]* 1e3  # €/MWh
-    print(naturalgas_furniture_cost)
     gas_price_ht = naturalgas_furniture_cost * calib_naturalgas + distribution_gas + transport_gas
 
     return elec_price_ht, gas_price_ht

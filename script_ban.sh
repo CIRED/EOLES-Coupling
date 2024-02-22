@@ -9,7 +9,7 @@
 #SBATCH --time=100:00:00
 #SBATCH --partition=cpu_shared
 #SBATCH --account=gennn
-#SBATCH --nodelist=node019
+#SBATCH --nodelist=node020
 #SBATCH --mem=MaxMemPerNode
 ## END SBATCH directives
 
@@ -17,8 +17,7 @@
 module purge
 module load anaconda3/2020.11 #cuda/10.2
 module load gurobi
-export GRB_LICENSE_FILE="/mnt/beegfs/softs/opt/core/gurobi/9.5.2/linux64/gurobi.19.lic"
+export GRB_LICENSE_FILE="/mnt/beegfs/softs/opt/core/gurobi/9.5.2/linux64/gurobi.20.lic"
 conda activate envCoupling
 
-python scenarios.py
-python main_coupling_resirf.py --cpu 8 --configdir "eoles/inputs/xps/20240222" --configref "settings_framework.json"
+python main_ban.py --cpu 20 --N 100 --montecarlo True
