@@ -233,7 +233,7 @@ def run_multiple_configs(dict_config, cpu: int, folder_to_save=None):
     except Exception as e:
         logger.exception(e)
         raise e
-    return results
+    return folder_to_save
 
 
 if __name__ == '__main__':
@@ -306,7 +306,7 @@ if __name__ == '__main__':
                                                    config_additional=config_additional, dict_configs=DICT_CONFIGS)
 
     folder_date = datetime.datetime.now().strftime("%Y%m%d")
-    results = run_multiple_configs(DICT_CONFIGS, cpu=cpu, folder_to_save=folder_date)
+    folder_to_save = run_multiple_configs(DICT_CONFIGS, cpu=cpu, folder_to_save=folder_date)
 
     # CODE to test specific subsidies
     # to add if I want to run stuff again with specific subsidies. Maybe to adapt depending on what i want to test

@@ -12,16 +12,15 @@ from pathlib import Path
 from project.write_output import plot_compare_scenarios
 
 
-
 if __name__ == '__main__':
 
     # Load data
-    scenarios = pd.read_csv(Path('eoles') / Path('inputs') / Path('xps') / Path('20240221_2') / Path('scenarios.csv'),
+    scenarios = pd.read_csv(Path('eoles') / Path('inputs') / Path('xps') / Path('20240222') / Path('scenarios.csv'),
                             index_col=0)
 
     dict_output = {}
     # list all files in a folder with path folderpath
-    folderpath = Path('eoles') / Path('outputs') / Path('20240221')
+    folderpath = Path('eoles') / Path('outputs') / Path('20240222')
     for path in folderpath.iterdir():
         if path.is_dir():
             dict_output[path.name.split('_')[1]] = path
@@ -36,7 +35,7 @@ if __name__ == '__main__':
     output = output.reindex(index=new_index)
 
     scenarios_complete = pd.concat([scenarios, output.T], axis=1)
-    scenarios_complete.to_csv(Path('eoles') / Path('outputs') / Path('20240221') / Path('scenarios_complete.csv'))
+    scenarios_complete.to_csv(folderpath / Path('scenarios_complete.csv'))
 
     # # Plots
     # sns.boxplot(data=scenarios_complete, x='learning', y='Total costs', hue='biogas')

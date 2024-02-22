@@ -1721,7 +1721,7 @@ def calibration_price(config_eoles, scc=40):
     snbc_gas_price = 23.35  # new value from AME2021
     calibration_gas = snbc_gas_price / lcoe_CH4_naturalgas_noSCC
 
-    # TODO: probleme, a modifier pour que ca remarche directement (a priori modifs de code sur les prix de l'énergie)
+    # we fix manually the calibration for gas, since we have modified the energy_prices csv file. We assume here that the initial vOM is 13.9 instead of 20.3
     calibration_gas = 1.679856
     return calibration_elec_lcoe, calibration_elec_transport_distrib, calibration_gas, m_eoles
 
