@@ -1593,7 +1593,6 @@ def update_energy_prices(inputs_dynamics, price_elec_ht, price_gas_ht, energy_ta
 
     new_energy_prices = new_energy_prices - energy_prices_wt * (1 + energy_vat_with_year) + new_prices_wt_vat  # we create new energy prices
     energy_prices.loc[start:end - 1, ["Electricity", "Natural gas"]] = new_energy_prices  # we update final values
-    print(new_energy_prices)
     # anticipated_energy_prices =  energy_prices - energy_prices_wt * (1 + energy_vat_with_year)  # we remove prices without tax, including TVA
     #
     # anticipated_energy_prices = energy_prices.loc[start:end-1, ["Electricity", "Natural gas"]]

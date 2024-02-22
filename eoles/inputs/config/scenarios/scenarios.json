@@ -8,11 +8,11 @@
       "supply" : {
         "biogas": ["reference", "Biogas-"],
         "capacity_ren": ["reference", "Ren-"],
-        "demand": ["reference", "Sufficiency", "Reindustrialisation"]
+        "demand": ["reference", "Sufficiency"]
     },
     "demand" : {
         "insulation": ["reference", "NoPolicy"],
-        "learning": ["reference", "Learning+", "Learning-"],
+        "learning": ["reference", "Learning+"],
         "elasticity": ["reference", "Elasticity-", "Elasticity+"]
     },
    "prices": {

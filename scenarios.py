@@ -64,7 +64,7 @@ def creation_scenarios(file=Path('eoles/inputs/config/scenarios/scenarios.json')
                     selected_keys_part.append(selected_keys[i * n // n_cluster: (i+1)*n // n_cluster])
 
                 cluster_part = pd.DataFrame()
-    else:
+    else:  # marginal approach
         temp, k = {}, 1
         temp.update({'S0': {'insulation': 'reference'}})
         for key, value in scenarios.items():
@@ -93,12 +93,12 @@ def creation_scenarios(file=Path('eoles/inputs/config/scenarios/scenarios.json')
                 if map_scenarios_to_configs[name_variable][0] == 'supply':
                     new_config[map_scenarios_to_configs[name_variable][1]] = deepcopy(map_values[value_variable])
                 elif map_scenarios_to_configs[name_variable][0] == 'prices':
-                    new_config[map_scenarios_to_configs[name_variable][1]] = deepcopy(map_values[value_variable])  # we just add a prices argument to the dictionary
+                    if map_scenarios_to_configs[name_variable][1] in new_config.keys():
+                        new_config[map_scenarios_to_configs[name_variable][1]]['eoles']['rate'].update(map_values[value_variable]['eoles']['rate'])  # we just add a prices argument to the dictionary
+                        new_config[map_scenarios_to_configs[name_variable][1]]['resirf']['rate'].update(map_values[value_variable]['resirf']['rate'])  # we just add a prices argument to the dictionary
+                    else:
+                        new_config[map_scenarios_to_configs[name_variable][1]] = deepcopy(map_values[value_variable])  # we just add a prices argument to the dictionary
                 elif map_scenarios_to_configs[name_variable][0] == 'demand':
-                    # if map_scenarios_to_configs[name_variable][1] == 'energy':  # we have to modify prices, which requires a specific handling of this case
-                    #     assert 'energy' in new_config.keys(), 'Energy should be a key of the configuration'
-                    #     new_config['energy']['energy_prices']['rate'].update(deepcopy(map_values[value_variable]['resirf']['rate']))  # we only modify the rate for the given scenario
-                    # else:
                     if map_scenarios_to_configs[name_variable][1] in new_config.keys():
                         new_config[map_scenarios_to_configs[name_variable][1]].update(deepcopy(map_values[value_variable]))
                     else:
@@ -122,4 +122,4 @@ def creation_scenarios(file=Path('eoles/inputs/config/scenarios/scenarios.json')
 
 
 if __name__ == '__main__':
-    folder_simu = creation_scenarios()
+    folder_simu = creation_scenarios(montecarlo=True, N=200)

@@ -49,7 +49,7 @@ DICT_CONFIG_EOLES = {
 
 
 def save_simulation_results(output, buildings, name_config_coupling, config_coupling, config_eoles, config_resirf,
-                            dict_optimizer, optimization=True, save_folder=None):
+                            dict_optimizer, optimization=True, save_folder=None, plot=False):
     """Save simulation results."""
     date = datetime.datetime.now().strftime("%m%d%H%M%S")
 
@@ -90,27 +90,28 @@ def save_simulation_results(output, buildings, name_config_coupling, config_coup
                 key_save = '_'.join(key.split('(')[0].lower().split(' ')[:-1])
                 output[key].to_csv(os.path.join(export_results, 'dataframes', f'{key_save}.csv'))
 
-        if optimization:
-            plot_blackbox_optimization(dict_optimizer, save_path=os.path.join(export_results))
+        if plot:
+            if optimization:
+                plot_blackbox_optimization(dict_optimizer, save_path=os.path.join(export_results))
 
-        buildings.path = os.path.join(export_results, "plots")
-        try:
-            logger.info(f'Config {name_config_coupling} plots not working')
-            plot_scenario(output["Output global ResIRF ()"], output["Stock global ResIRF ()"],
-                          buildings)  # make ResIRF plots
-        except:
-            pass
-
-        if not config_coupling["greenfield"]:  # si greenfield, on ne veut pas plotter l'évolution des quantités, car pas d'optimisation dynamique
+            buildings.path = os.path.join(export_results, "plots")
             try:
-                plot_simulation(output, save_path=os.path.join(export_results, "plots"))
+                plot_scenario(output["Output global ResIRF ()"], output["Stock global ResIRF ()"],
+                              buildings)  # make ResIRF plots
             except:
+                logger.info(f'Config {name_config_coupling} plots not working')
                 pass
+
+            if not config_coupling["greenfield"]:  # si greenfield, on ne veut pas plotter l'évolution des quantités, car pas d'optimisation dynamique
+                try:
+                    plot_simulation(output, save_path=os.path.join(export_results, "plots"))
+                except:
+                    pass
             # save_summary_pdf(path=export_results)  # saving summary as pdf
     return export_results, output["Output global ResIRF ()"]
 
 
-def run_scenario(config_coupling, name_config_coupling="default", save_folder=None):
+def run_scenario(config_coupling, name_config_coupling="default", save_folder=None, plot=True):
     """
     Runs an optimization scenario.
     :param config_coupling: dict
@@ -206,12 +207,12 @@ def run_scenario(config_coupling, name_config_coupling="default", save_folder=No
 
     # Save results
     export_results, output_resirf = save_simulation_results(output, buildings, name_config_coupling, config_coupling, config_eoles, config_resirf,
-                            dict_optimizer, optimization=True, save_folder=save_folder)
+                            dict_optimizer, optimization=True, save_folder=save_folder, plot=plot)
 
     return name_config_coupling, output_resirf, export_results
 
 
-def run_multiple_configs(dict_config, cpu: int, folder_to_save=None):
+def run_multiple_configs(dict_config, cpu: int, folder_to_save=None, plot=True):
     """Run multiple configs in parallel"""
     logger.info('Scenarios: {}'.format(', '.join(dict_config.keys())))
 
@@ -232,7 +233,7 @@ def run_multiple_configs(dict_config, cpu: int, folder_to_save=None):
         with Pool(cpu) as pool:
 
             results = pool.starmap(run_scenario,
-                                   zip(dict_config.values(), [n for n in dict_config.keys()], [folder_to_save] * len(dict_config)))
+                                   zip(dict_config.values(), [n for n in dict_config.keys()], [folder_to_save] * len(dict_config), [plot] * len(dict_config)))
         results_resirf = {i[0]: i[1] for i in results}
         results_general = {i[0]: i[2] for i in results}
 
@@ -316,7 +317,7 @@ if __name__ == '__main__':
         folder_date = configdir.name
     else:
         folder_date = datetime.datetime.now().strftime("%Y%m%d")
-    folder_to_save = run_multiple_configs(DICT_CONFIGS, cpu=cpu, folder_to_save=folder_date)
+    folder_to_save = run_multiple_configs(DICT_CONFIGS, cpu=cpu, folder_to_save=folder_date, plot=False)
 
     # CODE to test specific subsidies
     # to add if I want to run stuff again with specific subsidies. Maybe to adapt depending on what i want to test

@@ -255,6 +255,8 @@ def get_total_system_costs(dict_output, carbon_constraint=True, eoles=True, heal
                                                                                             eoles=eoles, year=2050, health=health)
 
                 total_system_costs_2050 = total_system_costs_2050.to_frame().rename(columns={0: name_config})
+                total_system_costs_2050 = total_system_costs_2050.drop(index='Health costs')
+                total_system_costs_2050.loc['Total costs'] = total_system_costs_2050.loc['Total costs'] / 25  # convert to annualized billion € /yr
                 total_system_costs_2050_df = pd.concat([total_system_costs_2050_df, total_system_costs_2050], axis=1)
 
                 output_resirf = output["Output global ResIRF ()"]
