@@ -2,7 +2,7 @@
   "Reference": {
     "file": "eoles/inputs/config/reference_resirf.json",
     "end": 2051,
-    "building_stock": "eoles/inputs/buildingstock_sdes2018_medium_3.csv",
+    "building_stock": "project/input/stock/buildingstock_sdes2018_medium_3.csv",
     "policies": {
       "file": "project/input/policies/policies_2024.json"
     }
