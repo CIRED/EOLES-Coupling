@@ -305,7 +305,11 @@ if __name__ == '__main__':
             DICT_CONFIGS = create_configs_coupling(list_design=list_design, config_coupling=config_coupling,
                                                    config_additional=config_additional, dict_configs=DICT_CONFIGS)
 
-    folder_date = datetime.datetime.now().strftime("%Y%m%d")
+    # capture the name of the folder to save from configdir
+    if configdir is not None:
+        folder_date = configdir.name
+    else:
+        folder_date = datetime.datetime.now().strftime("%Y%m%d")
     folder_to_save = run_multiple_configs(DICT_CONFIGS, cpu=cpu, folder_to_save=folder_date)
 
     # CODE to test specific subsidies

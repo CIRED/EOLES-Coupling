@@ -1,3 +1,5 @@
+# This script is used to assess the impact of a ban on gas boiler script with the correct arguments.
+
 import json
 from scenarios import creation_scenarios
 import subprocess
@@ -26,5 +28,6 @@ if __name__ == '__main__':
         else:
             folder_simu = creation_scenarios(N=N, montecarlo=montecarlo)
 
+    # run main_coupling_resirf.py
     command = f'python main_coupling_resirf.py --configdir {folder_simu} --cpu {cpu} --configref settings_framework.json'
     subprocess.run(command.split())

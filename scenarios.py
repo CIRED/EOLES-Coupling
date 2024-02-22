@@ -14,11 +14,14 @@ from settings_scenarios import map_values, map_scenarios_to_configs
 
 def creation_scenarios(file=Path('eoles/inputs/config/scenarios/scenarios.json'), N=100, montecarlo=False):
 
+    prefix = 'marginal'
+    if montecarlo:
+        prefix = 'montecarlo_{}'.format(N)
+
     folder_simu = Path('eoles') / Path('inputs') / Path('xps')
 
-    date = datetime.now()
-    date = date.strftime("%Y%m%d")  # formatting
-    folder_simu = folder_simu / Path(str(date))
+    time = datetime.today().strftime('%Y%m%d_%H%M%S')
+    folder_simu = folder_simu / Path('{}_{}'.format(prefix, time))
 
     folder_simu.mkdir(parents=True, exist_ok=True)
     [os.remove(f) for f in glob.glob(os.path.join(folder_simu, '*'))]
