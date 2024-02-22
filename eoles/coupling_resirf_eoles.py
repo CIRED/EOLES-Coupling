@@ -1091,22 +1091,6 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
                              existing_annualized_costs_H2=existing_annualized_costs_H2, carbon_constraint=config_coupling["carbon_constraint"],
                              discount_rate=config_coupling["discount_rate"], calibration=True)
 
-        # For debug
-        # m_eoles = ModelEOLES(name="trajectory", config=config_eoles_copy, path="eoles/outputs", logger=logger,
-        #                      hourly_heat_elec=hourly_heat_elec, hourly_heat_gas=hourly_heat_gas,
-        #                      wood_consumption=0, oil_consumption=0,
-        #                      existing_capacity=existing_capacity, existing_charging_capacity=existing_charging_capacity,
-        #                      existing_energy_capacity=existing_energy_capacity, maximum_capacity=maximum_capacity,
-        #                      method_hourly_profile="valentin",
-        #                      anticipated_social_cost_of_carbon=scc, actual_social_cost_of_carbon=scc,
-        #                      year=anticipated_year + 5, anticipated_year=anticipated_year,
-        #                      scenario_cost=None, existing_annualized_costs_elec=existing_annualized_costs_elec,
-        #                      existing_annualized_costs_CH4=existing_annualized_costs_CH4,
-        #                      existing_annualized_costs_H2=existing_annualized_costs_H2,
-        #                      existing_annualized_costs_CH4_naturalgas=annualized_costs_CH4_naturalgas,
-        #                      existing_annualized_costs_CH4_biogas=annualized_costs_CH4_biogas, carbon_constraint=False,
-        #                      discount_rate=0.032)
-
         m_eoles.build_model()
         solver_results, status, termination_condition = m_eoles.solve(solver_name="gurobi")
 
@@ -1609,7 +1593,7 @@ def update_energy_prices(inputs_dynamics, price_elec_ht, price_gas_ht, energy_ta
 
     new_energy_prices = new_energy_prices - energy_prices_wt * (1 + energy_vat_with_year) + new_prices_wt_vat  # we create new energy prices
     energy_prices.loc[start:end - 1, ["Electricity", "Natural gas"]] = new_energy_prices  # we update final values
-
+    print(new_energy_prices)
     # anticipated_energy_prices =  energy_prices - energy_prices_wt * (1 + energy_vat_with_year)  # we remove prices without tax, including TVA
     #
     # anticipated_energy_prices = energy_prices.loc[start:end-1, ["Electricity", "Natural gas"]]
@@ -1738,7 +1722,7 @@ def calibration_price(config_eoles, scc=40):
     calibration_gas = snbc_gas_price / lcoe_CH4_naturalgas_noSCC
 
     # TODO: probleme, a modifier pour que ca remarche directement (a priori modifs de code sur les prix de l'énergie)
-    calibration_gas = 1.67
+    calibration_gas = 1.679856
     return calibration_elec_lcoe, calibration_elec_transport_distrib, calibration_gas, m_eoles
 
 

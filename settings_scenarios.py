@@ -66,22 +66,14 @@ map_values_resirf = {
         "energy_prices": {
         "ini": "project/input/energy/energy_prices_wt_ame2021.csv",
         "rate": {
-          "Electricity": 0.0135,
           "Natural gas": 0.0104 * 2,
-          "Wood fuel": 0.0127,
-          "Oil fuel": 0.0173,
-          "Heating": 0.0104
         }
       }},
     'PriceWood+': {
         "energy_prices": {
             "ini": "project/input/energy/energy_prices_wt_ame2021.csv",
             "rate": {
-                "Electricity": 0.0135,
-                "Natural gas": 0.0104,
                 "Wood fuel": 0.0127 * 2,
-                "Oil fuel": 0.0173,
-                "Heating": 0.0104
             }
         }},
 }

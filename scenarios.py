@@ -16,7 +16,7 @@ N = 100
 folder_simu = Path('eoles') / Path('inputs') / Path('xps')
 
 date = datetime.now()
-date = date.strftime("%Y%m%d")  # formatting
+date = date.strftime("%Y%m%d_3")  # formatting
 folder_simu = folder_simu / Path(str(date))
 
 folder_simu.mkdir(parents=True, exist_ok=True)
@@ -38,10 +38,10 @@ scenarios_demand = {
     'insulation': ['reference', 'NoPolicy'],
     'learning': ['reference', 'Learning+', 'Learning-'],
     # 'profile': ['reference', 'ProfileFlat'],
-    'elasticity': ['reference', 'Elasticity+', 'Elasticity-'],
+    'elasticity': ['reference', 'Elasticity+'],
     'gasprices': ['reference', 'PriceGas+'],
     'woodprices': ['reference', 'PriceWood+'],
-    'cop': ['reference', 'COP+']
+    # 'cop': ['reference', 'COP+']
 }
 scenarios = {**scenarios_supply, **scenarios_demand}
 
@@ -49,24 +49,24 @@ name_scenarios, values_scenarios = zip(*scenarios.items())
 scenarios = [dict(zip(name_scenarios, v)) for v in product(*values_scenarios)]
 scenarios = {'S{}'.format(n): v for n, v in enumerate(scenarios)}
 
-# if N is not None:
-#     scenarios_counterfactual = deepcopy(scenarios)
-#     for k, v in scenarios_counterfactual.items():
-#         v.update({'ban': 'reference'})
-#
-#
-#     scenarios_ban = deepcopy(scenarios)
-#
-#     for k, v in scenarios_ban.items():
-#         v.update({'ban': 'Ban'})
-#
-#     # Randomly select N keys (knowing that 2 * N scenarios will be run)
-#     selected_keys = random.sample(list(scenarios_counterfactual), N)
-#
-#     # If you need the key-value pairs
-#     scenarios_counterfactual = {key: scenarios_counterfactual[key] for key in selected_keys}
-#     scenarios_ban = {'{}-ban'.format(key): scenarios_ban[key] for key in selected_keys}
-#     scenarios = {**scenarios_counterfactual, **scenarios_ban}
+if N is not None:
+    scenarios_counterfactual = deepcopy(scenarios)
+    for k, v in scenarios_counterfactual.items():
+        v.update({'ban': 'reference'})
+
+
+    scenarios_ban = deepcopy(scenarios)
+
+    for k, v in scenarios_ban.items():
+        v.update({'ban': 'Ban'})
+
+    # Randomly select N keys (knowing that 2 * N scenarios will be run)
+    selected_keys = random.sample(list(scenarios_counterfactual), N)
+
+    # If you need the key-value pairs
+    scenarios_counterfactual = {key: scenarios_counterfactual[key] for key in selected_keys}
+    scenarios_ban = {'{}-ban'.format(key): scenarios_ban[key] for key in selected_keys}
+    scenarios = {**scenarios_counterfactual, **scenarios_ban}
 
 path_file_config_reference = Path('eoles') / Path('inputs') / Path('config') / Path('config_coupling_reference.json')
 with open(path_file_config_reference, 'r') as file:
@@ -80,13 +80,17 @@ for name_scenario, values_scenarios in scenarios.items():  #key: 'S0', values= '
             pass
         else:
             if map_scenarios_to_configs[name_variable][0] == 'supply':
-                new_config[map_scenarios_to_configs[name_variable][1]] = deepcopy(map_values[value_variable])
-                # print(new_config)
+                # new_config[map_scenarios_to_configs[name_variable][1]] = deepcopy(map_values[value_variable])
+                print(new_config)
             elif map_scenarios_to_configs[name_variable][0] == 'demand':
-                if map_scenarios_to_configs[name_variable][1] in new_config.keys():
-                    new_config[map_scenarios_to_configs[name_variable][1]].update(deepcopy(map_values[value_variable]))
+                if map_scenarios_to_configs[name_variable][1] == 'energy':  # we have to modify prices, which requires a specific handling of this case
+                    assert 'energy' in new_config.keys(), 'Energy should be a key of the configuration'
+                    new_config['energy']['energy_prices']['rate'].update(deepcopy(map_values[value_variable]['energy_prices']['rate']))  # we only modify the rate for the given scenario
                 else:
-                    new_config[map_scenarios_to_configs[name_variable][1]] = deepcopy(map_values[value_variable])
+                    if map_scenarios_to_configs[name_variable][1] in new_config.keys():
+                        new_config[map_scenarios_to_configs[name_variable][1]].update(deepcopy(map_values[value_variable]))
+                    else:
+                        new_config[map_scenarios_to_configs[name_variable][1]] = deepcopy(map_values[value_variable])
             elif map_scenarios_to_configs[name_variable][0] == 'policies':
                 temp = deepcopy(new_config['policies'])
                 temp.update(deepcopy(map_values[value_variable]))  # we add new policy information to the existing one

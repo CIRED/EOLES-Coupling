@@ -1289,7 +1289,7 @@ def modif_config_eoles(config_eoles, config_coupling):
         config_eoles_update["maximum_capacity_evolution"] = "eoles/inputs/technology_potential/maximum_capacity_greenfield.csv"
 
     # Choice of scenario for available potential
-    assert config_coupling["eoles"]['maximum_capacity_scenario'] in ['N1', 'Opt', 'N1nuc', 'N1ren', 'N1ren2'], "Scenario for capacity evolution is not correctly specified"
+    assert config_coupling["eoles"]['maximum_capacity_scenario'] in ['N1', 'Opt', 'N1nuc', 'N1ren', 'N1ren2', 'N1offshore', 'N1pv', 'N1onshore'], "Scenario for capacity evolution is not correctly specified"
     config_eoles_update["maximum_capacity_evolution_scenario"] = config_coupling["eoles"]['maximum_capacity_scenario']
 
     assert config_coupling["eoles"]["biomass_potential_scenario"] in ["S3", "S2", "S2p", "S0"], "Biomass potential scenario is not specified correctly in config_coupling."
@@ -1516,6 +1516,9 @@ def create_configs_coupling(list_design, config_coupling: dict, config_additiona
     config_coupling_update['resirf'] = {}  # we create a dictionary for the ResIRF configuration specs
     if 'technical' in config_additional.keys():  # we modify the specification for the Res-IRF configuration
         config_coupling_update['resirf']['technical'] = config_additional['technical']
+
+    if 'energy' in config_additional.keys():  # we modify the specification for the Res-IRF configuration
+        config_coupling_update['resirf']['energy'] = config_additional['energy']
 
     if 'switch_heater' in config_additional.keys():  # we modify the specification for the Res-IRF configuration
         config_coupling_update['resirf']['switch_heater'] = config_additional['switch_heater']

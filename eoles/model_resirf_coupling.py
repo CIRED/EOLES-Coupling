@@ -920,7 +920,7 @@ def read_annual_data(config, year):
 
     o = dict()
     o["demand_H2_RTE"] = demand_H2_RTE * 1e3  # GWh
-    o["energy_prices"] = energy_prices  # € / MWh
+    o["energy_prices"] = energy_prices  # € / kWh
     o["carbon_budget"] = carbon_budget  # MtCO2eq
     o["biomass_potential"] = biomass_potential
     o["district_heating_potential"] = district_heating_potential

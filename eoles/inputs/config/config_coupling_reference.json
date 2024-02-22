@@ -19,5 +19,17 @@
     "cap_MWh": 1000,
     "cap_tCO2": 2000,
     "demand_scenario": "Reference",
-    "method_health_cost": "epc"
+    "method_health_cost": "epc",
+    "energy": {
+        "energy_prices": {
+        "ini": "project/input/energy/energy_prices_wt_ame2021.csv",
+        "rate": {
+          "Electricity": 0.0135,
+          "Natural gas": 0.0104,
+          "Wood fuel": 0.0127,
+          "Oil fuel": 0.0173,
+          "Heating": 0.0104
+        }
+      }
+    }
 }
