@@ -28,7 +28,12 @@ if __name__ == '__main__':
 
     # Process outputs
     output = get_total_system_costs(dict_output)
+    output['passed'] = output['passed'].to_frame().T.rename(index={0: 'passed'})
     output = pd.concat([output[k] for k in output.keys()], axis=0)
+    new_index = ['passed', 'Total costs']
+    # create a new index, with a reordering of output, with new_index as the first two index, and the rest following in the same order
+    new_index.extend([k for k in output.index if k not in new_index])
+    output = output.reindex(index=new_index)
 
     scenarios_complete = pd.concat([scenarios, output.T], axis=1)
     scenarios_complete.to_csv(Path('eoles') / Path('outputs') / Path('20240221') / Path('scenarios_complete.csv'))

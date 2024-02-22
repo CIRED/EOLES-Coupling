@@ -230,6 +230,7 @@ def get_total_system_costs(dict_output, carbon_constraint=True, eoles=True, heal
     total_system_costs_2050_df, total_system_costs_2030_df, total_operational_costs_2050_df = pd.DataFrame(dtype=float), pd.DataFrame(dtype=float), pd.DataFrame(dtype=float)
     stock_df, consumption_df = pd.DataFrame(dtype=float), pd.DataFrame(dtype=float)
     capacities_df, generation_df = pd.DataFrame(dtype=float), pd.DataFrame(dtype=float)
+    passed = pd.Series(dtype=float)
     for path, name_config in zip(dict_output.values(), [n for n in dict_output.keys()]):
         with open(os.path.join(path, 'coupling_results.pkl'), "rb") as file:
             output = load(file)
@@ -246,6 +247,7 @@ def get_total_system_costs(dict_output, carbon_constraint=True, eoles=True, heal
                 functionment_costs_df = functionment_costs_df.drop(columns=[2020])
 
             if 2050 in annualized_new_investment_df.columns:  # scenario passed the constraint
+                passed = pd.concat([passed, pd.Series(1, index=[name_config])])
                 total_system_costs_2050, total_operational_costs_2050 = process_total_costs(annualized_new_investment_df,
                                                                                             annualized_new_energy_capacity_df,
                                                                                             functionment_costs_df,
@@ -281,6 +283,7 @@ def get_total_system_costs(dict_output, carbon_constraint=True, eoles=True, heal
                 })
                 generation_df = pd.concat([generation_df, generation], axis=1)
             else:
+                passed = pd.concat([passed, pd.Series(0, index=[name_config])])
                 pass
                 # index = ['Investment electricity costs', 'Investment heater costs', 'Investment insulation costs', 'Functionment costs', 'Health costs', 'Total costs']
                 # # create a series with this index and only np.nan values
@@ -291,7 +294,8 @@ def get_total_system_costs(dict_output, carbon_constraint=True, eoles=True, heal
         'stock': stock_df,
         'consumption': consumption_df,
         'capacity': capacities_df,
-        'generation': generation_df
+        'generation': generation_df,
+        'passed': passed
     }
     return o
 

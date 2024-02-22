@@ -32,8 +32,8 @@ scenarios_supply = {
     'biogas': ['reference', 'Biogas-'],
     # 'capacity_nuc': ['reference', 'Nuc-'],
     'capacity_ren': ['reference', 'Ren-'],
-    'capacity_offshore': ['reference', 'Offshore-'],
-    'capacity_pv': ['reference', 'PV-'],
+    # 'capacity_offshore': ['reference', 'Offshore-'],
+    # 'capacity_pv': ['reference', 'PV-'],
     'demand': ['reference', 'Sufficiency', 'Reindustrialisation']
 }
 scenarios_demand = {
@@ -76,19 +76,21 @@ else:
                 temp['S{}'.format(k)] = {key: v}
                 k += 1
 
+    scenarios = deepcopy(temp)
+
 path_file_config_reference = Path('eoles') / Path('inputs') / Path('config') / Path('config_coupling_reference.json')
 with open(path_file_config_reference, 'r') as file:
     config_reference = json.load(file)
 
 for name_scenario, values_scenarios in scenarios.items():  #key: 'S0', values= 'biogas'
-    new_config = config_reference.copy()
+    new_config = deepcopy(config_reference)
     new_config['name_config'] = name_scenario
     for name_variable, value_variable in values_scenarios.items():  # i: 'biogas', v: 'Biogas-'
         if value_variable == 'reference':  # no modification to the configuration
             pass
         else:
             if map_scenarios_to_configs[name_variable][0] == 'supply':
-                # new_config[map_scenarios_to_configs[name_variable][1]] = deepcopy(map_values[value_variable])
+                new_config[map_scenarios_to_configs[name_variable][1]] = deepcopy(map_values[value_variable])
                 print(new_config)
             elif map_scenarios_to_configs[name_variable][0] == 'demand':
                 if map_scenarios_to_configs[name_variable][1] == 'energy':  # we have to modify prices, which requires a specific handling of this case
