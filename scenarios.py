@@ -12,7 +12,7 @@ import random
 from settings_scenarios import map_values, map_scenarios_to_configs
 
 
-def creation_scenarios(file=Path('eoles/inputs/config/scenarios/scenarios.json'), N=100, montecarlo=False):
+def creation_scenarios(file=Path('eoles/inputs/config/scenarios/scenarios.json'), N=100, montecarlo=False, n_cluster=None):
 
     prefix = 'marginal'
     if montecarlo:
@@ -55,6 +55,15 @@ def creation_scenarios(file=Path('eoles/inputs/config/scenarios/scenarios.json')
             scenarios_counterfactual = {key: scenarios_counterfactual[key] for key in selected_keys}
             scenarios_ban = {'{}-ban'.format(key): scenarios_ban[key] for key in selected_keys}
             scenarios = {**scenarios_counterfactual, **scenarios_ban}
+
+            if n_cluster is not None:  # we want to tell the cluster who processes which scenario
+                # cut selected_keys in three equal parts, which may vary by one element (if the total cannot be divided in three)
+                n = 2*len(selected_keys)
+                selected_keys_part = []
+                for i in range(n_cluster):
+                    selected_keys_part.append(selected_keys[i * n // n_cluster: (i+1)*n // n_cluster])
+
+                cluster_part = pd.DataFrame()
     else:
         temp, k = {}, 1
         temp.update({'S0': {'insulation': 'reference'}})

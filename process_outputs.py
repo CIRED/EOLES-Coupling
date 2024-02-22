@@ -37,6 +37,18 @@ if __name__ == '__main__':
     scenarios_complete = pd.concat([scenarios, output.T], axis=1)
     scenarios_complete.to_csv(folderpath / Path('scenarios_complete.csv'))
 
+    scenarios_complete['ban'] = scenarios_complete['ban'].fillna('No Ban')
+    multi_index = pd.MultiIndex.from_arrays([scenarios_complete.index.to_series().str.replace('-ban', '', regex=False), scenarios_complete['ban']], names=('Scenario', 'Ban_Status'))
+    scenarios_complete.index = multi_index
+    scenarios_complete = scenarios_complete.drop(columns='ban')
+    scenarios_complete = scenarios_complete.sort_index()
+    # scenarios_complete['Total costs'] = np.random.randn(len(scenarios_complete))
+
+    # groupby level 'Scenario' from index, and do the difference of the column 'Total costs' for the two lines involved in each groupby.
+    scenarios_complete['Total costs'] = scenarios_complete['Total costs'].groupby(level='Scenario').diff()
+    # drop if level 'Ban_Status' is 'Ban'
+    difference_costs = scenarios_complete[scenarios_complete.index.get_level_values('Ban_Status') != 'Ban']['Total costs'].droplevel('Ban_Status')
+
     # # Plots
     # sns.boxplot(data=scenarios_complete, x='learning', y='Total costs', hue='biogas')
     # plt.show()
