@@ -40,7 +40,7 @@ scenarios_demand = {
     'insulation': ['reference', 'NoPolicy'],
     'learning': ['reference', 'Learning+', 'Learning-'],
     # 'profile': ['reference', 'ProfileFlat'],
-    'elasticity': ['reference', 'Elasticity+'],
+    'elasticity': ['reference', 'Elasticity-'],
     'gasprices': ['reference', 'PriceGas+'],
     'woodprices': ['reference', 'PriceWood+'],
     # 'cop': ['reference', 'COP+']

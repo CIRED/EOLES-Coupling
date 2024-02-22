@@ -55,7 +55,7 @@ map_values_resirf = {
     'Elasticity+': {
       "scale": {
         "option": "price_elasticity",
-        "target": 1.5
+        "target": 1.2
       }
     },
     'COP+' : {"temp_sink": "project/input/technical/temp_sink_progress.csv"},
