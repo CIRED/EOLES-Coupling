@@ -9,6 +9,7 @@ import datetime
 from pickle import dump, load
 from multiprocessing import Pool
 import glob
+from shutil import copy2
 
 from project.coupling import ini_res_irf, simu_res_irf
 from project.utils import get_json
@@ -221,6 +222,11 @@ def run_multiple_configs(dict_config, cpu: int, folder_to_save=None):
         folder_to_save = Path('eoles') / Path('outputs') / Path(folder_to_save)
         if not folder_to_save.is_dir():
             folder_to_save.mkdir()
+
+        try:  # saving the scenarios.csv file in the folder to save
+            copy2(Path('eoles/inputs') / Path(folder_to_save.name) / Path('scenarios.csv'), Path('eoles') / Path('outputs') / Path(folder_date))
+        except:
+            pass
     try:
         logger.info('Launching processes')
         with Pool(cpu) as pool:

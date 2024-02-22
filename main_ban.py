@@ -5,11 +5,13 @@ from scenarios import creation_scenarios
 import subprocess
 import argparse
 from pathlib import Path
+import pandas as pd
+from shutil import copy2
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Simulate coupling.')
-    parser.add_argument("--cpu", type=int, default=3, help="CPUs for multiprocessing")
+    parser.add_argument("--cpu", type=int, default=1, help="CPUs for multiprocessing")
     parser.add_argument("--N", type=int, default=100, help="Number of scenarios if created here.")
     parser.add_argument("--montecarlo", type=bool, default=False, help="Whether to use MonteCarlo for the creation of scenarios.")
     parser.add_argument("--scenarios", type=str, default=None, help="If provided, specifies json file to use to create scenarios.")
@@ -31,3 +33,7 @@ if __name__ == '__main__':
     # run main_coupling_resirf.py
     command = f'python main_coupling_resirf.py --configdir {folder_simu} --cpu {cpu} --configref settings_framework.json'
     subprocess.run(command.split())
+
+    copy2(Path(folder_simu) / Path('scenarios.csv'), )
+    scenarios = pd.read_csv(Path(folder_simu) / Path('scenarios.csv'), index_col=0)
+    scenarios.to_csv()
