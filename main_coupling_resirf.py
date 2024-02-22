@@ -52,9 +52,6 @@ def save_simulation_results(output, buildings, name_config_coupling, config_coup
     """Save simulation results."""
     date = datetime.datetime.now().strftime("%m%d%H%M%S")
 
-    if not (Path('eoles') / Path('outputs')).is_dir():  # creation of outputs folder if nonexisting
-        os.mkdir(Path('eoles') / Path('outputs'))
-
     if save_folder is not None:
         export_results = Path(save_folder) / Path(f'{date}_{name_config_coupling}')
     else:
@@ -216,6 +213,10 @@ def run_scenario(config_coupling, name_config_coupling="default", save_folder=No
 def run_multiple_configs(dict_config, cpu: int, folder_to_save=None):
     """Run multiple configs in parallel"""
     logger.info('Scenarios: {}'.format(', '.join(dict_config.keys())))
+
+    if not (Path('eoles') / Path('outputs')).is_dir():  # creation of outputs folder if nonexisting
+        os.mkdir(Path('eoles') / Path('outputs'))
+
     if folder_to_save is not None: # we create the folder to save the results
         folder_to_save = Path('eoles') / Path('outputs') / Path(folder_to_save)
         if not folder_to_save.is_dir():
