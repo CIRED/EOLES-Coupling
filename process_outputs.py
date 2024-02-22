@@ -14,13 +14,14 @@ from project.write_output import plot_compare_scenarios
 
 if __name__ == '__main__':
 
+    folderpath = Path('eoles/outputs/marginal_20240222_154330')
+
     # Load data
-    scenarios = pd.read_csv(Path('eoles') / Path('inputs') / Path('xps') / Path('20240222') / Path('scenarios.csv'),
-                            index_col=0)
+    scenarios = pd.read_csv(folderpath / Path('scenarios.csv'), index_col=0)
 
     dict_output = {}
     # list all files in a folder with path folderpath
-    folderpath = Path('eoles') / Path('outputs') / Path('20240222')
+
     for path in folderpath.iterdir():
         if path.is_dir():
             dict_output[path.name.split('_')[1]] = path
