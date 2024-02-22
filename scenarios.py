@@ -11,6 +11,7 @@ import random
 
 from settings_scenarios import map_values, map_scenarios_to_configs
 
+
 def creation_scenarios(file=Path('eoles/inputs/config/scenarios/scenarios.json'), N=100, montecarlo=False):
 
     folder_simu = Path('eoles') / Path('inputs') / Path('xps')
@@ -37,12 +38,12 @@ def creation_scenarios(file=Path('eoles/inputs/config/scenarios/scenarios.json')
         if N is not None:
             scenarios_counterfactual = deepcopy(scenarios)
             for k, v in scenarios_counterfactual.items():
-             v.update({'ban': 'reference'})
+                v.update({'ban': 'reference'})
 
             scenarios_ban = deepcopy(scenarios)
 
             for k, v in scenarios_ban.items():
-             v.update({'ban': 'Ban'})
+                v.update({'ban': 'Ban'})
 
             # Randomly select N keys (knowing that 2 * N scenarios will be run)
             selected_keys = random.sample(list(scenarios_counterfactual), N)
@@ -52,14 +53,19 @@ def creation_scenarios(file=Path('eoles/inputs/config/scenarios/scenarios.json')
             scenarios_ban = {'{}-ban'.format(key): scenarios_ban[key] for key in selected_keys}
             scenarios = {**scenarios_counterfactual, **scenarios_ban}
     else:
-        temp, k = {}, 0
+        temp, k = {}, 1
+        temp.update({'S0': {'insulation': 'reference'}})
         for key, value in scenarios.items():
             for v in value:
                 if v != 'reference':
                     temp['S{}'.format(k)] = {key: v}
                     k += 1
+        scenarios_counterfactual = deepcopy(temp)
+        scenarios_ban = deepcopy(temp)
+        for k, v in temp.items():
+            scenarios_ban['{}-ban'.format(k)] = {**v, 'ban': 'Ban'}
 
-        scenarios = deepcopy(temp)
+        scenarios = {**scenarios_counterfactual, **scenarios_ban}
 
     path_file_config_reference = Path('eoles') / Path('inputs') / Path('config') / Path('config_coupling_reference.json')
     with open(path_file_config_reference, 'r') as file:
