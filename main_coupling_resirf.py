@@ -224,7 +224,7 @@ def run_multiple_configs(dict_config, cpu: int, folder_to_save=None):
             folder_to_save.mkdir()
 
         try:  # saving the scenarios.csv file in the folder to save
-            copy2(Path('eoles/inputs') / Path(folder_to_save.name) / Path('scenarios.csv'), Path('eoles') / Path('outputs') / Path(folder_date))
+            copy2(Path('eoles/inputs/xps') / Path(folder_to_save.name) / Path('scenarios.csv'), Path('eoles') / Path('outputs') / Path(folder_to_save.name) / Path('scenarios.csv'))
         except:
             pass
     try:
