@@ -17,6 +17,7 @@ __pycache__/
 eoles/trash/
 eoles/outputs/
 postprocessing/assessing_ban/simulations/
+eoles/inputs/xps/
 
 # Additional files
 eoles/inputs/buildingstock_sdes2018_medium_3.csv

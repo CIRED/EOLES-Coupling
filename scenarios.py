@@ -21,6 +21,9 @@ def creation_scenarios(file=Path('eoles/inputs/config/scenarios/scenarios.json')
 
     folder_simu = Path('eoles') / Path('inputs') / Path('xps')
 
+    if not folder_simu.is_dir():
+        folder_simu.mkdir()
+
     time = datetime.today().strftime('%Y%m%d_%H%M%S')
     folder_simu = folder_simu / Path('{}_{}'.format(prefix, time))
 

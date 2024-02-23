@@ -240,7 +240,7 @@ def run_multiple_configs(dict_config, cpu: int, folder_to_save=None, plot=True):
         # Compress the folder
         shutil.make_archive(folder_to_save, 'zip', root_dir=folder_to_save.parent, base_dir=folder_to_save.name)
         # Now, remove the original 'folder_to_save' directory to save space
-        shutil.rmtree(folder_to_save)
+        # shutil.rmtree(folder_to_save)
 
     except Exception as e:
         logger.exception(e)
@@ -311,7 +311,6 @@ if __name__ == '__main__':
                 if all(file_match not in file for file_match in args.exclude_patterns):
                     config_files.append(file)
 
-        print(len(config_files))
         DICT_CONFIGS = {}
         for configpath in config_files:
             configpath = Path(configpath)
