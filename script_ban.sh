@@ -20,6 +20,6 @@ module load gurobi
 export GRB_LICENSE_FILE="/mnt/beegfs/softs/opt/core/gurobi/9.5.2/linux64/gurobi.20.lic"
 conda activate envCoupling
 
-python scenarios.py -- N 100 --montecarlo True --cluster 3
+python scenarios.py --N 100 --montecarlo True --ncluster 3
 python main_coupling_resirf.py --cpu 2 --configdir 'eoles/inputs/xps/montecarlo_100_20240223_122005/' --configref 'settings_framework.json' --cluster 1
 #python main_ban.py --cpu 20 --N 100 --montecarlo True
