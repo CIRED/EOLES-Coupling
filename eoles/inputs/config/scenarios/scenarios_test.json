@@ -1,0 +1,8 @@
+{ "demand": {
+    "cop": ["reference", "COP+"],
+    "insulation_policy": ["reference", "NoPolicyInsulation"],
+    "heater_policy": ["reference", "NoPolicyHeater"]
+  },
+  "supply": {},
+  "prices": {}
+}

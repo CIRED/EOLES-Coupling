@@ -11,9 +11,11 @@
         "demand": ["reference", "Sufficiency"]
     },
     "demand" : {
-        "insulation": ["reference", "NoPolicy"],
-        "learning": ["reference", "Learning+"],
-        "elasticity": ["reference", "Elasticity-", "Elasticity+"]
+      "insulation": ["reference", "NoPolicy"],
+      "learning": ["reference", "Learning+"],
+      "elasticity": ["reference", "Elasticity-", "Elasticity+"],
+    "insulation_policy": ["reference", "NoPolicyInsulation"],
+    "heater_policy": ["reference", "NoPolicyHeater"]
     },
    "prices": {
         "gasprices": ["reference", "PriceGas+"],

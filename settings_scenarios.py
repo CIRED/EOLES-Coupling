@@ -26,6 +26,12 @@ map_values_resirf = {
     'NoPolicy':  {
         "file": "project/input/policies/policies_calibration.json"
     },
+    "NoPolicyHeater": {
+        "simple": {"no_policy_heater"}
+    },
+    "NoPolicyInsulation": {
+        "simple": {"no_policy_insulation"}
+    },
     'Learning+': {
           "technical_progress": {
             "heater": {
@@ -58,7 +64,7 @@ map_values_resirf = {
         "target": -1.5
       }
     },
-    'COP+' : {"temp_sink": "project/input/technical/temp_sink_progress.csv"},
+    'COP+': {"temp_sink": "project/input/technical/temp_sink_progress.csv"},
     'ProfileFlat': {
             "hourly_profile": "project/input/technical/hourly_profile_flat.csv"
         },
@@ -84,6 +90,10 @@ map_values_resirf = {
                 "Wood fuel": 0.0127 * 2,
             }
         }},
+    'Efficiency+hh': {
+        "efficiency": "project/input/technical/efficiency_progress.csv"
+    }
+
 }
 # concatenate the two dictionaries
 map_values = {**map_values_eoles, **map_values_resirf}
@@ -98,10 +108,13 @@ map_scenarios_to_configs = {
     'weather': ['supply', 'weather'],
     'ban': ['policies'],
     'insulation': ['policies'],
+    'policy_insulation': ['demand', 'simple'],
+    'policy_heater': ['demand', 'simple'],
     'demand': ['supply', 'demand_scenario'],
     'technical': ['demand'],
     'learning': ['demand', 'technical'],
     'cop': ['demand', 'technical'],
+    'efficiency_hh': ['demand', 'technical'],
     'profile': ['demand', 'technical'],
     'elasticity': ['demand', 'switch_heater'],
     'gasprices': ['prices', 'prices'],
