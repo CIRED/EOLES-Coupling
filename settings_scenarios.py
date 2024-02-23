@@ -93,7 +93,6 @@ map_values_resirf = {
     'Efficiency+hh': {
         "efficiency": "project/input/technical/efficiency_progress.csv"
     }
-
 }
 # concatenate the two dictionaries
 map_values = {**map_values_eoles, **map_values_resirf}
