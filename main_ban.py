@@ -17,6 +17,7 @@ if __name__ == '__main__':
     parser.add_argument("--scenarios", type=str, default=None, help="If provided, specifies json file to use to create scenarios.")
     parser.add_argument("--folder", type=str, default=None, help="If folder is provided, scenarios are not created.")
     parser.add_argument("--patterns", nargs="+", type=str, default=["*.json"], help="Patterns to filter files in the directory.")
+
     args = parser.parse_args()
     cpu = int(args.cpu)
     montecarlo = bool(args.montecarlo)

@@ -8,6 +8,7 @@ import json
 from copy import deepcopy
 import glob
 import random
+import argparse
 
 from settings_scenarios import map_values, map_scenarios_to_configs
 
@@ -56,14 +57,29 @@ def creation_scenarios(file=Path('eoles/inputs/config/scenarios/scenarios.json')
             scenarios_ban = {'{}-ban'.format(key): scenarios_ban[key] for key in selected_keys}
             scenarios = {**scenarios_counterfactual, **scenarios_ban}
 
-            if n_cluster is not None:  # we want to tell the cluster who processes which scenario
-                # cut selected_keys in three equal parts, which may vary by one element (if the total cannot be divided in three)
-                n = 2*len(selected_keys)
-                selected_keys_part = []
-                for i in range(n_cluster):
-                    selected_keys_part.append(selected_keys[i * n // n_cluster: (i+1)*n // n_cluster])
+            if n_cluster is not None:
+                n = len(scenarios)
+                scenarios_per_cluster = n // n_cluster
 
-                cluster_part = pd.DataFrame()
+                # Additional scenarios to distribute if n is not divisible by n_cluster
+                additional_scenarios = n % n_cluster
+
+                # Assign scenarios to clusters
+                cluster_assignments = {}
+                start = 0
+                for i in range(n_cluster):
+                    # Calculate end index for slicing; distribute additional scenarios among the first few clusters
+                    end = start + scenarios_per_cluster + (1 if i < additional_scenarios else 0)
+                    for key in list(scenarios.keys())[start:end]:
+                        cluster_assignments[key] = f'Cluster{i + 1}'
+                    start = end
+
+                # Create DataFrame from cluster assignments
+                cluster_assignments_df = pd.DataFrame(list(cluster_assignments.items()), columns=['Scenario', 'Cluster'])
+                cluster_assignments_df.set_index('Scenario', inplace=True)
+                assert set(cluster_assignments_df.index) == set(scenarios.keys()), "Problem when assigning scenarios to clusters"
+                cluster_assignments_df.to_csv(folder_simu / Path('cluster_assignments.csv'))
+
     else:  # marginal approach
         temp, k = {}, 1
         temp.update({'S0': {'insulation': 'reference'}})
@@ -122,4 +138,15 @@ def creation_scenarios(file=Path('eoles/inputs/config/scenarios/scenarios.json')
 
 
 if __name__ == '__main__':
-    folder_simu = creation_scenarios(montecarlo=True, N=200)
+    parser = argparse.ArgumentParser(description='Create scenarios.')
+    parser.add_argument("--N", type=int, default=100, help="Number of scenarios if created here.")
+    parser.add_argument("--montecarlo", type=bool, default=False, help="Whether to use MonteCarlo for the creation of scenarios.")
+    parser.add_argument("--ncluster", type=int, default=None, help="Number of clusters to process the Montecarlo")
+    args = parser.parse_args()
+
+    N = int(args.N)
+    montecarlo = bool(args.montecarlo)
+    n_cluster = None
+    if args.ncluster is not None:
+        n_cluster = int(args.ncluster)
+    folder_simu = creation_scenarios(montecarlo=montecarlo, N=N, n_cluster=n_cluster)

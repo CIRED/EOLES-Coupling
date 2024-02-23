@@ -237,10 +237,8 @@ def run_multiple_configs(dict_config, cpu: int, folder_to_save=None, plot=True):
         results_resirf = {i[0]: i[1] for i in results}
         results_general = {i[0]: i[2] for i in results}
 
-        zip_path = folder_to_save.with_suffix('.zip')
-
         # Compress the folder
-        shutil.make_archive(zip_path.stem, 'zip', folder_to_save.parent, folder_to_save.name)
+        shutil.make_archive(folder_to_save, 'zip', root_dir=folder_to_save.parent, base_dir=folder_to_save.name)
         # Now, remove the original 'folder_to_save' directory to save space
         shutil.rmtree(folder_to_save)
 
@@ -259,6 +257,7 @@ if __name__ == '__main__':
     parser.add_argument("--configref", type=str, help="base.json", default=None)
     parser.add_argument("--patterns", nargs="+", type=str, default=["*.json"], help="Patterns to filter files in the directory.")
     parser.add_argument("--exclude-patterns", nargs="+", type=str, default=["base.json", "settings_framework.json"],help="Patterns to exclude files.")
+    parser.add_argument("--cluster", type=int, default=None, help="Cluster assignment to process Monte-Carlo simulations.")
 
     args = parser.parse_args()
     cpu = args.cpu  # we select the config we are interested in
@@ -294,8 +293,16 @@ if __name__ == '__main__':
     if args.configdir is not None:  # we have specified a directory which contains multiple json files
         configdir = Path(args.configdir)
         assert configdir.is_dir(), "configdir argument does not correspond to an existing directory."
+
+        if args.cluster is None:
+            patterns = args.patterns
+        else:  # we have a specific assignment of scenarios to clusters
+            cluster_assignments_df = pd.read_csv(configdir / Path('cluster_assignments.csv'), index_col=0)
+            patterns = cluster_assignments_df.loc[cluster_assignments_df.Cluster == f'Cluster{int(args.cluster)}'].index.to_list()
+            patterns = [f'{pattern}.json' for pattern in patterns]
+
         config_files = []
-        for pattern in args.patterns:
+        for pattern in patterns:
             pattern_path = configdir / pattern
             matching_files = glob.glob(str(pattern_path))
 
@@ -304,6 +311,7 @@ if __name__ == '__main__':
                 if all(file_match not in file for file_match in args.exclude_patterns):
                     config_files.append(file)
 
+        print(len(config_files))
         DICT_CONFIGS = {}
         for configpath in config_files:
             configpath = Path(configpath)
