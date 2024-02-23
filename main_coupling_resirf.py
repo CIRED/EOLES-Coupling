@@ -152,7 +152,7 @@ def run_scenario(config_coupling, name_config_coupling="default", save_folder=No
     config_coupling["calibration_elec_transport_distrib"] = calibration_elec_transport_distrib
     config_coupling["calibration_naturalgas_lcoe"] = calibration_gas
     config_coupling["calibration_biogas_lcoe"] = 1.2
-    print(config_coupling["calibration_elec_lcoe"], config_coupling["calibration_elec_transport_distrib"], config_coupling["calibration_naturalgas_lcoe"])
+    # print(config_coupling["calibration_elec_lcoe"], config_coupling["calibration_elec_transport_distrib"], config_coupling["calibration_naturalgas_lcoe"])
 
     # Specification of options for optimization
     list_sub_heater, list_sub_insulation = None, None

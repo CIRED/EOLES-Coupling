@@ -14,8 +14,8 @@ from project.write_output import plot_compare_scenarios
 
 if __name__ == '__main__':
 
-    folderpath = Path('eoles/outputs/marginal_20240222_154330')
-
+    # folderpath = Path('eoles/outputs/marginal_20240222_154330')
+    folderpath = Path('postprocessing/assessing_ban/simulations/montecarlo_100_20240222_185709')
     # Load data
     scenarios = pd.read_csv(folderpath / Path('scenarios.csv'), index_col=0)
 
@@ -47,9 +47,13 @@ if __name__ == '__main__':
 
     # groupby level 'Scenario' from index, and do the difference of the column 'Total costs' for the two lines involved in each groupby.
     scenarios_complete['Total costs'] = scenarios_complete['Total costs'].groupby(level='Scenario').diff()
-    # drop if level 'Ban_Status' is 'Ban'
-    difference_costs = scenarios_complete[scenarios_complete.index.get_level_values('Ban_Status') != 'Ban']['Total costs'].droplevel('Ban_Status')
 
+    description_scenarios = scenarios_complete[scenarios.columns.drop('ban')]
+    description_scenarios = description_scenarios[description_scenarios.index.get_level_values('Ban_Status') != 'Ban'].droplevel('Ban_Status')
+    # drop if level 'Ban_Status' is 'Ban'
+    difference_costs =  - scenarios_complete[scenarios_complete.index.get_level_values('Ban_Status') != 'Ban']['Total costs'].droplevel('Ban_Status')
+
+    difference_costs = pd.concat([description_scenarios, difference_costs], axis=1)
     # # Plots
     # sns.boxplot(data=scenarios_complete, x='learning', y='Total costs', hue='biogas')
     # plt.show()
