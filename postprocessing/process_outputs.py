@@ -50,11 +50,12 @@ def parse_outputs(folderpath):
     description_scenarios = scenarios_complete[scenarios.columns.drop('ban')]
     description_scenarios = description_scenarios[description_scenarios.index.get_level_values('Ban_Status') != 'Ban'].droplevel('Ban_Status')
 
-    return scenarios_complete
-    # drop if level 'Ban_Status' is 'Ban'
     difference_costs =  - scenarios_complete[scenarios_complete.index.get_level_values('Ban_Status') != 'Ban']['Total costs'].droplevel('Ban_Status')
 
     difference_costs = pd.concat([description_scenarios, difference_costs], axis=1)
+
+    return difference_costs, scenarios_complete
+
     # # Plots
     # sns.boxplot(data=scenarios_complete, x='learning', y='Total costs', hue='biogas')
     # plt.show()
