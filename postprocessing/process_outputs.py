@@ -6,22 +6,21 @@ import os
 import pandas as pd
 pd.options.mode.chained_assignment = None  # default='warn'
 import datetime
+import sys
 
+sys.path.append("../..")
 from eoles.write_output import get_total_system_costs, comparison_simulations_new, plot_typical_week, plot_typical_demand, plot_residual_demand, colormap_simulations
 from pathlib import Path
 from project.write_output import plot_compare_scenarios
 
 
-if __name__ == '__main__':
+def parse_outputs(folderpath):
 
-    folderpath = Path('eoles/outputs/marginal_20240222_154330')
-
-    # Load data
+    # Load scenarios names
     scenarios = pd.read_csv(folderpath / Path('scenarios.csv'), index_col=0)
 
     dict_output = {}
     # list all files in a folder with path folderpath
-
     for path in folderpath.iterdir():
         if path.is_dir():
             dict_output[path.name.split('_')[1]] = path
@@ -47,8 +46,10 @@ if __name__ == '__main__':
 
     # groupby level 'Scenario' from index, and do the difference of the column 'Total costs' for the two lines involved in each groupby.
     scenarios_complete['Total costs'] = scenarios_complete['Total costs'].groupby(level='Scenario').diff()
+
+    return scenarios_complete
     # drop if level 'Ban_Status' is 'Ban'
-    difference_costs = scenarios_complete[scenarios_complete.index.get_level_values('Ban_Status') != 'Ban']['Total costs'].droplevel('Ban_Status')
+    # difference_costs = scenarios_complete[scenarios_complete.index.get_level_values('Ban_Status') != 'Ban']['Total costs'].droplevel('Ban_Status')
 
     # # Plots
     # sns.boxplot(data=scenarios_complete, x='learning', y='Total costs', hue='biogas')
