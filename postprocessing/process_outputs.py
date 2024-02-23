@@ -37,20 +37,21 @@ def parse_outputs(folderpath):
     scenarios_complete = pd.concat([scenarios, output.T], axis=1)
     scenarios_complete.to_csv(folderpath / Path('scenarios_complete.csv'))
 
-    scenarios_complete['ban'] = scenarios_complete['ban'].fillna('No Ban')
-    multi_index = pd.MultiIndex.from_arrays([scenarios_complete.index.to_series().str.replace('-ban', '', regex=False), scenarios_complete['ban']], names=('Scenario', 'Ban_Status'))
-    scenarios_complete.index = multi_index
-    scenarios_complete = scenarios_complete.drop(columns='ban')
-    scenarios_complete = scenarios_complete.sort_index()
-    # scenarios_complete['Total costs'] = np.random.randn(len(scenarios_complete))
+    difference_costs = scenarios_complete.copy()
+    difference_costs['ban'] = difference_costs['ban'].fillna('No Ban')
+    multi_index = pd.MultiIndex.from_arrays([difference_costs.index.to_series().str.replace('-ban', '', regex=False), difference_costs['ban']], names=('Scenario', 'Ban_Status'))
+    difference_costs.index = multi_index
+    difference_costs = difference_costs.drop(columns='ban')
+    difference_costs = difference_costs.sort_index()
+    # difference_costs['Total costs'] = np.random.randn(len(difference_costs))
 
     # groupby level 'Scenario' from index, and do the difference of the column 'Total costs' for the two lines involved in each groupby.
-    scenarios_complete['Total costs'] = scenarios_complete['Total costs'].groupby(level='Scenario').diff()
+    difference_costs['Total costs'] = difference_costs['Total costs'].groupby(level='Scenario').diff()
 
-    description_scenarios = scenarios_complete[scenarios.columns.drop('ban')]
+    description_scenarios = difference_costs[scenarios.columns.drop('ban')]
     description_scenarios = description_scenarios[description_scenarios.index.get_level_values('Ban_Status') != 'Ban'].droplevel('Ban_Status')
 
-    difference_costs =  - scenarios_complete[scenarios_complete.index.get_level_values('Ban_Status') != 'Ban']['Total costs'].droplevel('Ban_Status')
+    difference_costs =  - difference_costs[difference_costs.index.get_level_values('Ban_Status') != 'Ban']['Total costs'].droplevel('Ban_Status')
 
     difference_costs = pd.concat([description_scenarios, difference_costs], axis=1)
 

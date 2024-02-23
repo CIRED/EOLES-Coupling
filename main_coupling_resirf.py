@@ -9,7 +9,7 @@ import datetime
 from pickle import dump, load
 from multiprocessing import Pool
 import glob
-from shutil import copy2
+import shutil
 
 from project.coupling import ini_res_irf, simu_res_irf
 from project.utils import get_json
@@ -225,7 +225,7 @@ def run_multiple_configs(dict_config, cpu: int, folder_to_save=None, plot=True):
             folder_to_save.mkdir()
 
         try:  # saving the scenarios.csv file in the folder to save
-            copy2(Path('eoles/inputs/xps') / Path(folder_to_save.name) / Path('scenarios.csv'), Path('eoles') / Path('outputs') / Path(folder_to_save.name) / Path('scenarios.csv'))
+            shutil.copy2(Path('eoles/inputs/xps') / Path(folder_to_save.name) / Path('scenarios.csv'), Path('eoles') / Path('outputs') / Path(folder_to_save.name) / Path('scenarios.csv'))
         except:
             pass
     try:
@@ -236,6 +236,13 @@ def run_multiple_configs(dict_config, cpu: int, folder_to_save=None, plot=True):
                                    zip(dict_config.values(), [n for n in dict_config.keys()], [folder_to_save] * len(dict_config), [plot] * len(dict_config)))
         results_resirf = {i[0]: i[1] for i in results}
         results_general = {i[0]: i[2] for i in results}
+
+        zip_path = folder_to_save.with_suffix('.zip')
+
+        # Compress the folder
+        shutil.make_archive(zip_path.stem, 'zip', folder_to_save.parent, folder_to_save.name)
+        # Now, remove the original 'folder_to_save' directory to save space
+        shutil.rmtree(folder_to_save)
 
     except Exception as e:
         logger.exception(e)

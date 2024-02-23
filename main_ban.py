@@ -16,6 +16,7 @@ if __name__ == '__main__':
     parser.add_argument("--montecarlo", type=bool, default=False, help="Whether to use MonteCarlo for the creation of scenarios.")
     parser.add_argument("--scenarios", type=str, default=None, help="If provided, specifies json file to use to create scenarios.")
     parser.add_argument("--folder", type=str, default=None, help="If folder is provided, scenarios are not created.")
+    parser.add_argument("--patterns", nargs="+", type=str, default=["*.json"], help="Patterns to filter files in the directory.")
     args = parser.parse_args()
     cpu = int(args.cpu)
     montecarlo = bool(args.montecarlo)
@@ -31,5 +32,11 @@ if __name__ == '__main__':
             folder_simu = creation_scenarios(N=N, montecarlo=montecarlo)
 
     # run main_coupling_resirf.py
-    command = f'python main_coupling_resirf.py --configdir {folder_simu} --cpu {cpu} --configref settings_framework.json'
-    subprocess.run(command.split())
+    command = [
+        'python', 'main_coupling_resirf.py',
+        '--configdir', folder_simu,
+        '--cpu', str(cpu),
+        '--configref', 'settings_framework.json',
+        '--patterns', *args.patterns
+    ]
+    subprocess.run(command)
