@@ -1046,7 +1046,7 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
 
         annuity_investment_heater_cost = calculate_annuities_resirf(output_opt.loc["Investment heater WT (Billion euro)"].sum(),
                                                                     lifetime=lifetime_heater_annuity, discount_rate=config_coupling["discount_rate"])
-        annuity_investment_insulation_cost = calculate_annuities_resirf( output_opt.loc["Investment insulation WT (Billion euro)"].sum(), lifetime=lifetime_insulation_annuity,
+        annuity_investment_insulation_cost = calculate_annuities_resirf(output_opt.loc["Investment insulation WT (Billion euro)"].sum(), lifetime=lifetime_insulation_annuity,
                                                                     discount_rate=config_coupling["discount_rate"])
 
         annuity_health_cost = output_opt.loc["Health cost (Billion euro)"][end1 - 1]

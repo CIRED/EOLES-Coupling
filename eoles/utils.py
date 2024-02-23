@@ -1404,7 +1404,7 @@ def modif_config_resirf(config_resirf, config_coupling):
 
     if 'prices' in config_coupling['resirf'].keys():
         assert 'energy' in config_coupling['resirf'].keys(), 'Energy should be defined in the keys of the configuration'
-        config_coupling['resirf']['energy']['energy_prices']['rate'].update(deepcopy(config_coupling['resirf']['prices']['rate']))  # we update prices
+        config_coupling['resirf']['energy']['energy_prices']['rate'].update(deepcopy(config_coupling['resirf']['prices']['rate']))  # we update ResIRF prices
         if 'energy' in config_resirf_update.keys():  # there is already a dictionary specifying some options for energy
             for k,v in config_resirf_update['energy'].items():
                 if k in config_coupling['resirf']['energy'].keys():  # needs updating in this case
@@ -1414,17 +1414,6 @@ def modif_config_resirf(config_resirf, config_coupling):
                         config_resirf_update['energy'][k] = config_coupling['resirf']['energy'][k]
         else:  # we create the energy dictionary
             config_resirf_update['energy'] = config_coupling['resirf']['energy']
-
-    # if 'energy' in config_coupling['resirf'].keys():
-    #     if 'energy' in config_resirf_update.keys():  # there is already a dictionary specifying some options for energy
-    #         for k,v in config_resirf_update['energy'].items():
-    #             if k in config_coupling['resirf']['energy'].keys():  # needs updating in this case
-    #                 if isinstance(v, dict):
-    #                     v.update(config_coupling['resirf']['energy'][k])
-    #                 else:
-    #                     config_resirf_update['energy'][k] = config_coupling['resirf']['energy'][k]
-    #     else:  # we create the energy dictionary
-    #         config_resirf_update['energy'] = config_coupling['resirf']['energy']
 
     if 'switch_heater' in config_coupling['resirf'].keys():
         if 'switch_heater' in config_resirf_update.keys():  # there is already a dictionary specifying some options for switch_heater
@@ -1439,6 +1428,17 @@ def modif_config_resirf(config_resirf, config_coupling):
 
     if 'policies' in config_coupling.keys():
         config_resirf_update['policies'] = config_coupling['policies']
+
+    if 'simple' in config_coupling['resirf'].keys():
+        if 'simple' in config_resirf_update.keys():  # there is already a dictionary specifying some options for switch_heater
+            for k,v in config_resirf_update['simple'].items():
+                if k in config_coupling['resirf']['simple'].keys():  # needs updating in this case
+                    if isinstance(v, dict):
+                        v.update(config_coupling['resirf']['simple'][k])
+                    else:
+                        config_resirf_update['simple'][k] = config_coupling['resirf']['simple'][k]
+        else:  # we create the switch_heater dictionary
+            config_resirf_update['simple'] = config_coupling['resirf']['simple']
 
     # Modification rational behavior insulation
     config_resirf_update["renovation"] = config_reference["renovation"]
@@ -1528,11 +1528,14 @@ def create_configs_coupling(list_design, config_coupling: dict, config_additiona
 
     if 'prices' in config_additional.keys():
         config_coupling_update['resirf']['prices'] = config_additional['prices']['resirf']
-        config_coupling_update['resirf']['energy'] = config_additional['energy']  # necessary to update prices afterwards
+        config_coupling_update['resirf']['energy'] = config_additional['energy']  # information necessary to update prices afterwards in modif_config_resirf
         config_coupling_update['eoles']['prices'] = config_additional['prices']['eoles']
 
     if 'technical' in config_additional.keys():  # we modify the specification for the Res-IRF configuration
         config_coupling_update['resirf']['technical'] = config_additional['technical']
+
+    if 'simple' in config_additional.keys():
+        config_coupling_update['resirf']['simple'] = config_additional['simple']
 
     # if 'energy' in config_additional.keys():  # we modify the specification for the Res-IRF configuration
     #     config_coupling_update['resirf']['energy'] = config_additional['energy']
