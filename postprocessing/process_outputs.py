@@ -9,7 +9,7 @@ import datetime
 import sys
 
 sys.path.append("../..")
-from eoles.write_output import get_total_system_costs, comparison_simulations_new, plot_typical_week, plot_typical_demand, plot_residual_demand, colormap_simulations
+from eoles.write_output import get_main_outputs, comparison_simulations_new, plot_typical_week, plot_typical_demand, plot_residual_demand, colormap_simulations
 from pathlib import Path
 from project.write_output import plot_compare_scenarios
 
@@ -26,7 +26,7 @@ def parse_outputs(folderpath):
             dict_output[path.name.split('_')[1]] = path
 
     # Process outputs
-    output = get_total_system_costs(dict_output)
+    output = get_main_outputs(dict_output)
     output['passed'] = output['passed'].to_frame().T.rename(index={0: 'passed'})
     output = pd.concat([output[k] for k in output.keys()], axis=0)
     new_index = ['passed', 'Total costs']

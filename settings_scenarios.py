@@ -27,10 +27,10 @@ map_values_resirf = {
         "file": "project/input/policies/policies_calibration.json"
     },
     "NoPolicyHeater": {
-        "simple": {"no_policy_heater"}
+       "no_policy_heater": True
     },
     "NoPolicyInsulation": {
-        "simple": {"no_policy_insulation"}
+        "no_policy_insulation": True
     },
     'Learning+': {
           "technical_progress": {
@@ -89,10 +89,8 @@ map_values_resirf = {
             "rate": {
                 "Wood fuel": 0.0127 * 2,
             }
-        }},
-    'Efficiency+hh': {
-        "efficiency": "project/input/technical/efficiency_progress.csv"
-    }
+        }}
+
 }
 # concatenate the two dictionaries
 map_values = {**map_values_eoles, **map_values_resirf}
@@ -106,7 +104,7 @@ map_scenarios_to_configs = {
     'capacity_pv': ['supply', 'maximum_capacity_scenario'],
     'weather': ['supply', 'weather'],
     'ban': ['policies'],
-    'insulation': ['policies'],
+    'policy_mix': ['policies'],
     'policy_insulation': ['demand', 'simple'],
     'policy_heater': ['demand', 'simple'],
     'demand': ['supply', 'demand_scenario'],

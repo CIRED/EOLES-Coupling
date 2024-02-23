@@ -85,7 +85,7 @@ def creation_scenarios(file=Path('eoles/inputs/config/scenarios/scenarios.json')
 
     else:  # marginal approach
         temp, k = {}, 1
-        temp.update({'S0': {'insulation': 'reference'}})
+        temp.update({'S0': {'biogas': 'reference'}})
         for key, value in scenarios.items():
             for v in value:
                 if v != 'reference':

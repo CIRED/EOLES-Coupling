@@ -226,9 +226,9 @@ def colormap_simulations(overall_folder, config_ref, save_path=None, pdf=False, 
     return total_system_costs_2050_df
 
 
-def get_total_system_costs(dict_output, carbon_constraint=True, eoles=True, health=False):
+def get_main_outputs(dict_output, carbon_constraint=True, eoles=True, health=False):
     total_system_costs_2050_df, total_system_costs_2030_df, total_operational_costs_2050_df = pd.DataFrame(dtype=float), pd.DataFrame(dtype=float), pd.DataFrame(dtype=float)
-    stock_df, consumption_df = pd.DataFrame(dtype=float), pd.DataFrame(dtype=float)
+    stock_df, consumption_df, distributive_df = pd.DataFrame(dtype=float), pd.DataFrame(dtype=float), pd.DataFrame(dtype=float)
     capacities_df, generation_df = pd.DataFrame(dtype=float), pd.DataFrame(dtype=float)
     passed = pd.Series(dtype=float)
     for path, name_config in zip(dict_output.values(), [n for n in dict_output.keys()]):
@@ -266,6 +266,10 @@ def get_total_system_costs(dict_output, carbon_constraint=True, eoles=True, heal
                 consumption = pd.Series(output_resirf.loc[["Consumption Electricity (TWh)", "Consumption Natural gas (TWh)", "Consumption Wood fuel (TWh)"]][2049]).to_frame().rename(columns={2049: name_config})
                 consumption_df = pd.concat([consumption_df, consumption], axis=1)
 
+                distributive_index = ['Total expenditure C1 (Thousand euro/hh)', 'Ratio expenditure Single-family - Owner-occupied - C1 (%)', 'Total expenditure C1 (Billion euro)']
+                distributive = pd.Series(output_resirf.loc[distributive_index][2049]).to_frame().rename(columns={2049: name_config})
+                distributive_df = pd.concat([distributive_df, distributive], axis=1)
+
                 capacities = output["Capacities (GW)"]
                 capacities.loc["offshore"] = capacities.loc["offshore_f"] + capacities.loc["offshore_g"]
                 capacities.loc["pv"] = capacities.loc["pv_g"] + capacities.loc["pv_c"]
@@ -295,6 +299,7 @@ def get_total_system_costs(dict_output, carbon_constraint=True, eoles=True, heal
         'costs': total_system_costs_2050_df,
         'stock': stock_df,
         'consumption': consumption_df,
+        'distributive': distributive_df,
         'capacity': capacities_df,
         'generation': generation_df,
         'passed': passed
