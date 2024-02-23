@@ -2,8 +2,8 @@
     "profile": ["reference", "ProfileFlat"],
     "cop": ["reference", "COP+"],
     "capacity_nuc": ["reference", "Nuc-"],
-    "capacity_offshore": ["reference", "Offshore-"],
-    "capacity_pv": ["reference", "PV-"]
+    "capacity_pv": ["reference", "PV-"],
+  "capacity_offshore": ["reference", "Offshore-"]
 },
       "supply" : {
         "biogas": ["reference", "Biogas-"],

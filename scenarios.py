@@ -13,11 +13,13 @@ import argparse
 from settings_scenarios import map_values, map_scenarios_to_configs
 
 
-def creation_scenarios(file=Path('eoles/inputs/config/scenarios/scenarios.json'), N=100, montecarlo=False, n_cluster=None):
-
+def creation_scenarios(file=Path('eoles/inputs/config/scenarios/scenarios.json'), N=100, method='marginal', n_cluster=None):
+    assert method in ['marginal', 'montecarlo', 'exhaustive']
     prefix = 'marginal'
-    if montecarlo:
+    if method == 'montecarlo':
         prefix = 'montecarlo_{}'.format(N)
+    elif method == 'exhaustive':
+        prefix = 'exhaustive'
 
     folder_simu = Path('eoles') / Path('inputs') / Path('xps')
 
@@ -38,52 +40,7 @@ def creation_scenarios(file=Path('eoles/inputs/config/scenarios/scenarios.json')
 
     scenarios = {**scenarios['demand'], **scenarios['supply'], **scenarios['prices']}
 
-    if montecarlo:
-        name_scenarios, values_scenarios = zip(*scenarios.items())
-        scenarios = [dict(zip(name_scenarios, v)) for v in product(*values_scenarios)]
-        scenarios = {'S{}'.format(n): v for n, v in enumerate(scenarios)}
-        if N is not None:
-            scenarios_counterfactual = deepcopy(scenarios)
-            for k, v in scenarios_counterfactual.items():
-                v.update({'ban': 'reference'})
-
-            scenarios_ban = deepcopy(scenarios)
-
-            for k, v in scenarios_ban.items():
-                v.update({'ban': 'Ban'})
-
-            # Randomly select N keys (knowing that 2 * N scenarios will be run)
-            selected_keys = random.sample(list(scenarios_counterfactual), N)
-
-            # If you need the key-value pairs
-            scenarios_counterfactual = {key: scenarios_counterfactual[key] for key in selected_keys}
-            scenarios_ban = {'{}-ban'.format(key): scenarios_ban[key] for key in selected_keys}
-            scenarios = {**scenarios_counterfactual, **scenarios_ban}
-
-            if n_cluster is not None:
-                n = len(scenarios)
-                scenarios_per_cluster = n // n_cluster
-
-                # Additional scenarios to distribute if n is not divisible by n_cluster
-                additional_scenarios = n % n_cluster
-
-                # Assign scenarios to clusters
-                cluster_assignments = {}
-                start = 0
-                for i in range(n_cluster):
-                    # Calculate end index for slicing; distribute additional scenarios among the first few clusters
-                    end = start + scenarios_per_cluster + (1 if i < additional_scenarios else 0)
-                    for key in list(scenarios.keys())[start:end]:
-                        cluster_assignments[key] = f'Cluster{i + 1}'
-                    start = end
-
-                # Create DataFrame from cluster assignments
-                cluster_assignments_df = pd.DataFrame(list(cluster_assignments.items()), columns=['Scenario', 'Cluster'])
-                cluster_assignments_df.set_index('Scenario', inplace=True)
-                assert set(cluster_assignments_df.index) == set(scenarios.keys()), "Problem when assigning scenarios to clusters"
-                cluster_assignments_df.to_csv(folder_simu / Path('cluster_assignments.csv'))
-
-    else:  # marginal approach
+    if method == 'marginal':
         temp, k = {}, 1
         temp.update({'S0': {'biogas': 'reference'}})
         for key, value in scenarios.items():
@@ -97,6 +54,56 @@ def creation_scenarios(file=Path('eoles/inputs/config/scenarios/scenarios.json')
             scenarios_ban['{}-ban'.format(k)] = {**v, 'ban': 'Ban'}
 
         scenarios = {**scenarios_counterfactual, **scenarios_ban}
+    else:
+        name_scenarios, values_scenarios = zip(*scenarios.items())
+        scenarios = [dict(zip(name_scenarios, v)) for v in product(*values_scenarios)]
+        scenarios = {'S{}'.format(n): v for n, v in enumerate(scenarios)}
+
+        scenarios_counterfactual = deepcopy(scenarios)
+        for k, v in scenarios_counterfactual.items():
+            v.update({'ban': 'reference'})
+
+        scenarios_ban = deepcopy(scenarios)
+
+        for k, v in scenarios_ban.items():
+            v.update({'ban': 'Ban'})
+
+        if method == 'montecarlo':
+            assert N is not None, 'N should be provided with montecarlo method'
+            # Randomly select N keys (knowing that 2 * N scenarios will be run)
+            selected_keys = random.sample(list(scenarios_counterfactual), N)
+
+            # If you need the key-value pairs
+            scenarios_counterfactual = {key: scenarios_counterfactual[key] for key in selected_keys}
+            scenarios_ban = {'{}-ban'.format(key): scenarios_ban[key] for key in selected_keys}
+            scenarios = {**scenarios_counterfactual, **scenarios_ban}
+        else:  # method is 'exhaustive
+            scenarios_ban = {'{}-ban'.format(key): scenarios_ban[key] for key in scenarios_ban.keys()}
+            scenarios = {**scenarios_counterfactual, **scenarios_ban}
+
+        if n_cluster is not None:
+            n = len(scenarios)
+            scenarios_per_cluster = n // n_cluster
+
+            # Additional scenarios to distribute if n is not divisible by n_cluster
+            additional_scenarios = n % n_cluster
+
+            # Assign scenarios to clusters
+            cluster_assignments = {}
+            start = 0
+            for i in range(n_cluster):
+                # Calculate end index for slicing; distribute additional scenarios among the first few clusters
+                end = start + scenarios_per_cluster + (1 if i < additional_scenarios else 0)
+                for key in list(scenarios.keys())[start:end]:
+                    cluster_assignments[key] = f'Cluster{i + 1}'
+                start = end
+
+            # Create DataFrame from cluster assignments
+            cluster_assignments_df = pd.DataFrame(list(cluster_assignments.items()), columns=['Scenario', 'Cluster'])
+            cluster_assignments_df.set_index('Scenario', inplace=True)
+            assert set(cluster_assignments_df.index) == set(scenarios.keys()), "Problem when assigning scenarios to clusters"
+            cluster_assignments_df.to_csv(folder_simu / Path('cluster_assignments.csv'))
+
 
     path_file_config_reference = Path('eoles') / Path('inputs') / Path('config') / Path('config_coupling_reference.json')
     with open(path_file_config_reference, 'r') as file:
@@ -143,13 +150,13 @@ def creation_scenarios(file=Path('eoles/inputs/config/scenarios/scenarios.json')
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Create scenarios.')
     parser.add_argument("--N", type=int, default=100, help="Number of scenarios if created here.")
-    parser.add_argument("--montecarlo", type=bool, default=False, help="Whether to use MonteCarlo for the creation of scenarios.")
+    parser.add_argument("--method", type=str, default='marginal', help="Whether to use marginal, MonteCarlo or exhaustive for the creation of scenarios.")
     parser.add_argument("--ncluster", type=int, default=None, help="Number of clusters to process the Montecarlo")
     args = parser.parse_args()
 
     N = int(args.N)
-    montecarlo = bool(args.montecarlo)
+    method = str(args.method)
     n_cluster = None
     if args.ncluster is not None:
         n_cluster = int(args.ncluster)
-    folder_simu = creation_scenarios(montecarlo=montecarlo, N=N, n_cluster=n_cluster)
+    folder_simu = creation_scenarios(method=method, N=N, n_cluster=n_cluster)

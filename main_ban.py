@@ -13,14 +13,14 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Simulate coupling.')
     parser.add_argument("--cpu", type=int, default=1, help="CPUs for multiprocessing")
     parser.add_argument("--N", type=int, default=100, help="Number of scenarios if created here.")
-    parser.add_argument("--montecarlo", type=bool, default=False, help="Whether to use MonteCarlo for the creation of scenarios.")
+    parser.add_argument("--method", type=str, default='marginal', help="Whether to use marginal, MonteCarlo or exhaustive for the creation of scenarios.")
     parser.add_argument("--scenarios", type=str, default=None, help="If provided, specifies json file to use to create scenarios.")
     parser.add_argument("--folder", type=str, default=None, help="If folder is provided, scenarios are not created.")
     parser.add_argument("--patterns", nargs="+", type=str, default=["*.json"], help="Patterns to filter files in the directory.")
 
     args = parser.parse_args()
     cpu = int(args.cpu)
-    montecarlo = bool(args.montecarlo)
+    method = str(args.method)
     N = int(args.N)
 
     if args.folder is not None:
@@ -28,9 +28,9 @@ if __name__ == '__main__':
     else:
         if args.scenarios is not None:
             scenarios = Path(args.scenarios)
-            folder_simu = creation_scenarios(file=scenarios, N=N, montecarlo=montecarlo)
+            folder_simu = creation_scenarios(file=scenarios, N=N, method=method)
         else:
-            folder_simu = creation_scenarios(N=N, montecarlo=montecarlo)
+            folder_simu = creation_scenarios(N=N, method=method)
 
     # run main_coupling_resirf.py
     command = [
