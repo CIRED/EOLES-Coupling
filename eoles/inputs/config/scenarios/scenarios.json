@@ -5,8 +5,7 @@
     "capacity_offshore": ["reference", "Offshore-"],
     "woodprices": ["reference", "PriceWood+"],
     "weather": ["reference", "cold"],
-    "policy_heater": ["reference", "NoPolicyHeater"],
-    "policy_insulation": ["reference", "NoPolicyInsulation"]
+    "policy_mix": ["reference", "NoPolicy"]
 },
       "supply" : {
         "biogas": ["reference", "Biogas-"],
@@ -15,10 +14,11 @@
         "carbon_budget": ["reference", "CarbonBudget-"]
     },
     "demand" : {
-      "policy_mix": ["reference", "NoPolicy"],
       "learning": ["reference", "Learning+"],
       "elasticity": ["reference", "Elasticity-", "Elasticity+"],
-      "cop": ["reference", "COP+"]
+      "cop": ["reference", "COP+"],
+      "policy_heater": ["reference", "NoPolicyHeater"],
+      "policy_insulation": ["reference", "NoPolicyInsulation"]
     },
    "prices": {
         "gasprices": ["reference", "PriceGas+"]
