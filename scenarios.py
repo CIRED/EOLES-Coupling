@@ -10,7 +10,7 @@ import glob
 import random
 import argparse
 
-from settings_scenarios import map_values, map_scenarios_to_configs
+from settings_scenarios import map_values, map_scenarios_to_configs, map_maxi_capacity_scenario
 
 
 def creation_scenarios(file=Path('eoles/inputs/config/scenarios/scenarios.json'), N=100, method='marginal', n_cluster=None):
@@ -117,6 +117,13 @@ def creation_scenarios(file=Path('eoles/inputs/config/scenarios/scenarios.json')
                 pass
             else:
                 if map_scenarios_to_configs[name_variable][0] == 'supply':
+                    if map_scenarios_to_configs[name_variable][1] == 'maximum_capacity_scenario':
+                        if map_scenarios_to_configs[name_variable][1] in new_config.keys():
+                            assert map_values[value_variable].split('N1')[0] == '', 'Code currently not implemented for this supply scenario'
+                            new_config['maximum_capacity_scenario'] = new_config[map_scenarios_to_configs[name_variable][1]] + map_values[value_variable].split('N1')[1]
+                        else:
+                            new_config['maximum_capacity_scenario'] = deepcopy(map_values[value_variable])
+                        new_config['maximum_capacity_scenario'] = map_maxi_capacity_scenario[new_config['maximum_capacity_scenario']]  # we update the name of the scenario
                     new_config[map_scenarios_to_configs[name_variable][1]] = deepcopy(map_values[value_variable])
                 elif map_scenarios_to_configs[name_variable][0] == 'prices':
                     if map_scenarios_to_configs[name_variable][1] in new_config.keys():
