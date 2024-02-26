@@ -13,6 +13,9 @@ from eoles.write_output import get_main_outputs, comparison_simulations_new, plo
 from pathlib import Path
 from project.write_output import plot_compare_scenarios
 
+from SALib.sample import saltelli
+from SALib.analyze import sobol
+
 
 def parse_outputs(folderpath):
 
@@ -56,6 +59,43 @@ def parse_outputs(folderpath):
     difference_costs = pd.concat([description_scenarios, difference_costs], axis=1)
 
     return difference_costs, scenarios_complete
+
+
+def salib_analysis(scenarios, list_features, num_samples=500):
+
+    # transform categorical variables into numerical
+    mapping_categorical = {}
+    for col in list_features:
+        unique_values = scenarios[col].unique()
+        mapping = {unique_values[i]: i for i in range(len(unique_values))}
+        mapping_categorical[col] = mapping
+        scenarios[col] = scenarios[col].replace(mapping)
+
+    # Create a SALib configuration
+    bounds = [[0, max(mapping_categorical[col].values()) + 1] for col in list_features]
+    problem = {
+        'num_vars': len(list_features),
+        'names': list_features,
+        'bounds': bounds
+    }
+
+    # Generate samples (these will be continuous values within the bounds)
+    param_values = saltelli.sample(problem, num_samples)
+
+    param_values_categorical = np.floor(param_values).astype(int)
+    param_values_categorical = pd.DataFrame(param_values_categorical, columns=list_features)
+
+    # Sobol analysis with SALib
+    df_tot = pd.merge(param_values_categorical, scenarios, how='left', on=list_features)
+    Y = df_tot['passed'].values
+    Si = sobol.analyze(problem, Y)
+    first_order = pd.Series(Si['S1'])
+    first_order.index = list_features
+    total_order = pd.Series(Si['ST'])
+    total_order.index = list_features
+
+    sobol_salib_df = pd.DataFrame({'first_order': first_order, 'total_order': total_order})
+    return sobol_salib_df
 
     # # Plots
     # sns.boxplot(data=scenarios_complete, x='learning', y='Total costs', hue='biogas')

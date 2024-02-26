@@ -15,6 +15,21 @@ map_values_eoles = {
               'input_years': [2012]}
 }
 
+map_maxi_capacity_scenario = {
+    'N1offshoreonshore': 'N1offshoreonshore',
+    'N1onshoreoffshore': 'N1offshoreonshore',
+    'N1offshorepv': 'N1offshorepv',
+    'N1pvoffshore': 'N1offshorepv',
+    'N1onshorepv': 'N1onshorepv',
+    'N1pvonshore': 'N1onshorepv',
+    'N1offshoreonshorepv': 'N1ren',
+    'N1onshoreoffshorepv': 'N1ren',
+    'N1offshorepvonshore': 'N1ren',
+    'N1pvoffshoreonshore': 'N1ren',
+    'N1onshorepvoffshore': 'N1ren',
+    'N1pvonshoreoffshore': 'N1ren'
+}
+
 map_values_resirf = {
     'Ban': {
         "restriction_gas": {
@@ -117,3 +132,4 @@ map_scenarios_to_configs = {
     'gasprices': ['prices', 'prices'],
     'woodprices': ['prices', 'prices']
 }
+
