@@ -1,0 +1,107 @@
+{
+  "trash": {
+    "profile": [
+      "reference",
+      "ProfileFlat"
+    ],
+    "capacity_nuc": [
+      "reference",
+      "Nuc-"
+    ],
+    "capacity_pv": [
+      "reference",
+      "PV-"
+    ],
+    "capacity_offshore": [
+      "reference",
+      "Offshore-"
+    ],
+    "woodprices": [
+      "reference",
+      "PriceWood+"
+    ],
+    "weather": [
+      "reference",
+      "cold"
+    ],
+    "policy_mix": [
+      "reference",
+      "NoPolicy"
+    ]
+  },
+  "supply": {
+    "biogas": [
+      "reference",
+      "Biogas-"
+    ],
+    "capacity_ren": [
+      "reference",
+      "Ren-"
+    ],
+    "demand": [
+      "reference",
+      "Sufficiency"
+    ],
+    "carbon_budget": [
+      "reference",
+      "CarbonBudget-"
+    ],
+    "capacity_nuc": [
+      "reference",
+      "Nuc-"
+    ],
+    "capacity_pv": [
+      "reference",
+      "PV-"
+    ],
+    "capacity_offshore": [
+      "reference",
+      "Offshore-"
+    ],
+    "weather": [
+      "reference",
+      "cold"
+    ]
+  },
+  "demand": {
+    "profile": [
+      "reference",
+      "ProfileFlat"
+    ],
+    "learning": [
+      "reference",
+      "Learning+"
+    ],
+    "elasticity": [
+      "reference",
+      "Elasticity-",
+      "Elasticity+"
+    ],
+    "cop": [
+      "reference",
+      "COP+"
+    ],
+    "policy_heater": [
+      "reference",
+      "NoPolicyHeater"
+    ],
+    "policy_insulation": [
+      "reference",
+      "NoPolicyInsulation"
+    ],
+    "policy_mix": [
+      "reference",
+      "NoPolicy"
+    ]
+  },
+  "prices": {
+    "gasprices": [
+      "reference",
+      "PriceGas+"
+    ],
+    "woodprices": [
+      "reference",
+      "PriceWood+"
+    ]
+  }
+}
