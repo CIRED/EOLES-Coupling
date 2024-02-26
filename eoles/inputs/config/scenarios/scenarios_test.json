@@ -1,5 +1,4 @@
 { "demand": {
-    "cop": ["reference", "COP+"],
     "policy_heater": ["reference", "NoPolicyHeater"],
     "policy_insulation": ["reference", "NoPolicyInsulation"]
   },
