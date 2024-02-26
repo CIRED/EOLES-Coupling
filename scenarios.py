@@ -14,12 +14,14 @@ from settings_scenarios import map_values, map_scenarios_to_configs, map_maxi_ca
 
 
 def creation_scenarios(file=Path('eoles/inputs/config/scenarios/scenarios.json'), N=100, method='marginal', n_cluster=None):
-    assert method in ['marginal', 'montecarlo', 'exhaustive']
+    assert method in ['marginal', 'montecarlo', 'exhaustive', 'debug']
     prefix = 'marginal'
     if method == 'montecarlo':
         prefix = 'montecarlo_{}'.format(N)
     elif method == 'exhaustive':
         prefix = 'exhaustive'
+    elif method == 'debug':
+        prefix = 'debug'
 
     folder_simu = Path('eoles') / Path('inputs') / Path('xps')
 
@@ -54,6 +56,14 @@ def creation_scenarios(file=Path('eoles/inputs/config/scenarios/scenarios.json')
             scenarios_ban['{}-ban'.format(k)] = {**v, 'ban': 'Ban'}
 
         scenarios = {**scenarios_counterfactual, **scenarios_ban}
+    elif method == 'debug':
+        temp, k = {}, 1
+        for key, value in scenarios.items():
+            for v in value:
+                if v != 'reference':
+                    temp['S{}'.format(k)] = {key: v}
+                    k += 1
+        scenarios = deepcopy(temp)
     else:
         name_scenarios, values_scenarios = zip(*scenarios.items())
         scenarios = [dict(zip(name_scenarios, v)) for v in product(*values_scenarios)]
