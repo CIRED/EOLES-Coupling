@@ -61,7 +61,7 @@ def parse_outputs(folderpath):
     return difference_costs, scenarios_complete
 
 
-def salib_analysis(scenarios, list_features, num_samples=500):
+def salib_analysis(scenarios, list_features, y, num_samples=500):
 
     # transform categorical variables into numerical
     mapping_categorical = {}
@@ -87,15 +87,17 @@ def salib_analysis(scenarios, list_features, num_samples=500):
 
     # Sobol analysis with SALib
     df_tot = pd.merge(param_values_categorical, scenarios, how='left', on=list_features)
-    Y = df_tot['passed'].values
+    Y = df_tot[y].values
     Si = sobol.analyze(problem, Y)
     first_order = pd.Series(Si['S1'])
     first_order.index = list_features
     total_order = pd.Series(Si['ST'])
     total_order.index = list_features
 
+    second_order = pd.DataFrame(Si['S2'], index=list_features, columns=list_features    )
+
     sobol_salib_df = pd.DataFrame({'first_order': first_order, 'total_order': total_order})
-    return sobol_salib_df
+    return sobol_salib_df, second_order
 
     # # Plots
     # sns.boxplot(data=scenarios_complete, x='learning', y='Total costs', hue='biogas')
