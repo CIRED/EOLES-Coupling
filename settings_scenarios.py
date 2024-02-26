@@ -7,6 +7,7 @@ map_values_eoles = {
     'Offshore-': 'N1offshore',
     'Onshore-': 'N1onshore',
     'PV-': 'N1pv',
+    'CarbonBudget-': 'carbon_budget_low',
     'Sufficiency': 'Sobriete',
     'Reindustrialisation': 'Reindustrialisation',
     'cold': {'load_factors': 'vre_profiles_2012',
@@ -27,7 +28,8 @@ map_maxi_capacity_scenario = {
     'N1offshorepvonshore': 'N1ren',
     'N1pvoffshoreonshore': 'N1ren',
     'N1onshorepvoffshore': 'N1ren',
-    'N1pvonshoreoffshore': 'N1ren'
+    'N1pvonshoreoffshore': 'N1ren',
+    'N1ren': 'N1ren'
 }
 
 map_values_resirf = {
@@ -117,6 +119,7 @@ map_scenarios_to_configs = {
     'capacity_offshore': ['supply', 'maximum_capacity_scenario'],
     'capacity_onshore': ['supply', 'maximum_capacity_scenario'],
     'capacity_pv': ['supply', 'maximum_capacity_scenario'],
+    'carbon_budget': ['supply', 'carbon_budget'],
     'weather': ['supply', 'weather'],
     'ban': ['policies'],
     'policy_mix': ['policies'],
