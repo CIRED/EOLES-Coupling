@@ -114,3 +114,7 @@ def salib_analysis(scenarios, list_features, y, num_samples=500):
     #         axes[i].get_legend().remove()
     # plt.tight_layout()  # Adjust the layout to make sure everything fits without overlapping
     # plt.show()
+
+if __name__ == '__main__':
+    folderpath = Path('simulations/exhaustive_20240223_184702')
+    difference_costs, scenarios_complete = parse_outputs(folderpath)
