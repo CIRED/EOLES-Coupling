@@ -36,7 +36,8 @@ map_values_resirf = {
             "start": 2025,
             "end": 2051,
             "value": "Natural gas",
-            "policy": "restriction_energy"
+            "policy": "restriction_energy",
+            "variable": False
     }},
     'NoPolicy':  {
         "file": "project/input/policies/policies_calibration.json"
