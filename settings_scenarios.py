@@ -29,7 +29,13 @@ map_maxi_capacity_scenario = {
     'N1pvoffshoreonshore': 'N1ren',
     'N1onshorepvoffshore': 'N1ren',
     'N1pvonshoreoffshore': 'N1ren',
-    'N1ren': 'N1ren'
+    'N1ren': 'N1ren',
+    'Opt': 'Opt',
+    'N1nuc': 'N1nuc',
+    'N1ren2': 'N1ren2',
+    'N1offshore': 'N1offshore',
+    'N1pv': 'N1pv',
+    'N1onshore': 'N1onshore'
 }
 
 map_values_resirf = {
