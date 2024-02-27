@@ -266,7 +266,7 @@ def get_main_outputs(dict_output, carbon_constraint=True, eoles=True, health=Fal
                 consumption = pd.Series(output_resirf.loc[["Consumption Electricity (TWh)", "Consumption Natural gas (TWh)", "Consumption Wood fuel (TWh)"]][2049]).to_frame().rename(columns={2049: name_config})
                 consumption_df = pd.concat([consumption_df, consumption], axis=1)
 
-                distributive_index = ['Ratio expenditure Single-family - Owner-occupied - C1 (%)']
+                distributive_index = ['Ratio expenditure Single-family - Owner-occupied - C1 (%)', 'Energy poverty (Million)']
                 distributive = pd.Series(output_resirf.loc[distributive_index][2049]).to_frame().rename(columns={2049: name_config})
                 distributive_df = pd.concat([distributive_df, distributive], axis=1)
 

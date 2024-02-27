@@ -54,7 +54,7 @@ def parse_outputs(folderpath):
     description_scenarios = difference_costs[scenarios.columns.drop('ban')]
     description_scenarios = description_scenarios[description_scenarios.index.get_level_values('Ban_Status') != 'Ban'].droplevel('Ban_Status')
 
-    difference_costs =  - difference_costs[difference_costs.index.get_level_values('Ban_Status') != 'Ban']['Total costs'].droplevel('Ban_Status')
+    difference_costs = - difference_costs[difference_costs.index.get_level_values('Ban_Status') != 'Ban']['Total costs'].droplevel('Ban_Status')
 
     difference_costs = pd.concat([description_scenarios, difference_costs], axis=1)
 
