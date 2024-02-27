@@ -99,6 +99,29 @@ def salib_analysis(scenarios, list_features, y, num_samples=500):
     sobol_salib_df = pd.DataFrame({'first_order': first_order, 'total_order': total_order})
     return sobol_salib_df, second_order
 
+
+def manual_sobol_analysis(scenarios, list_features, y):
+    """Computes manually the Sobol indices for a given set of scenarios and a given output variable y"""
+    sobol_df = pd.DataFrame(index=list_features, columns=['first_order', 'total_order'])
+
+    expectation, variance = scenarios[y].mean(), scenarios[y].var()
+
+    for col in list_features:
+        # first order
+        conditional_means = scenarios.groupby(col)[y].mean()
+        counts = scenarios.groupby(col).size() / len(scenarios)
+        sobol_first_order = (counts * (conditional_means - expectation) ** 2).sum() / variance
+        sobol_df.loc[col, 'first_order'] = sobol_first_order
+
+        # total order
+        list_features_minus_i = list_features.copy()
+        list_features_minus_i.remove(col)
+        conditional_means = scenarios.groupby(list_features_minus_i)[y].mean()
+        counts = scenarios.groupby(list_features_minus_i).size() / len(scenarios)
+        sobol_total_order = 1 - (counts * (conditional_means - expectation) ** 2).sum() / variance
+        sobol_df.loc[col, 'total_order'] = sobol_total_order
+    return sobol_df
+
     # # Plots
     # sns.boxplot(data=scenarios_complete, x='learning', y='Total costs', hue='biogas')
     # plt.show()
