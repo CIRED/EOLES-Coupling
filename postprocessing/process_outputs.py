@@ -99,6 +99,42 @@ def salib_analysis(scenarios, list_features, y, num_samples=500):
     sobol_salib_df = pd.DataFrame({'first_order': first_order, 'total_order': total_order})
     return sobol_salib_df, second_order
 
+
+def manual_sobol_analysis(scenarios, list_features, y):
+    """Computes manually the Sobol indices for a given set of scenarios and a given output variable y"""
+    sobol_df = pd.DataFrame(index=list_features, columns=['first_order', 'total_order'])
+
+    expectation, variance = scenarios[y].mean(), scenarios[y].var()
+
+    for col in list_features:
+        # first order
+        conditional_means = scenarios.groupby(col)[y].mean()
+        counts = scenarios.groupby(col).size() / len(scenarios)
+        sobol_first_order = (counts * (conditional_means - expectation) ** 2).sum() / variance
+        sobol_df.loc[col, 'first_order'] = sobol_first_order
+
+        # total order
+        list_features_minus_i = list_features.copy()
+        list_features_minus_i.remove(col)
+        conditional_means = scenarios.groupby(list_features_minus_i)[y].mean()
+        counts = scenarios.groupby(list_features_minus_i).size() / len(scenarios)
+        sobol_total_order = 1 - (counts * (conditional_means - expectation) ** 2).sum() / variance
+        sobol_df.loc[col, 'total_order'] = sobol_total_order
+    return sobol_df
+
+
+def analysis_costs_regret(scenarios, list_features):
+    ind = scenarios.groupby('Scenario')['passed'].sum()[scenarios.groupby('Scenario')['passed'].sum() == 2].index
+    # select subset of scenarios_complete where first level of index is in ind
+    tmp = scenarios[scenarios.index.get_level_values('Scenario').isin(ind)]
+
+    tmp_costs = tmp.sort_index().groupby('Scenario')['Total costs'].diff()
+    tmp_costs = -tmp_costs[tmp_costs.index.get_level_values('Ban_Status') != 'Ban'].droplevel('Ban_Status')
+    tmp_costs = pd.concat(
+        [tmp[tmp.index.get_level_values('Ban_Status') != 'Ban'].droplevel('Ban_Status')[list_features], tmp_costs],
+        axis=1)
+    return tmp_costs
+
     # # Plots
     # sns.boxplot(data=scenarios_complete, x='learning', y='Total costs', hue='biogas')
     # plt.show()
