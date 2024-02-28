@@ -282,8 +282,20 @@ def get_main_outputs(dict_output, carbon_constraint=True, eoles=True, health=Fal
                 capacities_df = pd.concat([capacities_df, capacities], axis=1)
 
                 generation = output["Generation (TWh)"]
-                generation = pd.Series(generation.loc[['methanization', 'pyrogazification']][2050]).to_frame().rename(columns={2050: name_config})
+                generation.loc['offshore'] = generation.loc['offshore_f'] + generation.loc['offshore_g']
+                generation.loc['pv'] = generation.loc['pv_g'] + generation.loc['pv_c']
+                generation.loc['peaking plants'] = generation.loc['ocgt'] + generation.loc['ccgt'] + generation.loc['h2_ccgt']
+                generation.loc['hydro'] = generation.loc['river'] + generation.loc['lake']
+                generation.loc["battery"] = generation.loc["battery1"] + generation.loc["battery4"]
+                generation = generation.loc[['offshore', 'onshore', 'pv', 'battery', 'hydro', 'peaking plants', 'methanization', 'pyrogazification']]
+                generation = pd.Series(generation[2050]).to_frame().rename(columns={2050: name_config})
                 generation = generation.rename(index={
+                    'offshore': 'Generation offshore (TWh)',
+                    'onshore': 'Generation onshore (TWh)',
+                    'pv': 'Generation PV (TWh)',
+                    'battery': 'Generation battery (TWh)',
+                    'hydro': 'Generation hydro (TWh)',
+                    'peaking plants': 'Generation peaking plants (TWh)',
                     'methanization': 'Generation methanization (TWh)',
                     'pyrogazification': 'Generation pyrogazification (TWh)'
                 })

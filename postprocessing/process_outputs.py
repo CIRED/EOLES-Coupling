@@ -10,6 +10,8 @@ import sys
 
 sys.path.append("../..")
 from eoles.write_output import get_main_outputs, comparison_simulations_new, plot_typical_week, plot_typical_demand, plot_residual_demand, colormap_simulations
+from eoles.write_output import waterfall_chart, DICT_LEGEND_WATERFALL
+from eoles.inputs.resources import resources_data
 from pathlib import Path
 from project.write_output import plot_compare_scenarios
 
@@ -17,7 +19,9 @@ from SALib.sample import saltelli
 from SALib.analyze import sobol
 
 
-def parse_outputs(folderpath):
+def parse_outputs(folderpath, features):
+    """Parses the outputs of the simulations and creates a csv file with the results.
+    Return scenarios_complete, and output which has been processed to only include information on the difference between the Ban and the reference scenario."""
 
     # Load scenarios names
     scenarios = pd.read_csv(folderpath / Path('scenarios.csv'), index_col=0)
@@ -38,28 +42,75 @@ def parse_outputs(folderpath):
     output = output.reindex(index=new_index)
 
     scenarios_complete = pd.concat([scenarios, output.T], axis=1)
+
+    # transform how ban is handled in the dataframe
+    multi_index = pd.MultiIndex.from_arrays([scenarios_complete.index.to_series().str.replace('-ban', '', regex=False), scenarios_complete['ban']],names=('Scenario', 'Ban_Status'))
+    scenarios_complete.index = multi_index
+    scenarios_complete = scenarios_complete.drop(columns='ban')
+    scenarios_complete = scenarios_complete.sort_index()  # sort so that Ban and reference are always displayed in the same direction
+
     scenarios_complete.to_csv(folderpath / Path('scenarios_complete.csv'))
 
-    difference_costs = scenarios_complete.copy()
-    difference_costs['ban'] = difference_costs['ban'].fillna('No Ban')
-    multi_index = pd.MultiIndex.from_arrays([difference_costs.index.to_series().str.replace('-ban', '', regex=False), difference_costs['ban']], names=('Scenario', 'Ban_Status'))
-    difference_costs.index = multi_index
-    difference_costs = difference_costs.drop(columns='ban')
-    difference_costs = difference_costs.sort_index()
-    # difference_costs['Total costs'] = np.random.randn(len(difference_costs))
+    def determine_value(group):
+        # Extract 'passed' values for 'reference' and 'ban' within the group
+        passed_reference = group.xs('reference', level='Ban_Status')['passed'].iloc[0]
+        passed_ban = group.xs('Ban', level='Ban_Status')['passed'].iloc[0]
 
-    # groupby level 'Scenario' from index, and do the difference of the column 'Total costs' for the two lines involved in each groupby.
-    difference_costs['Total costs'] = difference_costs['Total costs'].groupby(level='Scenario').diff()
+        # Determine the value based on the conditions
+        if passed_reference == 1 and passed_ban == 0:
+            return 1
+        elif passed_reference == 0 and passed_ban == 1:
+            return -1
+        else:
+            return 0
 
-    description_scenarios = difference_costs[scenarios.columns.drop('ban')]
-    description_scenarios = description_scenarios[description_scenarios.index.get_level_values('Ban_Status') != 'Ban'].droplevel('Ban_Status')
+    output = scenarios_complete.groupby(level='Scenario').apply(determine_value)  # create output of interest, comparing reference and ban
+    output = output.to_frame(name='passed')
+    description_scenarios = scenarios_complete[features]
+    output = pd.concat([description_scenarios[description_scenarios.index.get_level_values('Ban_Status') != 'Ban'].droplevel('Ban_Status'), output], axis=1)
 
-    difference_costs = - difference_costs[difference_costs.index.get_level_values('Ban_Status') != 'Ban']['Total costs'].droplevel('Ban_Status')
+    # difference_costs = scenarios_complete.copy()
+    # difference_costs['ban'] = difference_costs['ban'].fillna('No Ban')
+    # multi_index = pd.MultiIndex.from_arrays([difference_costs.index.to_series().str.replace('-ban', '', regex=False), difference_costs['ban']], names=('Scenario', 'Ban_Status'))
+    # difference_costs.index = multi_index
+    # difference_costs = difference_costs.drop(columns='ban')
+    # difference_costs = difference_costs.sort_index()
+    # # difference_costs['Total costs'] = np.random.randn(len(difference_costs))
+    #
+    # # groupby level 'Scenario' from index, and do the difference of the column 'Total costs' for the two lines involved in each groupby.
+    # difference_costs['Total costs'] = difference_costs['Total costs'].groupby(level='Scenario').diff()
+    #
+    # description_scenarios = difference_costs[scenarios.columns.drop('ban')]
+    # description_scenarios = description_scenarios[description_scenarios.index.get_level_values('Ban_Status') != 'Ban'].droplevel('Ban_Status')
+    #
+    # difference_costs =  - difference_costs[difference_costs.index.get_level_values('Ban_Status') != 'Ban']['Total costs'].droplevel('Ban_Status')
+    #
+    # difference_costs = pd.concat([description_scenarios, difference_costs], axis=1)
 
-    difference_costs = pd.concat([description_scenarios, difference_costs], axis=1)
+    return scenarios_complete, output
 
-    return difference_costs, scenarios_complete
 
+def waterfall_analysis(scenarios_complete, reference='S0', save_path=None):
+    """Plots the waterfall chart to compare reference with Ban scenario."""
+    list_costs = ['Investment heater costs', 'Investment insulation costs', 'Investment electricity costs','Functionment costs', 'Total costs']
+    scenarios_complete = scenarios_complete.sort_index()  # order for estimating the difference
+    costs_diff = - scenarios_complete.xs(reference, level='Scenario')[list_costs].diff()
+    costs_diff = costs_diff.xs('reference')
+    costs_diff['Total costs'] = costs_diff['Total costs'] * 25  # we had divided total costs by 25 to have the value per year, so here we need to multiply again
+    waterfall_chart(costs_diff, colors=resources_data["colors_eoles"], rotation=0, save=save_path, format_y=lambda y, _: '{:.0f} B€'.format(y),
+                    title="Difference in total system costs", y_label=None, hline=True, dict_legend=DICT_LEGEND_WATERFALL)
+
+    # list_capacity = ['offshore', 'onshore', 'pv', 'battery', 'hydro', 'peaking plants', 'methanization', 'pyrogazification']
+    # capacity_diff = - scenarios_complete.xs(reference, level='Scenario')[list_capacity].diff()
+    # capacity_diff = capacity_diff.xs('reference')
+    # waterfall_chart(capacity_diff, colors=resources_data["colors_eoles"], rotation=0, save=save_path, format_y=lambda y, _: '{:.0f} B€'.format(y),
+    #                 title="Difference in capacity installed (GW)", y_label=None, hline=True, dict_legend=DICT_LEGEND_WATERFALL)
+    #
+    # list_generation = ['Generation offshore (TWh)', 'Generation onshore (TWh)', 'Generation pv (TWh)', 'Generation hydro (TWh)', 'Generation battery (TWh)', 'Generation peaking plants (TWh)', 'Generation methanization (TWh)', 'Generation pyrogazification (TWh)']
+    # generation_diff = - scenarios_complete.xs(reference, level='Scenario')[list_generation].diff()
+    # generation_diff = generation_diff.xs('reference')
+    # waterfall_chart(generation_diff, colors=resources_data["colors_eoles"], rotation=0, save=save_path, format_y=lambda y, _: '{:.0f} TWh'.format(y),
+    #                 title="Difference in generation (TWh)", y_label=None, hline=True, dict_legend=DICT_LEGEND_WATERFALL)
 
 def salib_analysis(scenarios, list_features, y, num_samples=500):
 
@@ -124,15 +175,14 @@ def manual_sobol_analysis(scenarios, list_features, y):
 
 
 def analysis_costs_regret(scenarios, list_features):
+    """Calculates the difference of costs between Reference and Ban scenario."""
     ind = scenarios.groupby('Scenario')['passed'].sum()[scenarios.groupby('Scenario')['passed'].sum() == 2].index
     # select subset of scenarios_complete where first level of index is in ind
     tmp = scenarios[scenarios.index.get_level_values('Scenario').isin(ind)]
 
     tmp_costs = tmp.sort_index().groupby('Scenario')['Total costs'].diff()
     tmp_costs = -tmp_costs[tmp_costs.index.get_level_values('Ban_Status') != 'Ban'].droplevel('Ban_Status')
-    tmp_costs = pd.concat(
-        [tmp[tmp.index.get_level_values('Ban_Status') != 'Ban'].droplevel('Ban_Status')[list_features], tmp_costs],
-        axis=1)
+    tmp_costs = pd.concat([tmp[tmp.index.get_level_values('Ban_Status') != 'Ban'].droplevel('Ban_Status')[list_features], tmp_costs], axis=1)
     return tmp_costs
 
     # # Plots
