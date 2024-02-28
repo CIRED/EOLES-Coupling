@@ -10,6 +10,8 @@ import sys
 
 sys.path.append("../..")
 from eoles.write_output import get_main_outputs, comparison_simulations_new, plot_typical_week, plot_typical_demand, plot_residual_demand, colormap_simulations
+from eoles.write_output import waterfall_chart, DICT_LEGEND_WATERFALL
+from eoles.inputs.resources import resources_data
 from pathlib import Path
 from project.write_output import plot_compare_scenarios
 
@@ -38,6 +40,13 @@ def parse_outputs(folderpath):
     output = output.reindex(index=new_index)
 
     scenarios_complete = pd.concat([scenarios, output.T], axis=1)
+
+    # transform how ban is handled in the dataframe
+    multi_index = pd.MultiIndex.from_arrays([scenarios_complete.index.to_series().str.replace('-ban', '', regex=False), scenarios_complete['ban']],names=('Scenario', 'Ban_Status'))
+    scenarios_complete.index = multi_index
+    scenarios_complete = scenarios_complete.drop(columns='ban')
+    scenarios_complete = scenarios_complete.sort_index()  # sort so that Ban and reference are always displayed in the same direction
+
     scenarios_complete.to_csv(folderpath / Path('scenarios_complete.csv'))
 
     difference_costs = scenarios_complete.copy()
@@ -60,6 +69,28 @@ def parse_outputs(folderpath):
 
     return difference_costs, scenarios_complete
 
+
+def waterfall_analysis(scenarios_complete, reference='S0', save_path=None):
+    """Plots the waterfall chart to compare reference with Ban scenario."""
+    list_costs = ['Investment heater costs', 'Investment insulation costs', 'Investment electricity costs','Functionment costs', 'Total costs']
+    scenarios_complete = scenarios_complete.sort_index()  # order for estimating the difference
+    costs_diff = - scenarios_complete.xs(reference, level='Scenario')[list_costs].diff()
+    costs_diff = costs_diff.xs('reference')
+    costs_diff['Total costs'] = costs_diff['Total costs'] * 25  # we had divided total costs by 25 to have the value per year, so here we need to multiply again
+    waterfall_chart(costs_diff, colors=resources_data["colors_eoles"], rotation=0, save=save_path, format_y=lambda y, _: '{:.0f} B€'.format(y),
+                    title="Difference in total system costs", y_label=None, hline=True, dict_legend=DICT_LEGEND_WATERFALL)
+
+    list_capacity = ['offshore', 'onshore', 'pv', 'battery', 'hydro', 'peaking plants', 'methanization', 'pyrogazification']
+    capacity_diff = - scenarios_complete.xs(reference, level='Scenario')[list_capacity].diff()
+    capacity_diff = capacity_diff.xs('reference')
+    waterfall_chart(capacity_diff, colors=resources_data["colors_eoles"], rotation=0, save=save_path, format_y=lambda y, _: '{:.0f} B€'.format(y),
+                    title="Difference in capacity installed (GW)", y_label=None, hline=True, dict_legend=DICT_LEGEND_WATERFALL)
+
+    list_generation = ['Generation offshore (TWh)', 'Generation onshore (TWh)', 'Generation pv (TWh)', 'Generation hydro (TWh)', 'Generation battery (TWh)', 'Generation peaking plants (TWh)', 'Generation methanization (TWh)', 'Generation pyrogazification (TWh)']
+    generation_diff = - scenarios_complete.xs(reference, level='Scenario')[list_generation].diff()
+    generation_diff = generation_diff.xs('reference')
+    waterfall_chart(generation_diff, colors=resources_data["colors_eoles"], rotation=0, save=save_path, format_y=lambda y, _: '{:.0f} TWh'.format(y),
+                    title="Difference in generation (TWh)", y_label=None, hline=True, dict_legend=DICT_LEGEND_WATERFALL)
 
 def salib_analysis(scenarios, list_features, y, num_samples=500):
 
