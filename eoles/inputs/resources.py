@@ -196,6 +196,7 @@ new_colors_eoles = {
     'pv': color_palette[8],
     'peaking plants': color_palette[5],
     'nuclear': color_palette[7],
+    'natural gas': color_palette[10],
     'hydro': color_palette[9],
     'battery': color_palette[6],
     'ocgt': color_palette[5],
@@ -204,7 +205,9 @@ new_colors_eoles = {
     'electrolysis': color_palette[10],
     'methanization': color_palette[11],
     'pyrogazification': color_palette[12],
-    'methanation': color_palette[13]
+    'methanation': color_palette[13],
+    'Oil fuel': color_palette[5],
+    'Wood fuel': color_palette[3]
 }
 
 

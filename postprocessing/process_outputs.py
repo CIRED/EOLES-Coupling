@@ -68,24 +68,8 @@ def parse_outputs(folderpath, features):
     output = output.to_frame(name='passed')
     description_scenarios = scenarios_complete[features]
     output = pd.concat([description_scenarios[description_scenarios.index.get_level_values('Ban_Status') != 'Ban'].droplevel('Ban_Status'), output], axis=1)
+    output.to_csv(folderpath / Path('scenarios_comparison.csv'))
 
-    # difference_costs = scenarios_complete.copy()
-    # difference_costs['ban'] = difference_costs['ban'].fillna('No Ban')
-    # multi_index = pd.MultiIndex.from_arrays([difference_costs.index.to_series().str.replace('-ban', '', regex=False), difference_costs['ban']], names=('Scenario', 'Ban_Status'))
-    # difference_costs.index = multi_index
-    # difference_costs = difference_costs.drop(columns='ban')
-    # difference_costs = difference_costs.sort_index()
-    # # difference_costs['Total costs'] = np.random.randn(len(difference_costs))
-    #
-    # # groupby level 'Scenario' from index, and do the difference of the column 'Total costs' for the two lines involved in each groupby.
-    # difference_costs['Total costs'] = difference_costs['Total costs'].groupby(level='Scenario').diff()
-    #
-    # description_scenarios = difference_costs[scenarios.columns.drop('ban')]
-    # description_scenarios = description_scenarios[description_scenarios.index.get_level_values('Ban_Status') != 'Ban'].droplevel('Ban_Status')
-    #
-    # difference_costs =  - difference_costs[difference_costs.index.get_level_values('Ban_Status') != 'Ban']['Total costs'].droplevel('Ban_Status')
-    #
-    # difference_costs = pd.concat([description_scenarios, difference_costs], axis=1)
 
     return scenarios_complete, output
 
@@ -97,20 +81,38 @@ def waterfall_analysis(scenarios_complete, reference='S0', save_path=None):
     costs_diff = - scenarios_complete.xs(reference, level='Scenario')[list_costs].diff()
     costs_diff = costs_diff.xs('reference')
     costs_diff['Total costs'] = costs_diff['Total costs'] * 25  # we had divided total costs by 25 to have the value per year, so here we need to multiply again
-    waterfall_chart(costs_diff, colors=resources_data["colors_eoles"], rotation=0, save=save_path, format_y=lambda y, _: '{:.0f} B€'.format(y),
+    if save_path is not None:
+        save_path_costs = save_path / Path('waterfall_costs.png')
+    else:
+        save_path_costs = None
+    waterfall_chart(costs_diff, colors=resources_data["colors_eoles"], rotation=0, save= save_path_costs, format_y=lambda y, _: '{:.0f} B€'.format(y),
                     title="Difference in total system costs", y_label=None, hline=True, dict_legend=DICT_LEGEND_WATERFALL)
 
-    # list_capacity = ['offshore', 'onshore', 'pv', 'battery', 'hydro', 'peaking plants', 'methanization', 'pyrogazification']
-    # capacity_diff = - scenarios_complete.xs(reference, level='Scenario')[list_capacity].diff()
-    # capacity_diff = capacity_diff.xs('reference')
-    # waterfall_chart(capacity_diff, colors=resources_data["colors_eoles"], rotation=0, save=save_path, format_y=lambda y, _: '{:.0f} B€'.format(y),
-    #                 title="Difference in capacity installed (GW)", y_label=None, hline=True, dict_legend=DICT_LEGEND_WATERFALL)
-    #
-    # list_generation = ['Generation offshore (TWh)', 'Generation onshore (TWh)', 'Generation pv (TWh)', 'Generation hydro (TWh)', 'Generation battery (TWh)', 'Generation peaking plants (TWh)', 'Generation methanization (TWh)', 'Generation pyrogazification (TWh)']
-    # generation_diff = - scenarios_complete.xs(reference, level='Scenario')[list_generation].diff()
-    # generation_diff = generation_diff.xs('reference')
-    # waterfall_chart(generation_diff, colors=resources_data["colors_eoles"], rotation=0, save=save_path, format_y=lambda y, _: '{:.0f} TWh'.format(y),
-    #                 title="Difference in generation (TWh)", y_label=None, hline=True, dict_legend=DICT_LEGEND_WATERFALL)
+    list_capacity = ['offshore', 'onshore', 'pv', 'battery', 'hydro', 'peaking plants', 'methanization', 'pyrogazification']
+    capacity_diff = - scenarios_complete.xs(reference, level='Scenario')[list_capacity].diff()
+    # drop values equal to 0
+    capacity_diff = capacity_diff.xs('reference')
+    capacity_diff = capacity_diff[abs(capacity_diff) > 0.1]
+    if save_path is not None:
+        save_path_capacity = save_path / Path('waterfall_capacity.png')
+    else:
+        save_path_capacity = None
+    waterfall_chart(capacity_diff, colors=resources_data["new_colors_eoles"], rotation=0, save=save_path_capacity, format_y=lambda y, _: '{:.0f} GW'.format(y),
+                    title="Difference in capacity installed (GW)", y_label=None, hline=True, total=False, unit='GW', float_precision=1, neg_offset=1.34, pos_offset=0.53)
+
+
+    list_generation = ['Generation offshore (TWh)', 'Generation onshore (TWh)', 'Generation pv (TWh)', 'Generation hydro (TWh)',
+                       'Generation battery (TWh)', 'Generation nuclear (TWh)', 'Generation natural gas (TWh)', 'Generation peaking plants (TWh)',
+                       'Generation methanization (TWh)', 'Generation pyrogazification (TWh)', 'Consumption Oil (TWh)', 'Consumption Wood (TWh)']
+    generation_diff = - scenarios_complete.xs(reference, level='Scenario')[list_generation].diff()
+    generation_diff = generation_diff.xs('reference')
+    generation_diff = generation_diff[abs(generation_diff) > 0.1]
+    if save_path is not None:
+        save_path_generation = save_path / Path('waterfall_generation.png')
+    else:
+        save_path_generation = None
+    waterfall_chart(generation_diff, colors=resources_data["new_colors_eoles"], rotation=0, save=save_path_generation, format_y=lambda y, _: '{:.0f} TWh'.format(y),
+                    title="Difference in generation (TWh)", y_label=None, hline=True, total=False, unit='TWh', float_precision=1, dict_legend=DICT_LEGEND_WATERFALL)
 
 def salib_analysis(scenarios, list_features, y, num_samples=500):
 
