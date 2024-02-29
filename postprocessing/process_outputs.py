@@ -300,6 +300,7 @@ def frequency_chart(results, category_names=None, category_colors=None, save_pat
 
     return fig, ax
 
+
 def frequency_chart_subplot(results1, results2, category_names=None, save_path=None, axis_titles=('Axis 1', 'Axis 2')):
     """
     Display survey results in two side-by-side stacked bar charts.
