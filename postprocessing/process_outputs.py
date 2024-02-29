@@ -53,8 +53,10 @@ NAME_COLUMNS = {
     'policy_heater': 'Heater policy',
     'policy_insulation': 'Insulation policy',
     'carbon_budget': 'Carbon budget'
-
 }
+
+ORDER_COLUMNS = ['policy_mix', 'policy_heater', 'policy_insulation', 'learning', 'elasticity',
+                 'cop', 'biogas', 'capacity_ren', 'demand', 'carbon_budget', 'gasprices']
 
 
 def parse_outputs(folderpath, features):
@@ -159,6 +161,7 @@ def waterfall_analysis(scenarios_complete, reference='S0', save_path=None, wood=
     waterfall_chart(generation_diff, colors=resources_data["new_colors_eoles"], rotation=0, save=save_path_generation, format_y=lambda y, _: '{:.0f} TWh'.format(y),
                     title="Difference in generation (TWh)", y_label=None, hline=True, total=False, unit='TWh', float_precision=1, dict_legend=DICT_LEGEND_WATERFALL, neg_offset=3, pos_offset=0.53)
 
+
 def salib_analysis(scenarios, list_features, y, num_samples=500):
 
     # transform categorical variables into numerical
@@ -260,6 +263,8 @@ def make_frequency_chart(df, save_path=None):
 
     df = df.replace(MAPPING)
     df = create_frequency_dict(df)
+    # order the columns with ORDER_COLUMNS
+    df = {key: df[key] for key in ORDER_COLUMNS if key in df.keys()}
     df = {NAME_COLUMNS[key]: value for key, value in df.items()}
 
     frequency_chart(df, save_path=save_path)
