@@ -181,7 +181,7 @@ def analysis_costs_regret(scenarios, list_features):
     tmp = scenarios[scenarios.index.get_level_values('Scenario').isin(ind)]
 
     tmp_costs = tmp.sort_index().groupby('Scenario')['Total costs'].diff()
-    tmp_costs = -tmp_costs[tmp_costs.index.get_level_values('Ban_Status') != 'Ban'].droplevel('Ban_Status')
+    tmp_costs = - tmp_costs[tmp_costs.index.get_level_values('Ban_Status') != 'Ban'].droplevel('Ban_Status')
     tmp_costs = pd.concat([tmp[tmp.index.get_level_values('Ban_Status') != 'Ban'].droplevel('Ban_Status')[list_features], tmp_costs], axis=1)
     return tmp_costs
 
