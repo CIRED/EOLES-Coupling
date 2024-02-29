@@ -3196,8 +3196,9 @@ def waterfall_chart(df, colors=None, rotation=0, save=None, format_y=lambda y, _
         y_positions['Total costs'] = df['Total costs']
 
         # Plot error bars dotted lines
-        ax.errorbar(x=x_positions, y=y_positions, yerr=errors, fmt='none', ecolor='darkgrey', elinewidth=2, capsize=5,
-                    capthick=2, ls='--')
+        eb = ax.errorbar(x=x_positions, y=y_positions, yerr=errors, fmt='none', ecolor='black', elinewidth=2, capsize=5,
+                    capthick=2)
+        eb[-1][0].set_linestyle('--')
 
     y_height = df.cumsum().shift(1).fillna(0)
     max = df.max()
