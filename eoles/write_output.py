@@ -164,8 +164,6 @@ def colormap_simulations(overall_folder, config_ref, save_path=None, pdf=False, 
                 else:
                     configuration =  new_configuration
 
-
-
                 with open(Path(overall_folder) /Path(subfolder) / Path('coupling_results.pkl'), "rb") as file:
                     output = load(file)
                     # Total system costs
@@ -342,6 +340,7 @@ def get_main_outputs(dict_output, carbon_constraint=True, eoles=True, health=Fal
         'passed': passed
     }
     return o
+
 
 def comparison_simulations_new(dict_output: dict, ref, greenfield=False, health=False, x_min=0, x_max=None, y_min=0, y_max=None,
                            rotation=90, save_path=None, pdf=False, carbon_constraint=True, percent=False, eoles=True,
@@ -1294,7 +1293,6 @@ def plot_comparison_savings(df, x, y, save, col_for_size, format_y=lambda y, _: 
         ax.get_legend().remove()
 
     save_fig(fig, save=save)
-
 
 
 def comparison_simulations(dict_output: dict, ref, greenfield=False, health=False, x_min=0, x_max=None, y_min=0, y_max=None,
@@ -2342,6 +2340,7 @@ def plot_residual_demand(hourly_generation, date_start, date_end, climate=2006, 
 
     save_fig(fig, save=save_path)
 
+
 def plot_typical_demand(hourly_generation, date_start, date_end, climate=2006, save_path=None,
                       y_min=None, y_max=None, x_min=None, x_max=None):
     hourly_generation_subset = hourly_generation.copy()
@@ -2431,6 +2430,7 @@ def plot_load_profile(hourly_generation1, hourly_generation2, date_start, date_e
     # ax.get_legend().remove()
 
     save_fig(fig, save=save_path)
+
 
 def plot_typical_week(hourly_generation, date_start, date_end, climate=2006, methane=True, hydrogen=False, save_path=None,
                       y_min=None, y_max=None, x_min=None, x_max=None):
@@ -2882,6 +2882,7 @@ def colormap(df, custom_cmap=None, format_y=lambda y, _: '{:.0f}'.format(y), sav
 
     save_fig(fig, save=save)
 
+
 def make_clusterstackedbar_plot(df, groupby, y_label, subset=None, colors=None, format_y=lambda y, _: '{:.0f}'.format(y), save=None,
                                 rotation=0, display_title=True, dict_legend=None, scatter=None, ref=None, drop=False, hline=False, ranking_exogenous_scenario=None,
                                 ranking_policy_scenario=None, legend_loc='lower', reorder_labels=False):
@@ -3160,12 +3161,18 @@ def plot_blackbox_optimization(dict_optimizer, save_path, two_stage_optim=False)
 
 
 def waterfall_chart(df, colors=None, rotation=0, save=None, format_y=lambda y, _: '{:.0f}'.format(y), title=None,
-                    y_label=None, hline=False, dict_legend=None, total=True, unit='B€', float_precision=0, neg_offset=None, pos_offset=None):
+                    y_label=None, hline=False, dict_legend=None, total=True, unit='B€', float_precision=0, neg_offset=None,
+                    pos_offset=None, df_max=None, df_min=None):
     if isinstance(df, pd.DataFrame):
         df = df.squeeze()
     if dict_legend is not None:
         new_index = {e: dict_legend[e] if e in dict_legend.keys() else e for e in df.index}
         df = df.rename(new_index)
+        if df_max is not None:
+            df_max = df_max.rename(new_index)
+        if df_min is not None:
+            df_min = df_min.rename(new_index)
+
     blank = df.cumsum().shift(1).fillna(0)  # will be used as start point for the bar plot
     if total:
         blank[-1] = 0  # we display the total at the end
@@ -3175,6 +3182,19 @@ def waterfall_chart(df, colors=None, rotation=0, save=None, format_y=lambda y, _
         df.plot(kind='bar', stacked=True, bottom=blank, title=None, ax=ax, color=[colors[i] for i in df.index])
     else:
         df.plot(kind='bar', stacked=True, bottom=blank, title=None, ax=ax)
+
+    # Calculate and plot error bars if df_min and df_max are provided
+    if df_min is not None and df_max is not None:
+        # Calculate error margins
+        errors_positive = df_max.squeeze() - df
+        errors_negative = df - df_min.squeeze()
+        errors = [errors_negative, errors_positive]
+
+        # The x positions for the error bars
+        x_positions = range(len(df))
+
+        # Plot error bars
+        ax.errorbar(x=x_positions, y=df.cumsum(), yerr=errors, fmt='none', ecolor='darkgrey', elinewidth=2, capsize=5, capthick=2)
 
     y_height = df.cumsum().shift(1).fillna(0)
     max = df.max()
@@ -3239,7 +3259,6 @@ def waterfall_chart(df, colors=None, rotation=0, save=None, format_y=lambda y, _
     if hline:
         ax.axhline(y=0, c='black')
 
-
     # if legend_loc == 'lower':
     #     fig.legend(handles, labels, loc='lower center', frameon=False, ncol=3,
     #                bbox_to_anchor=(0.5, -0.1))
@@ -3251,6 +3270,7 @@ def waterfall_chart(df, colors=None, rotation=0, save=None, format_y=lambda y, _
     ax.tick_params(axis='both', which='major', labelsize=18)
 
     save_fig(fig, save=save)
+
 
 def plot_ldmi_method(channel, CO2, start, end, colors=None, rotation=0, save=None, format_y=lambda y, _: '{:.0f}'.format(y),
                      title=None, y_label="Emissions "):

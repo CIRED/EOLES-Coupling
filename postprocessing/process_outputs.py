@@ -131,7 +131,8 @@ def waterfall_analysis(scenarios_complete, reference='S0', save_path=None, wood=
     else:
         save_path_costs = None
     waterfall_chart(costs_diff, colors=resources_data["colors_eoles"], rotation=0, save= save_path_costs, format_y=lambda y, _: '{:.0f} B€'.format(y),
-                    title="Additional system costs when Ban is implemented (B€)", y_label=None, hline=True, dict_legend=DICT_LEGEND_WATERFALL)
+                    title="Additional system costs when Ban is implemented (B€)", y_label=None, hline=True, dict_legend=DICT_LEGEND_WATERFALL,
+                    df_max=None, df_min=None)
 
     list_capacity = ['offshore', 'onshore', 'pv', 'battery', 'hydro', 'peaking plants', 'methanization', 'pyrogazification']
     capacity_diff = - scenarios_complete.xs(reference, level='Scenario')[list_capacity].diff()
@@ -276,6 +277,20 @@ def make_frequency_chart(df, save_path=None):
     frequency_chart(df, save_path=save_path)
 
 
+def make_frequency_chart_subplots(df1, df2, folder_name):
+
+    df1 = df1.replace(MAPPING)
+    df1 = create_frequency_dict(df1)
+    df1 = {NAME_COLUMNS[key]: value for key, value in df1.items()}
+
+    df2 = df2.replace(MAPPING)
+    df2 = create_frequency_dict(df2)
+    df2 = {NAME_COLUMNS[key]: value for key, value in df2.items()}
+
+    frequency_chart_subplot(df1, df2, save_path=folder_name / Path('total_cost_parameters.png'),
+                            axis_titles=('Total system cost with ban is lower', 'Total system cost without ban is lower'))
+
+
 def frequency_chart(results, category_names=None, category_colors=None, save_path=None):
     """
     Parameters
@@ -303,7 +318,6 @@ def frequency_chart(results, category_names=None, category_colors=None, save_pat
     ax.xaxis.set_visible(False)
     ax.set_xlim(0, np.sum(data, axis=1).max())
 
-
     for i, (colname, color) in enumerate(zip(category_names, category_colors)):
         widths = data[:, i]
         starts = data_cum[:, i] - widths
@@ -321,6 +335,7 @@ def frequency_chart(results, category_names=None, category_colors=None, save_pat
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
     ax.spines['left'].set_visible(False)
+    ax.spines['bottom'].set_visible(False)
 
     if save_path:
         plt.savefig(save_path, bbox_inches='tight')
@@ -347,7 +362,7 @@ def frequency_chart_subplot(results1, results2, category_names=None, save_path=N
         category_names = ['Low', 'Reference', 'High']
 
     category_colors = ['#f6511d', '#ffb400', '#00a6ed']
-    fig, axs = plt.subplots(1, 2, figsize=(18, 5), sharey=True)  # Share Y axis
+    fig, axs = plt.subplots(1, 2, figsize=(14, 9.6), sharey=True)  # Share Y axis
 
     for ax_idx, (ax, results, axis_title) in enumerate(zip(axs, [results1, results2], axis_titles)):
         question_labels = list(results.keys())
@@ -374,6 +389,7 @@ def frequency_chart_subplot(results1, results2, category_names=None, save_path=N
         ax.spines['top'].set_visible(False)
         ax.spines['right'].set_visible(False)
         ax.spines['left'].set_visible(False)
+        ax.spines['bottom'].set_visible(False)
 
         ax.xaxis.set_visible(False)
 
@@ -421,10 +437,12 @@ def horizontal_stack_bar_plot(df, columns=None, title=None, order=None, save_pat
     n_cols = len(columns)
     bar_width = 0.8 / n_cols  # Adjust bar width based on number of columns
     y_positions = np.arange(n_rows)
+    fig, ax = plt.subplots(1, 1, figsize=(14, 9.6))
 
     # Plot each column
     for i, col in enumerate(columns):
-        plt.barh(y_positions - 0.4 + (i + 0.5) * bar_width, df[col], height=bar_width, label=col)
+        plt.barh(y_positions - 0.4 + (i + 0.5) * bar_width, df[col], height=bar_width, label=col,
+                 ax=ax)
 
     # Set the y-ticks to use the index of the DataFrame
     plt.yticks(y_positions, df.index)
@@ -505,6 +523,7 @@ def histogram_plot(df, variable, binrange=None, title=None, save_path=None, xlab
 
     # Show the plot
     plt.show()
+
 
 if __name__ == '__main__':
     folderpath = Path('/mnt/beegfs/workdir/celia.escribe/eoles2/eoles/outputs/exhaustive_20240226_202408')  # for cluster use
