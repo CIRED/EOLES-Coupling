@@ -23,6 +23,8 @@ from eoles.inputs.resources import resources_data
 
 from project.write_output import plot_compare_scenarios
 
+from matplotlib.ticker import PercentFormatter
+
 from SALib.sample import saltelli
 from SALib.analyze import sobol
 
@@ -433,7 +435,6 @@ def horizontal_stack_bar_plot(df, columns=None, title=None, order=None, save_pat
     plt.tick_params(axis='both', which='major', labelsize=12)
     # size of title
 
-
     # Remove the x-axis and y-axis titles
     plt.xlabel('')
     plt.ylabel('')
@@ -447,6 +448,57 @@ def horizontal_stack_bar_plot(df, columns=None, title=None, order=None, save_pat
 
     if save_path:
         plt.savefig(save_path, bbox_inches='tight')
+
+    # Show the plot
+    plt.show()
+
+
+def histogram_plot(df, variable, binrange=None, title=None, save_path=None, xlabel=None):
+    """
+    Plots a histogram of the 'total_costs' column in 'df', adjusting values outside a specified range.
+
+    Examples: plot_adjusted_histogram(costs_regret, 'Total costs', binrange = (-5, 2),
+        title='Distribution of additional system costs when Ban is implemented (B€/year)',
+        xlabel='Additional system costs (B€/year)', save_path=folder_name / Path('histogram_cost_regret.png'))
+
+    Parameters:
+    - df: DataFrame containing the data.
+    - total_costs: The name of the column in 'df' to plot.
+    - title: Optional; the title of the plot.
+    """
+    # Copy the DataFrame to avoid modifying the original
+    temp = df.copy()
+
+    if binrange is not None:
+        # Adjust 'total_costs' values outside the specified range
+        temp.loc[temp[variable] < binrange[0], variable] = binrange[0]
+        temp.loc[temp[variable] > binrange[1], variable] = binrange[1]
+
+    # Plotting
+    sns.histplot(data=temp, x=variable, stat="proportion", binrange=binrange)
+
+    # Set title if provided
+    if title:
+        plt.title(title, fontsize=14, fontweight='bold', loc='left')
+
+    # Customize as needed (e.g., labels)
+    if xlabel is not None:
+        plt.xlabel(xlabel, fontsize=12)
+    else:
+        plt.xlabel('')
+    plt.ylabel('')
+
+    # Hide the top, right, and left spines
+    plt.gca().spines['top'].set_visible(False)
+    plt.gca().spines['right'].set_visible(False)
+    plt.gca().spines['left'].set_visible(False)
+
+    plt.tick_params(axis='both', which='major', labelsize=12)
+    plt.gca().yaxis.set_major_formatter(PercentFormatter(1, 0))
+
+    if save_path:
+        plt.savefig(save_path, bbox_inches='tight')
+
 
     # Show the plot
     plt.show()
