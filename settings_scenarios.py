@@ -13,7 +13,8 @@ map_values_eoles = {
     'cold': {'load_factors': 'vre_profiles_2012',
               'lake_inflows': 'lake_2012',
               'nb_years': 1,
-              'input_years': [2012]}
+              'input_years': [2012]},
+    'NoCarbonConstraint': False
 }
 
 map_maxi_capacity_scenario = {
@@ -128,6 +129,7 @@ map_scenarios_to_configs = {
     'capacity_pv': ['supply', 'maximum_capacity_scenario'],
     'carbon_budget': ['supply', 'carbon_budget'],
     'weather': ['supply', 'weather'],
+    'carbon_constraint': ['supply', 'carbon_constraint'],
     'ban': ['policies'],
     'policy_mix': ['policies'],
     'policy_insulation': ['demand', 'simple'],

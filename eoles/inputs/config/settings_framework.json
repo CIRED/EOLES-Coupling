@@ -19,11 +19,11 @@
     ],
     "list_trajectory_scc": [
         0,
-        250,
-        350,
-        500,
-        650,
-        775
+        0,
+        0,
+        0,
+        0,
+        0
     ],
     "eoles": {
         "biomass_potential_scenario": "S3",

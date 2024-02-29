@@ -1301,11 +1301,6 @@ def modif_config_eoles(config_eoles, config_coupling):
     if 'prices' in config_coupling['eoles'].keys():
         config_eoles_update['energy_prices']['rate'].update(config_coupling['eoles']['prices']['rate'])
 
-    # if 'energy' in config_coupling['resirf'].keys():  # we also need to modify EOLES configuration file
-    #     new_rate = config_coupling['resirf']['energy']['eoles']['rate']
-    #     config_eoles_update['energy_prices']['rate'].update(new_rate)  # we modify growth rate for eoles as well
-    #     print(config_eoles_update['energy_prices'])
-
     if 'costs_supply' in config_coupling['eoles'].keys():  # we modify the costs of supply
         if 'storage_capex_variant' in config_coupling['eoles']['costs_supply'].keys():  # variant for some technologies
             config_eoles_update["storage_capex_variant"] = config_coupling['eoles']['costs_supply']['storage_capex_variant']
@@ -1329,6 +1324,9 @@ def modif_config_eoles(config_eoles, config_coupling):
     if 'carbon_budget_resirf' in config_coupling['eoles'].keys():  # parameter used only if we optimize without considering the EOLES module
         carbon_budget_resirf_spec = config_coupling["eoles"]['carbon_budget_resirf']
         config_eoles_update["carbon_budget_resirf"] = f"eoles/inputs/technical/{carbon_budget_resirf_spec}.csv"
+
+    if 'carbon_constraint' in config_coupling['eoles'].keys():
+        config_eoles_update['carbon_constraint'] = config_coupling['eoles']['carbon_constraint']
 
     if 'load_factors' in config_coupling['eoles'].keys():  # we modify the considered weather years
         load_factors = config_coupling['eoles']["load_factors"]
@@ -1567,6 +1565,10 @@ def create_configs_coupling(list_design, config_coupling: dict, config_additiona
     if 'carbon_budget_resirf' in config_additional.keys():
         if config_additional['carbon_budget_resirf'] is not None:
             config_coupling_update['eoles']['carbon_budget_resirf'] = config_additional['carbon_budget_resirf']
+
+    if 'carbon_constraint' in config_additional.keys():
+        config_coupling_update['eoles']['carbon_constraint'] = config_additional['carbon_constraint']
+
     if district_heating_potential is not None:  # we specify another potential for district heating (based on one of ADEME scenario)
         config_coupling_update['eoles']['district_heating_potential'] = district_heating_potential
     if 'weather' in config_additional.keys():  # we add specification for other weather years
