@@ -133,8 +133,10 @@ def creation_scenarios(file=Path('eoles/inputs/config/scenarios/scenarios.json')
                             new_config['maximum_capacity_scenario'] = new_config[map_scenarios_to_configs[name_variable][1]] + map_values[value_variable].split('N1')[1]
                         else:
                             new_config['maximum_capacity_scenario'] = deepcopy(map_values[value_variable])
-                        new_config['maximum_capacity_scenario'] = map_maxi_capacity_scenario[new_config['maximum_capacity_scenario']]  # we update the name of the scenario
-                    new_config[map_scenarios_to_configs[name_variable][1]] = deepcopy(map_values[value_variable])
+                        if 'maximum_capacity_scenario' in new_config.keys():
+                            new_config['maximum_capacity_scenario'] = map_maxi_capacity_scenario[new_config['maximum_capacity_scenario']]  # we update the name of the scenario
+                    else:
+                        new_config[map_scenarios_to_configs[name_variable][1]] = deepcopy(map_values[value_variable])
                 elif map_scenarios_to_configs[name_variable][0] == 'prices':
                     if map_scenarios_to_configs[name_variable][1] in new_config.keys():
                         new_config[map_scenarios_to_configs[name_variable][1]]['eoles']['rate'].update(map_values[value_variable]['eoles']['rate'])  # we just add a prices argument to the dictionary
@@ -176,4 +178,4 @@ if __name__ == '__main__':
     n_cluster = None
     if args.ncluster is not None:
         n_cluster = int(args.ncluster)
-    folder_simu = creation_scenarios(method=method, N=N, n_cluster=n_cluster)
+    folder_simu = creation_scenarios(file=Path('eoles/inputs/config/scenarios/scenarios_carbonconstraint.json'), method=method, N=N, n_cluster=n_cluster)
