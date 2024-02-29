@@ -165,6 +165,7 @@ colors_eoles = {
     "Energy \noperational costs": 'yellow',
     "Investment heater costs": '#029E73',
     "Investment \nswitch heater": '#029E73',
+    "Investment \nheating system": '#029E73',
     "Investment insulation costs": '#FBAFE4',
     "Investment \ninsulation": '#FBAFE4',
     "Carbon cost": 'brown',
@@ -192,22 +193,34 @@ colors_eoles = {
 
 new_colors_eoles = {
     'onshore': color_palette[2],
+    'Onshore': color_palette[2],
     'offshore': color_palette[0],
+    'Offshore': color_palette[0],
     'pv': color_palette[8],
+    'Solar PV': color_palette[8],
     'peaking plants': color_palette[5],
+    'Peaking Plants': color_palette[5],
     'nuclear': color_palette[7],
+    'Nuclear': color_palette[7],
     'natural gas': color_palette[10],
+    'Natural Gas': color_palette[10],
     'hydro': color_palette[9],
+    'Hydroelectricity': color_palette[9],
     'battery': color_palette[6],
+    'Battery': color_palette[6],
     'ocgt': color_palette[5],
     'ccgt': color_palette[3],
     'h2_ccgt': color_palette[1],
     'electrolysis': color_palette[10],
     'methanization': color_palette[11],
+    'Methanization': color_palette[11],
     'pyrogazification': color_palette[12],
+    'Pyrogazification': color_palette[12],
     'methanation': color_palette[13],
     'Oil fuel': color_palette[5],
-    'Wood fuel': color_palette[3]
+    'Oil Fuel': color_palette[5],
+    'Wood fuel': color_palette[3],
+    'Wood Fuel': color_palette[3]
 }
 
 
