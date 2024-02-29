@@ -34,6 +34,10 @@ MAPPING = {'Learning+': 'High', 'Learning-': 'Low',
            'PriceGas+': 'High', 'PriceGas-': 'Low',
            'PriceWood+': 'High', 'PriceWood-': 'Low',
            'Policy_mix+': 'High', 'Policy_mix-': 'Low',
+           'NoPolicyInsulation': 'Low',
+          'NoPolicyHeater': 'Low',
+           'CarbonBudget-': 'Low',
+           'COP+': 'High',
            'reference': 'Reference'}
 
 NAME_COLUMNS = {
@@ -44,7 +48,12 @@ NAME_COLUMNS = {
     'capacity_ren': 'Renewable capacity',
     'demand': 'Other electricity demand',
     'gasprices': 'Gas prices',
-    'woodprices': 'Wood prices'
+    'woodprices': 'Wood prices',
+    'cop': 'COP heat pump',
+    'policy_heater': 'Heater policy',
+    'policy_insulation': 'Insulation policy',
+    'carbon_budget': 'Carbon budget'
+
 }
 
 
