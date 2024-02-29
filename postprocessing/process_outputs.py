@@ -204,7 +204,7 @@ def salib_analysis(scenarios, list_features, y, num_samples=500):
 
 def manual_sobol_analysis(scenarios, list_features, y):
     """Computes manually the Sobol indices for a given set of scenarios and a given output variable y"""
-    sobol_df = pd.DataFrame(index=list_features, columns=['first_order', 'total_order'])
+    sobol_df = pd.DataFrame(index=list_features, columns=['First order', 'Total order'])
 
     expectation, variance = scenarios[y].mean(), scenarios[y].var()
 
@@ -213,7 +213,7 @@ def manual_sobol_analysis(scenarios, list_features, y):
         conditional_means = scenarios.groupby(col)[y].mean()
         counts = scenarios.groupby(col).size() / len(scenarios)
         sobol_first_order = (counts * (conditional_means - expectation) ** 2).sum() / variance
-        sobol_df.loc[col, 'first_order'] = sobol_first_order
+        sobol_df.loc[col, 'First order'] = sobol_first_order
 
         # total order
         list_features_minus_i = list_features.copy()
@@ -221,7 +221,7 @@ def manual_sobol_analysis(scenarios, list_features, y):
         conditional_means = scenarios.groupby(list_features_minus_i)[y].mean()
         counts = scenarios.groupby(list_features_minus_i).size() / len(scenarios)
         sobol_total_order = 1 - (counts * (conditional_means - expectation) ** 2).sum() / variance
-        sobol_df.loc[col, 'total_order'] = sobol_total_order
+        sobol_df.loc[col, 'Total order'] = sobol_total_order
     return sobol_df
 
 
@@ -381,6 +381,74 @@ def frequency_chart_subplot(results1, results2, category_names=None, save_path=N
         plt.savefig(save_path, bbox_inches='tight')
 
     plt.tight_layout()
+    plt.show()
+
+
+def horizontal_stack_bar_plot(df, columns=None, title=None, order=None, save_path=None):
+    """
+    Create a horizontal stacked bar plot from a DataFrame.
+
+    Examples: horizontal_stack_bar_plot(sobol_df.rename(index=NAME_COLUMNS), columns=['First order', 'Total order'],
+        title='Influence of parameters that the ban i', order='Total order',
+        save_path=folder_name / Path('sobol_ban.png'))
+
+    Parameters
+    ----------
+    df
+    columns
+    title
+    order
+    save_path
+
+    Returns
+    -------
+
+    """
+    # If no specific columns are provided, use all columns in the DataFrame
+    if columns is None:
+        columns = df.columns
+
+    if order is not None:
+        df = df.sort_values(by=order, ascending=True)
+
+    # Number of rows and bars to plot
+    n_rows = len(df)
+    n_cols = len(columns)
+    bar_width = 0.8 / n_cols  # Adjust bar width based on number of columns
+    y_positions = np.arange(n_rows)
+
+    # Plot each column
+    for i, col in enumerate(columns):
+        plt.barh(y_positions - 0.4 + (i + 0.5) * bar_width, df[col], height=bar_width, label=col)
+
+    # Set the y-ticks to use the index of the DataFrame
+    plt.yticks(y_positions, df.index)
+
+    # Hide the top, right, and left spines
+    plt.gca().spines['top'].set_visible(False)
+    plt.gca().spines['right'].set_visible(False)
+    plt.gca().spines['left'].set_visible(False)
+
+    # size of x-axis and y-axis ticks
+    plt.tick_params(axis='both', which='major', labelsize=12)
+    # size of title
+
+
+    # Remove the x-axis and y-axis titles
+    plt.xlabel('')
+    plt.ylabel('')
+
+    # Set title if provided align on the left
+    if title:
+        plt.title(title, fontsize=14, fontweight='bold', loc='left')
+
+    # Place legend to the right of the figure, without frame
+    plt.legend(frameon=False, loc='center left', bbox_to_anchor=(1, 0.5), fontsize=12)
+
+    if save_path:
+        plt.savefig(save_path, bbox_inches='tight')
+
+    # Show the plot
     plt.show()
 
 if __name__ == '__main__':
