@@ -66,22 +66,28 @@ DICT_TRANSFORM_LEGEND = {
 DICT_LEGEND_WATERFALL = {
     "Investment electricity costs": "Investment \nenergy mix",
     "Functionment costs": "Energy \noperational costs",
-    "Investment heater costs": "Investment \nswitch heater",
+    "Investment heater costs": "Investment \nheating system",
     "Investment insulation costs": "Investment \ninsulation",
     "Health costs": "Health costs",
     'Total costs': 'Total costs',
-    'Generation offshore (TWh)': 'offshore',
-    'Generation onshore (TWh)': 'onshore',
-    'Generation pv (TWh)': 'pv',
-    'Generation battery (TWh)': 'battery',
-    'Generation hydro (TWh)': 'hydro',
-    'Generation nuclear (TWh)': 'nuclear',
-    'Generation natural gas (TWh)': 'natural gas',
-    'Generation peaking plants (TWh)': 'peaking plants',
-    'Generation methanization (TWh)': 'methanization',
-    'Generation pyrogazification (TWh)': 'pyrogazification',
-    'Consumption Oil (TWh)': 'Oil fuel',
-    'Consumption Wood (TWh)': 'Wood fuel'
+    'offshore': 'Offshore',
+    'onshore': 'Onshore',
+    'pv': 'Solar PV',
+    'battery': 'Battery',
+    'hydro': 'Hydroelectricity',
+    'peaking plants': 'Peaking Plants',
+    'Generation offshore (TWh)': 'Offshore',
+    'Generation onshore (TWh)': 'Onshore',
+    'Generation pv (TWh)': 'Solar PV',
+    'Generation battery (TWh)': 'Battery',
+    'Generation hydro (TWh)': 'Hydroelectricity',
+    'Generation nuclear (TWh)': 'Nuclear',
+    'Generation natural gas (TWh)': 'Natural Gas',
+    'Generation peaking plants (TWh)': 'Peaking Plants',
+    'Generation methanization (TWh)': 'Methanization',
+    'Generation pyrogazification (TWh)': 'Pyrogazification',
+    'Consumption Oil (TWh)': 'Oil Fuel',
+    'Consumption Wood (TWh)': 'Wood Fuel'
 }
 
 
@@ -3204,14 +3210,17 @@ def waterfall_chart(df, colors=None, rotation=0, save=None, format_y=lambda y, _
             ax.annotate("{:+,.1f} {}".format(val, unit), (loop, y), ha="center")
         loop += 1
 
-    if blank.max() > 0:
+    if blank.max() > 0:  # total est True quand on fait les graphes pour les coûts, et False quand on fait les graphes pour les capacités
         if total:
             y_max = blank.max() * 1.1
         else:
-            y_max = (blank + df).max() * 1.1
+            y_max = (blank + df).max() * 3
     else:
         y_max = 5 * 1.1
-    y_min = blank.min() * 2
+    if total:
+        y_min = blank.min() * 2
+    else:
+        y_min = blank.min() * 1.2
     ax.spines['left'].set_visible(False)
     ax.set_ylim(ymax=y_max)
     ax.set_ylim(ymin=y_min)
@@ -3219,7 +3228,10 @@ def waterfall_chart(df, colors=None, rotation=0, save=None, format_y=lambda y, _
     ax = format_ax_new(ax, format_y=format_y, xinteger=True)
 
     if title is not None:
-        ax.set_title(title, fontweight='bold', color='dimgrey', pad=-1.6, fontsize=16)
+        if total:
+            ax.set_title(title, fontweight='bold', color='dimgrey', pad=-1.6, fontsize=16)
+        else:
+            ax.set_title(title, fontweight='bold', color='dimgrey', pad=-3, fontsize=16)
 
     if y_label is not None:
         ax.set_ylabel(y_label, color='dimgrey', fontsize=20)
