@@ -331,7 +331,7 @@ def frequency_chart(results, category_names=None, category_colors=None, save_pat
     if category_colors is None:
         category_colors = plt.get_cmap('RdYlGn')(np.linspace(0.15, 0.85, data.shape[1]))
 
-    fig, ax = plt.subplots(figsize=(9.2, 5))
+    fig, ax = plt.subplots(figsize=(14, 9.6))
     ax.invert_yaxis()
     ax.xaxis.set_visible(False)
     ax.set_xlim(0, np.sum(data, axis=1).max())
@@ -345,9 +345,8 @@ def frequency_chart(results, category_names=None, category_colors=None, save_pat
         text_color = 'white' if int(color[1:], 16) < 0x888888 else 'black'
         l = ['{:.0f}%'.format(val * 100) if val != 0 else '' for val in widths]
 
-        ax.bar_label(rects, label_type='center', color=text_color, labels=l, fontsize='small')
-    ax.legend(bbox_to_anchor=(0, 1),
-              loc='lower left', fontsize='small', frameon=False, ncol=3)
+        ax.bar_label(rects, label_type='center', color=text_color, labels=l, fontsize=18)
+    ax.legend(bbox_to_anchor=(0, 1), loc='lower left', fontsize=18, frameon=False, ncol=3)
 
     # remove spines
     ax.spines['top'].set_visible(False)
@@ -356,9 +355,8 @@ def frequency_chart(results, category_names=None, category_colors=None, save_pat
     ax.spines['bottom'].set_visible(False)
 
     if save_path:
-        plt.savefig(save_path, bbox_inches='tight')
-
-    return fig, ax
+        fig.savefig(save_path, bbox_inches='tight')
+        plt.close(fig)
 
 
 def frequency_chart_subplot(results1, results2, category_names=None, save_path=None, axis_titles=('Axis 1', 'Axis 2')):
@@ -418,8 +416,6 @@ def frequency_chart_subplot(results1, results2, category_names=None, save_path=N
         plt.savefig(save_path, bbox_inches='tight')
 
     plt.tight_layout()
-    plt.show()
-
 
 def horizontal_stack_bar_plot(df, columns=None, title=None, order=None, save_path=None):
     """
