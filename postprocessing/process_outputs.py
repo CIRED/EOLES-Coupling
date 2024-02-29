@@ -7,12 +7,19 @@ import pandas as pd
 pd.options.mode.chained_assignment = None  # default='warn'
 import datetime
 import sys
+from pathlib import Path
+
+project_root = Path(__file__).parent.parent.absolute()
+
+# Ensure the project root is in sys.path
+if str(project_root) not in sys.path:
+    sys.path.append(str(project_root))
 
 sys.path.append("../..")
 from eoles.write_output import get_main_outputs, comparison_simulations_new, plot_typical_week, plot_typical_demand, plot_residual_demand, colormap_simulations
 from eoles.write_output import waterfall_chart, DICT_LEGEND_WATERFALL
 from eoles.inputs.resources import resources_data
-from pathlib import Path
+
 from project.write_output import plot_compare_scenarios
 
 from SALib.sample import saltelli
@@ -211,6 +218,7 @@ def analysis_costs_regret(scenarios, list_features):
     # plt.show()
 
 if __name__ == '__main__':
-    folderpath = Path('simulations/exhaustive_20240226_202408')
-    features = ['policy_mix', 'learning', 'elasticity', 'biogas', 'capacity_ren', 'demand', 'gasprices', 'woodprices']
+    folderpath = Path('/mnt/beegfs/workdir/celia.escribe/eoles2/eoles/outputs/exhaustive_20240226_202408')  # for cluster use
+    features = ['policy_heater', 'policy_insulation', 'learning', 'elasticity', 'cop', 'biogas', 'capacity_ren',
+                'demand', 'carbon_budget', 'gasprices']
     scenarios_complete, output = parse_outputs(folderpath, features=features)
