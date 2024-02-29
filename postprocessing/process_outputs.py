@@ -1,5 +1,6 @@
 import numpy as np
 from matplotlib import pyplot as plt
+import matplotlib.patches as mpatches
 import seaborn as sns
 from pickle import load
 import os
@@ -17,6 +18,27 @@ from project.write_output import plot_compare_scenarios
 
 from SALib.sample import saltelli
 from SALib.analyze import sobol
+
+MAPPING = {'Learning+': 'High', 'Learning-': 'Low',
+           'Elasticity+': 'High', 'Elasticity-': 'Low',
+           'Biogas+': 'High', 'Biogas-': 'Low',
+           'Capacity_ren+': 'High', 'Ren-': 'Low',
+           'Demand+': 'High', 'Sufficiency': 'Low',
+           'PriceGas+': 'High', 'PriceGas-': 'Low',
+           'PriceWood+': 'High', 'PriceWood-': 'Low',
+           'Policy_mix+': 'High', 'Policy_mix-': 'Low',
+           'reference': 'Reference'}
+
+NAME_COLUMNS = {
+    'policy_mix': 'Policy mix',
+    'learning': 'Technical progress heat-pumps',
+    'elasticity': 'Heat-pump price elasticity',
+    'biogas': 'Biogas potential',
+    'capacity_ren': 'Renewable capacity',
+    'demand': 'Other electricity demand',
+    'gasprices': 'Gas prices',
+    'woodprices': 'Wood prices'
+}
 
 
 def parse_outputs(folderpath, features):
@@ -194,21 +216,149 @@ def analysis_costs_regret(scenarios, list_features):
     tmp_costs = pd.concat([tmp[tmp.index.get_level_values('Ban_Status') != 'Ban'].droplevel('Ban_Status')[list_features], tmp_costs], axis=1)
     return tmp_costs
 
-    # # Plots
-    # sns.boxplot(data=scenarios_complete, x='learning', y='Total costs', hue='biogas')
-    # plt.show()
-    #
-    # variables = ['learning', 'elasticity', 'capacity']
-    # # Create a figure and a set of subplots
-    # fig, axes = plt.subplots(1, len(variables), figsize=(15, 5), sharey=True)
-    # # Loop through the variables and create a boxplot for each
-    # for i, variable in enumerate(variables):
-    #     sns.boxplot(data=scenarios_complete, x=variable, y='Total costs', hue='biogas', ax=axes[i])
-    #     axes[i].set_title(variable)  # Set the title to the variable name
-    #     if i > 0:  # Only show the legend for the first plot to avoid repetition
-    #         axes[i].get_legend().remove()
-    # plt.tight_layout()  # Adjust the layout to make sure everything fits without overlapping
-    # plt.show()
+
+def create_frequency_dict(df):
+
+    # Initialize an empty dictionary to store the frequency counts
+    frequency_dict = {}
+
+    # Total number of rows
+    total = df.shape[0]
+    # Iterate through each column in the DataFrame
+    for column in df.columns:
+        # Get the frequency of each value in the current column
+        counts = df[column].value_counts()
+
+        # For each value ('Low', 'Medium', 'High'), get the count, if not present, default to 0
+        low_count = counts.get('Low', 0) / total
+        medium_count = counts.get('Reference', 0) / total
+        high_count = counts.get('High', 0) / total
+
+        # Assign the counts to the corresponding column in the dictionary
+        frequency_dict[column] = [low_count, medium_count, high_count]
+
+    return frequency_dict
+
+
+def make_frequency_chart(df, save_path=None):
+
+    df = df.replace(MAPPING)
+    df = create_frequency_dict(df)
+    df = {NAME_COLUMNS[key]: value for key, value in df.items()}
+
+    frequency_chart(df, save_path=save_path)
+
+
+def frequency_chart(results, category_names=None, category_colors=None, save_path=None):
+    """
+    Parameters
+    ----------
+    results : dict
+        A mapping from category labels to a list of variables per category.
+        It is assumed all lists contain the same number of entries and that
+        it matches the length of *category_names*.
+    category_names : list of str
+        The category labels.
+    """
+    if category_names is None:
+        category_names = ['Low', 'Reference', 'High']
+        category_colors = ['#f6511d', '#ffb400', '#00a6ed']
+
+    labels = list(results.keys())
+    data = np.array(list(results.values()))
+    data_cum = data.cumsum(axis=1)
+
+    if category_colors is None:
+        category_colors = plt.get_cmap('RdYlGn')(np.linspace(0.15, 0.85, data.shape[1]))
+
+    fig, ax = plt.subplots(figsize=(9.2, 5))
+    ax.invert_yaxis()
+    ax.xaxis.set_visible(False)
+    ax.set_xlim(0, np.sum(data, axis=1).max())
+
+
+    for i, (colname, color) in enumerate(zip(category_names, category_colors)):
+        widths = data[:, i]
+        starts = data_cum[:, i] - widths
+        rects = ax.barh(labels, widths, left=starts,
+                        label=colname, color=color)
+
+        text_color = 'white' if int(color[1:], 16) < 0x888888 else 'black'
+        l = ['{:.0f}%'.format(val * 100) if val != 0 else '' for val in widths]
+
+        ax.bar_label(rects, label_type='center', color=text_color, labels=l, fontsize='small')
+    ax.legend(bbox_to_anchor=(0, 1),
+              loc='lower left', fontsize='small', frameon=False, ncol=3)
+
+    # remove spines
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['left'].set_visible(False)
+
+    if save_path:
+        plt.savefig(save_path, bbox_inches='tight')
+
+    return fig, ax
+
+def frequency_chart_subplot(results1, results2, category_names=None, save_path=None, axis_titles=('Axis 1', 'Axis 2')):
+    """
+    Display survey results in two side-by-side stacked bar charts.
+
+    Parameters
+    ----------
+    results1, results2 : dict
+        Mappings from question labels to a list of answers per category for each of the two datasets.
+    category_names : list of str, optional
+        The category labels.
+    save_path : str, optional
+        Path where to save the figure.
+    axis_titles : tuple of str, optional
+        Titles for the left and right axes.
+    """
+    if category_names is None:
+        category_names = ['Low', 'Reference', 'High']
+
+    category_colors = ['#f6511d', '#ffb400', '#00a6ed']
+    fig, axs = plt.subplots(1, 2, figsize=(18, 5), sharey=True)  # Share Y axis
+
+    for ax_idx, (ax, results, axis_title) in enumerate(zip(axs, [results1, results2], axis_titles)):
+        question_labels = list(results.keys())
+        data = np.array(list(results.values()))
+        data_cum = data.cumsum(axis=1)
+
+        ax.invert_yaxis()
+        if ax_idx == 0:  # Apply y-ticks only for the left subplot
+            ax.set_yticks(range(len(question_labels)))
+            ax.set_yticklabels(question_labels)
+        ax.set_xlim(0, np.sum(data, axis=1).max())
+        ax.set_title(axis_title, fontsize='small')
+
+        for i, (colname, color) in enumerate(zip(category_names, category_colors)):
+            widths = data[:, i]
+            starts = data_cum[:, i] - widths
+            rects = ax.barh(range(len(question_labels)), widths, left=starts, height=0.55, color=color)
+
+            text_color = 'white' if int(color[1:], 16) < 0x888888 else 'black'
+            bar_labels = ['{:.0f}%'.format(val * 100) if val != 0 else '' for val in widths]
+            ax.bar_label(rects, labels=bar_labels, label_type='center', color=text_color, fontsize='small')
+
+        # remove spines
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.spines['left'].set_visible(False)
+
+        ax.xaxis.set_visible(False)
+
+
+    legend_handles = [mpatches.Patch(color=color, label=label) for label, color in zip(category_names, category_colors)]
+    fig.legend(handles=legend_handles, bbox_to_anchor=(1, 0.5), loc='center left', frameon=False)
+
+
+    if save_path:
+        plt.savefig(save_path, bbox_inches='tight')
+
+    plt.tight_layout()
+    plt.show()
 
 if __name__ == '__main__':
     folderpath = Path('simulations/exhaustive_20240226_202408')
