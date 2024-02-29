@@ -278,6 +278,24 @@ def make_frequency_chart(df, save_path=None):
 
 
 def make_frequency_chart_subplots(df1, df2, folder_name):
+    """
+    Create a side-by-side comparison of the frequency of each parameter in two datasets.
+
+    Examples:
+        df1 = costs_regret[costs_regret["Total costs"] < 0].drop(columns=["Total costs"])
+        df2 = costs_regret[costs_regret["Total costs"] > 0].drop(columns=["Total costs"])
+        make_frequency_chart_subplots(df1, df2, folder_name)
+
+    Parameters
+    ----------
+    df1
+    df2
+    folder_name
+
+    Returns
+    -------
+
+    """
 
     df1 = df1.replace(MAPPING)
     df1 = create_frequency_dict(df1)
