@@ -732,7 +732,7 @@ def extract_functionment_cost(model, capacities, fOM, vOM, generation, oil_consu
         system_fOM_vOM = system_fOM_vOM.dropna()
         system_fOM_vOM["functionment_cost"] = system_fOM_vOM["capacity"] * system_fOM_vOM["fOM"] + system_fOM_vOM["generation"] * system_fOM_vOM["vOM"]
         system_fOM_vOM_df = system_fOM_vOM[["functionment_cost"]]
-        total_wood_consumption = wood_consumption + sum(value(model.gene["central_wood_boiler", h]) for h in model.h)
+        total_wood_consumption = wood_consumption + sum(value(model.gene["central_wood_boiler", h]) for h in model.h)  # careful, this wood consumption includes the functionment of central wood boilers !
         oil_functionment_cost, wood_functionment_cost = oil_consumption * new_vOM["oil"], total_wood_consumption * new_vOM["wood"]
         system_fOM_vOM_df = pd.concat([system_fOM_vOM_df, pd.DataFrame(index=["oil"], data={'functionment_cost': [oil_functionment_cost]})], axis=0)
         system_fOM_vOM_df = pd.concat([system_fOM_vOM_df, pd.DataFrame(index=["wood"], data={'functionment_cost': [wood_functionment_cost]})], axis=0)

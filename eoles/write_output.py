@@ -69,7 +69,19 @@ DICT_LEGEND_WATERFALL = {
     "Investment heater costs": "Investment \nswitch heater",
     "Investment insulation costs": "Investment \ninsulation",
     "Health costs": "Health costs",
-    'Total costs': 'Total costs'
+    'Total costs': 'Total costs',
+    'Generation offshore (TWh)': 'offshore',
+    'Generation onshore (TWh)': 'onshore',
+    'Generation pv (TWh)': 'pv',
+    'Generation battery (TWh)': 'battery',
+    'Generation hydro (TWh)': 'hydro',
+    'Generation nuclear (TWh)': 'nuclear',
+    'Generation natural gas (TWh)': 'natural gas',
+    'Generation peaking plants (TWh)': 'peaking plants',
+    'Generation methanization (TWh)': 'methanization',
+    'Generation pyrogazification (TWh)': 'pyrogazification',
+    'Consumption Oil (TWh)': 'Oil fuel',
+    'Consumption Wood (TWh)': 'Wood fuel'
 }
 
 
@@ -281,23 +293,30 @@ def get_main_outputs(dict_output, carbon_constraint=True, eoles=True, health=Fal
                 capacities = pd.Series(capacities[2050]).to_frame().rename(columns={2050: name_config})
                 capacities_df = pd.concat([capacities_df, capacities], axis=1)
 
-                generation = output["Generation (TWh)"]
+                generation, resirf_consumption = output["Generation (TWh)"], output['ResIRF consumption (TWh)'].T
                 generation.loc['offshore'] = generation.loc['offshore_f'] + generation.loc['offshore_g']
                 generation.loc['pv'] = generation.loc['pv_g'] + generation.loc['pv_c']
                 generation.loc['peaking plants'] = generation.loc['ocgt'] + generation.loc['ccgt'] + generation.loc['h2_ccgt']
                 generation.loc['hydro'] = generation.loc['river'] + generation.loc['lake']
                 generation.loc["battery"] = generation.loc["battery1"] + generation.loc["battery4"]
-                generation = generation.loc[['offshore', 'onshore', 'pv', 'battery', 'hydro', 'peaking plants', 'methanization', 'pyrogazification']]
+                generation = generation.loc[['offshore', 'onshore', 'pv', 'battery', 'hydro', 'peaking plants', 'nuclear', 'natural_gas', 'central_wood_boiler', 'methanization', 'pyrogazification']]
+                consumption = resirf_consumption.loc[['Oil fuel', 'Wood fuel']]
+                generation = pd.concat([generation, consumption], axis=0)
                 generation = pd.Series(generation[2050]).to_frame().rename(columns={2050: name_config})
                 generation = generation.rename(index={
                     'offshore': 'Generation offshore (TWh)',
                     'onshore': 'Generation onshore (TWh)',
-                    'pv': 'Generation PV (TWh)',
+                    'pv': 'Generation pv (TWh)',
                     'battery': 'Generation battery (TWh)',
                     'hydro': 'Generation hydro (TWh)',
                     'peaking plants': 'Generation peaking plants (TWh)',
+                    'nuclear': 'Generation nuclear (TWh)',
+                    'natural_gas': 'Generation natural gas (TWh)',
                     'methanization': 'Generation methanization (TWh)',
-                    'pyrogazification': 'Generation pyrogazification (TWh)'
+                    'pyrogazification': 'Generation pyrogazification (TWh)',
+                    'central_wood_boiler': 'Generation central wood boiler (TWh)',
+                    'Oil fuel': 'Consumption Oil (TWh)',
+                    'Wood fuel': 'Consumption Wood (TWh)'
                 })
                 generation_df = pd.concat([generation_df, generation], axis=1)
             else:
@@ -3135,7 +3154,7 @@ def plot_blackbox_optimization(dict_optimizer, save_path, two_stage_optim=False)
 
 
 def waterfall_chart(df, colors=None, rotation=0, save=None, format_y=lambda y, _: '{:.0f}'.format(y), title=None,
-                    y_label=None, hline=False, dict_legend=None, total=True, unit='B€', float_precision=0):
+                    y_label=None, hline=False, dict_legend=None, total=True, unit='B€', float_precision=0, neg_offset=None, pos_offset=None):
     if isinstance(df, pd.DataFrame):
         df = df.squeeze()
     if dict_legend is not None:
@@ -3153,15 +3172,24 @@ def waterfall_chart(df, colors=None, rotation=0, save=None, format_y=lambda y, _
 
     y_height = df.cumsum().shift(1).fillna(0)
     max = df.max()
-    neg_offset, pos_offset = max / 20, max / 50
+    if (neg_offset is None) or (pos_offset is None):
+        neg_offset, pos_offset = max / 20, max / 50
 
     # Start label loop
     loop = 0
     for (index, val) in df.iteritems():
         # For the last item in the list, we don't want to double count
         if val == df.iloc[-1]:
-            y = y_height[loop]
-            y += pos_offset  # in the case of the final item, we do not want a negative offset even if value is negative
+            if total:
+                y = y_height[loop]
+                y += pos_offset  # in the case of the final item, we do not want a negative offset even if value is negative
+            else:
+                y = y_height[loop] + val
+                # Determine if we want a neg or pos offset
+                if val > 0:
+                    y += pos_offset
+                else:
+                    y -= neg_offset
         else:
             y = y_height[loop] + val
             # Determine if we want a neg or pos offset
@@ -3176,7 +3204,13 @@ def waterfall_chart(df, colors=None, rotation=0, save=None, format_y=lambda y, _
             ax.annotate("{:+,.1f} {}".format(val, unit), (loop, y), ha="center")
         loop += 1
 
-    y_max = blank.max() * 1.1
+    if blank.max() > 0:
+        if total:
+            y_max = blank.max() * 1.1
+        else:
+            y_max = (blank + df).max() * 1.1
+    else:
+        y_max = 5 * 1.1
     y_min = blank.min() * 2
     ax.spines['left'].set_visible(False)
     ax.set_ylim(ymax=y_max)
