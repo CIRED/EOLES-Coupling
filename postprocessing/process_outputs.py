@@ -305,7 +305,7 @@ def make_frequency_chart_subplots(df1, df2, folder_name):
     df2 = create_frequency_dict(df2)
     df2 = {NAME_COLUMNS[key]: value for key, value in df2.items()}
 
-    frequency_chart_subplot(df1, df2, save_path=folder_name / Path('total_cost_parameters.png'),
+    frequency_chart_subplot(df1, df2, save_path=folder_name / Path('total_cost_parameters.pdf'),
                             axis_titles=('Total system cost with ban is lower', 'Total system cost without ban is lower'))
 
 
@@ -392,7 +392,7 @@ def frequency_chart_subplot(results1, results2, category_names=None, save_path=N
             ax.set_yticks(range(len(question_labels)))
             ax.set_yticklabels(question_labels)
         ax.set_xlim(0, np.sum(data, axis=1).max())
-        ax.set_title(axis_title, fontsize='small')
+        ax.set_title(axis_title, fontsize=20)
 
         for i, (colname, color) in enumerate(zip(category_names, category_colors)):
             widths = data[:, i]
@@ -401,7 +401,7 @@ def frequency_chart_subplot(results1, results2, category_names=None, save_path=N
 
             text_color = 'white' if int(color[1:], 16) < 0x888888 else 'black'
             bar_labels = ['{:.0f}%'.format(val * 100) if val != 0 else '' for val in widths]
-            ax.bar_label(rects, labels=bar_labels, label_type='center', color=text_color, fontsize='small')
+            ax.bar_label(rects, labels=bar_labels, label_type='center', color=text_color, fontsize=18)
 
         # remove spines
         ax.spines['top'].set_visible(False)
@@ -411,10 +411,8 @@ def frequency_chart_subplot(results1, results2, category_names=None, save_path=N
 
         ax.xaxis.set_visible(False)
 
-
     legend_handles = [mpatches.Patch(color=color, label=label) for label, color in zip(category_names, category_colors)]
-    fig.legend(handles=legend_handles, bbox_to_anchor=(1, 0.5), loc='center left', frameon=False)
-
+    fig.legend(handles=legend_handles, bbox_to_anchor=(1, 0.5), loc='center left', frameon=False, fontsize=18)
 
     if save_path:
         plt.savefig(save_path, bbox_inches='tight')
@@ -459,37 +457,37 @@ def horizontal_stack_bar_plot(df, columns=None, title=None, order=None, save_pat
 
     # Plot each column
     for i, col in enumerate(columns):
-        plt.barh(y_positions - 0.4 + (i + 0.5) * bar_width, df[col], height=bar_width, label=col,
-                 ax=ax)
+        ax.barh(y_positions - 0.4 + (i + 0.5) * bar_width, df[col], height=bar_width, label=col,
+                )
 
     # Set the y-ticks to use the index of the DataFrame
-    plt.yticks(y_positions, df.index)
+    ax.set_yticks(y_positions, df.index)
+    #ax.yticks(y_positions, df.index)
 
     # Hide the top, right, and left spines
-    plt.gca().spines['top'].set_visible(False)
-    plt.gca().spines['right'].set_visible(False)
-    plt.gca().spines['left'].set_visible(False)
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['left'].set_visible(False)
 
     # size of x-axis and y-axis ticks
-    plt.tick_params(axis='both', which='major', labelsize=12)
+    ax.tick_params(axis='both', which='major', labelsize=18)
     # size of title
 
     # Remove the x-axis and y-axis titles
-    plt.xlabel('')
-    plt.ylabel('')
+    ax.set_xlabel('')
+    ax.set_ylabel('')
+
 
     # Set title if provided align on the left
     if title:
-        plt.title(title, fontsize=14, fontweight='bold', loc='left')
+        ax.set_title(title, fontsize=20, fontweight='bold', loc='left')
 
     # Place legend to the right of the figure, without frame
-    plt.legend(frameon=False, loc='center left', bbox_to_anchor=(1, 0.5), fontsize=12)
+    ax.legend(frameon=False, loc='center left', bbox_to_anchor=(1, 0.5), fontsize=18)
 
     if save_path:
-        plt.savefig(save_path, bbox_inches='tight')
-
-    # Show the plot
-    plt.show()
+        fig.savefig(save_path, bbox_inches='tight', dpi=300)
+        plt.close(fig)
 
 
 def histogram_plot(df, variable, binrange=None, title=None, save_path=None, xlabel=None):
@@ -513,34 +511,33 @@ def histogram_plot(df, variable, binrange=None, title=None, save_path=None, xlab
         temp.loc[temp[variable] < binrange[0], variable] = binrange[0]
         temp.loc[temp[variable] > binrange[1], variable] = binrange[1]
 
+    fig, ax = plt.subplots(1, 1, figsize=(14, 9.6), sharey=True)  # Share Y axis
+
     # Plotting
-    sns.histplot(data=temp, x=variable, stat="proportion", binrange=binrange)
+    sns.histplot(data=temp, x=variable, stat="proportion", binrange=binrange, ax=ax)
 
     # Set title if provided
     if title:
-        plt.title(title, fontsize=14, fontweight='bold', loc='left')
+        ax.set_title(title, fontsize=20, fontweight='bold', loc='left')
 
     # Customize as needed (e.g., labels)
     if xlabel is not None:
-        plt.xlabel(xlabel, fontsize=12)
+        ax.set_xlabel(xlabel, fontsize=18)
     else:
-        plt.xlabel('')
-    plt.ylabel('')
+        ax.set_xlabel('')
+    ax.set_ylabel('')
 
     # Hide the top, right, and left spines
-    plt.gca().spines['top'].set_visible(False)
-    plt.gca().spines['right'].set_visible(False)
-    plt.gca().spines['left'].set_visible(False)
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['left'].set_visible(False)
 
-    plt.tick_params(axis='both', which='major', labelsize=12)
-    plt.gca().yaxis.set_major_formatter(PercentFormatter(1, 0))
+    ax.tick_params(axis='both', which='major', labelsize=18)
+    ax.yaxis.set_major_formatter(PercentFormatter(1, 0))
 
     if save_path:
-        plt.savefig(save_path, bbox_inches='tight')
-
-
-    # Show the plot
-    plt.show()
+        fig.savefig(save_path, bbox_inches='tight')
+        plt.close(fig)
 
 
 if __name__ == '__main__':
