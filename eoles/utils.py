@@ -1567,7 +1567,7 @@ def create_configs_coupling(list_design, config_coupling: dict, config_additiona
             config_coupling_update['eoles']['carbon_budget_resirf'] = config_additional['carbon_budget_resirf']
 
     if 'carbon_constraint' in config_additional.keys():
-        config_coupling_update['eoles']['carbon_constraint'] = config_additional['carbon_constraint']
+        config_coupling_update['carbon_constraint'] = config_additional['carbon_constraint']
 
     if district_heating_potential is not None:  # we specify another potential for district heating (based on one of ADEME scenario)
         config_coupling_update['eoles']['district_heating_potential'] = district_heating_potential
