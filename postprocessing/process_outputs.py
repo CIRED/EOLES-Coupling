@@ -70,7 +70,7 @@ def parse_outputs(folderpath, features):
 
     # Load scenarios names
     scenarios = pd.read_csv(folderpath / Path('scenarios.csv'), index_col=0)
-
+    scenarios = scenarios.fillna('reference')  # when using marginal method, some scenarios are NaNs, and need to be replaced with reference
     dict_output = {}
     # list all files in a folder with path folderpath
     for path in folderpath.iterdir():

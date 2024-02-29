@@ -245,10 +245,11 @@ def colormap_simulations(overall_folder, config_ref, save_path=None, pdf=False, 
 
 def get_main_outputs(dict_output, carbon_constraint=True, eoles=True, health=False):
     total_system_costs_2050_df, total_system_costs_2030_df, total_operational_costs_2050_df = pd.DataFrame(dtype=float), pd.DataFrame(dtype=float), pd.DataFrame(dtype=float)
-    stock_df, consumption_df, distributive_df = pd.DataFrame(dtype=float), pd.DataFrame(dtype=float), pd.DataFrame(dtype=float)
+    stock_df, consumption_df = pd.DataFrame(dtype=float), pd.DataFrame(dtype=float)
     capacities_df, generation_df = pd.DataFrame(dtype=float), pd.DataFrame(dtype=float)
     passed = pd.Series(dtype=float)
     hourly_generation = dict()  # to save hourly generation for the two reference scenarios
+    distributional_df = pd.DataFrame()
     for path, name_config in zip(dict_output.values(), [n for n in dict_output.keys()]):
         with open(os.path.join(path, 'coupling_results.pkl'), "rb") as file:
             output = load(file)
@@ -288,9 +289,21 @@ def get_main_outputs(dict_output, carbon_constraint=True, eoles=True, health=Fal
                 consumption = pd.Series(output_resirf.loc[["Consumption Electricity (TWh)", "Consumption Natural gas (TWh)", "Consumption Wood fuel (TWh)"]][2049]).to_frame().rename(columns={2049: name_config})
                 consumption_df = pd.concat([consumption_df, consumption], axis=1)
 
-                distributive_index = ['Ratio expenditure Single-family - Owner-occupied - C1 (%)', 'Energy poverty (Million)']
-                distributive = pd.Series(output_resirf.loc[distributive_index][2049]).to_frame().rename(columns={2049: name_config})
-                distributive_df = pd.concat([distributive_df, distributive], axis=1)
+                l = list(
+                    product(['Single-family', 'Multi-family'], ['Owner-occupied', 'Privately rented', 'Social-housing'],
+                            ['C1', 'C2', 'C3', 'C4', 'C5']))
+                temp = {}
+                for i in l:
+                    t = (output_resirf.loc['Annuities {} - {} - {} (euro)'.format(*i), :] + output_resirf.loc[
+                                                                                     'Energy expenditures {} - {} - {} (euro)'.format(
+                                                                                         *i), :])
+                    temp.update({i: t.sum()})
+                temp = pd.Series(temp)
+                temp.index.names = ['Type', 'Status', 'Income']
+                temp = temp.groupby('Income').sum()
+                temp = temp / 25
+
+                distributional_df = pd.concat([distributional_df,temp.to_frame().rename(columns={0: name_config})], axis=1)
 
                 capacities = output["Capacities (GW)"]
                 capacities.loc["offshore"] = capacities.loc["offshore_f"] + capacities.loc["offshore_g"]
@@ -340,7 +353,7 @@ def get_main_outputs(dict_output, carbon_constraint=True, eoles=True, health=Fal
         'costs': total_system_costs_2050_df,
         'stock': stock_df,
         'consumption': consumption_df,
-        'distributive': distributive_df,
+        'distributive': distributional_df,
         'capacity': capacities_df,
         'generation': generation_df,
         'passed': passed
