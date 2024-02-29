@@ -74,7 +74,7 @@ def parse_outputs(folderpath, features):
     return scenarios_complete, output
 
 
-def waterfall_analysis(scenarios_complete, reference='S0', save_path=None):
+def waterfall_analysis(scenarios_complete, reference='S0', save_path=None, wood=True):
     """Plots the waterfall chart to compare reference with Ban scenario."""
     list_costs = ['Investment heater costs', 'Investment insulation costs', 'Investment electricity costs','Functionment costs', 'Total costs']
     scenarios_complete = scenarios_complete.sort_index()  # order for estimating the difference
@@ -100,11 +100,18 @@ def waterfall_analysis(scenarios_complete, reference='S0', save_path=None):
     waterfall_chart(capacity_diff, colors=resources_data["new_colors_eoles"], rotation=0, save=save_path_capacity, format_y=lambda y, _: '{:.0f} GW'.format(y),
                     title="Difference in capacity installed (GW)", y_label=None, hline=True, total=False, unit='GW', float_precision=1, neg_offset=1.34, pos_offset=0.53)
 
-
-    list_generation = ['Generation offshore (TWh)', 'Generation onshore (TWh)', 'Generation pv (TWh)', 'Generation hydro (TWh)',
-                       'Generation battery (TWh)', 'Generation nuclear (TWh)', 'Generation natural gas (TWh)', 'Generation peaking plants (TWh)',
-                       'Generation methanization (TWh)', 'Generation pyrogazification (TWh)', 'Consumption Oil (TWh)', 'Consumption Wood (TWh)']
-    generation_diff = - scenarios_complete.xs(reference, level='Scenario')[list_generation].diff()
+    list_generation = ['Generation offshore (TWh)', 'Generation onshore (TWh)', 'Generation pv (TWh)',
+                       'Generation hydro (TWh)', 'Generation battery (TWh)', 'Generation nuclear (TWh)', 'Generation natural gas (TWh)',
+                       'Generation peaking plants (TWh)', 'Generation methanization (TWh)', 'Generation pyrogazification (TWh)', 'Consumption Oil (TWh)']
+    if wood:  # we only include direct wood consumption
+         list_generation = list_generation + ['Consumption Wood (TWh)']
+    else:
+        list_generation = list_generation + ['Consumption Wood (TWh)', 'Generation central wood boiler (TWh)']
+    generation_diff = scenarios_complete.xs(reference, level='Scenario')[list_generation]
+    if not wood:
+        generation_diff['Consumption Wood (TWh)'] = generation_diff['Consumption Wood (TWh)'] + generation_diff['Generation central wood boiler (TWh)']  # we sum overall consumption
+        generation_diff = generation_diff.drop(columns='Generation central wood boiler (TWh)')
+    generation_diff = - generation_diff.diff()
     generation_diff = generation_diff.xs('reference')
     generation_diff = generation_diff[abs(generation_diff) > 0.1]
     if save_path is not None:
@@ -112,7 +119,7 @@ def waterfall_analysis(scenarios_complete, reference='S0', save_path=None):
     else:
         save_path_generation = None
     waterfall_chart(generation_diff, colors=resources_data["new_colors_eoles"], rotation=0, save=save_path_generation, format_y=lambda y, _: '{:.0f} TWh'.format(y),
-                    title="Difference in generation (TWh)", y_label=None, hline=True, total=False, unit='TWh', float_precision=1, dict_legend=DICT_LEGEND_WATERFALL)
+                    title="Difference in generation (TWh)", y_label=None, hline=True, total=False, unit='TWh', float_precision=1, dict_legend=DICT_LEGEND_WATERFALL, neg_offset=3, pos_offset=0.53)
 
 def salib_analysis(scenarios, list_features, y, num_samples=500):
 
@@ -204,5 +211,6 @@ def analysis_costs_regret(scenarios, list_features):
     # plt.show()
 
 if __name__ == '__main__':
-    folderpath = Path('simulations/exhaustive_20240223_184702')
-    difference_costs, scenarios_complete = parse_outputs(folderpath)
+    folderpath = Path('simulations/exhaustive_20240226_202408')
+    features = ['policy_mix', 'learning', 'elasticity', 'biogas', 'capacity_ren', 'demand', 'gasprices', 'woodprices']
+    scenarios_complete, output = parse_outputs(folderpath, features=features)
