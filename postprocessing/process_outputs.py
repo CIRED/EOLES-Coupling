@@ -60,6 +60,9 @@ NAME_COLUMNS = {
 ORDER_COLUMNS = ['policy_mix', 'policy_heater', 'policy_insulation', 'learning', 'elasticity',
                  'cop', 'biogas', 'capacity_ren', 'demand', 'carbon_budget', 'gasprices']
 
+LIST_FEATURES = ['policy_heater', 'policy_insulation', 'learning', 'elasticity', 'cop', 'biogas', 'capacity_ren',
+            'demand', 'carbon_budget', 'gasprices']
+
 
 def parse_outputs(folderpath, features):
     """Parses the outputs of the simulations and creates a csv file with the results.
@@ -227,16 +230,16 @@ def manual_sobol_analysis(scenarios, list_features, y):
     return sobol_df
 
 
-def analysis_costs_regret(scenarios, list_features):
+def analysis_regret(data, list_features, variable='Total costs'):
     """Calculates the difference of costs between Reference and Ban scenario."""
-    ind = scenarios.groupby('Scenario')['passed'].sum()[scenarios.groupby('Scenario')['passed'].sum() == 2].index
-    # select subset of scenarios_complete where first level of index is in ind
-    tmp = scenarios[scenarios.index.get_level_values('Scenario').isin(ind)]
+    ind = data.groupby('Scenario')['passed'].sum()[data.groupby('Scenario')['passed'].sum() == 2].index
+    # select subset of scenarios_complete where ban and reference both passed carbon constraint
+    tmp = data[data.index.get_level_values('Scenario').isin(ind)]
 
-    tmp_costs = tmp.sort_index().groupby('Scenario')['Total costs'].diff()
-    tmp_costs = - tmp_costs[tmp_costs.index.get_level_values('Ban_Status') != 'Ban'].droplevel('Ban_Status')
-    tmp_costs = pd.concat([tmp[tmp.index.get_level_values('Ban_Status') != 'Ban'].droplevel('Ban_Status')[list_features], tmp_costs], axis=1)
-    return tmp_costs
+    tmp_diff = tmp.sort_index().groupby('Scenario')[variable].diff()
+    tmp_diff = - tmp_diff[tmp_diff.index.get_level_values('Ban_Status') != 'Ban'].droplevel('Ban_Status')
+    tmp_diff = pd.concat([tmp[tmp.index.get_level_values('Ban_Status') != 'Ban'].droplevel('Ban_Status')[list_features], tmp_diff], axis=1)
+    return tmp_diff
 
 
 def create_frequency_dict(df):
