@@ -12,6 +12,7 @@ from pickle import load
 import datetime
 from PIL import Image
 from pathlib import Path
+from itertools import product
 
 from eoles.inputs.resources import resources_data
 from project.utils import save_fig
@@ -247,6 +248,7 @@ def get_main_outputs(dict_output, carbon_constraint=True, eoles=True, health=Fal
     stock_df, consumption_df, distributive_df = pd.DataFrame(dtype=float), pd.DataFrame(dtype=float), pd.DataFrame(dtype=float)
     capacities_df, generation_df = pd.DataFrame(dtype=float), pd.DataFrame(dtype=float)
     passed = pd.Series(dtype=float)
+    hourly_generation = dict()  # to save hourly generation for the two reference scenarios
     for path, name_config in zip(dict_output.values(), [n for n in dict_output.keys()]):
         with open(os.path.join(path, 'coupling_results.pkl'), "rb") as file:
             output = load(file)
@@ -263,6 +265,10 @@ def get_main_outputs(dict_output, carbon_constraint=True, eoles=True, health=Fal
                 functionment_costs_df = functionment_costs_df.drop(columns=[2020])
 
             if 2050 in annualized_new_investment_df.columns:  # scenario passed the constraint
+
+                if name_config in ['S0', 'S0-ban']:
+                    hourly_generation[name_config] = output["Hourly generation 2050 (GWh)"]
+
                 passed = pd.concat([passed, pd.Series(1, index=[name_config])])
                 total_system_costs_2050, total_operational_costs_2050 = process_total_costs(annualized_new_investment_df,
                                                                                             annualized_new_energy_capacity_df,
@@ -339,7 +345,7 @@ def get_main_outputs(dict_output, carbon_constraint=True, eoles=True, health=Fal
         'generation': generation_df,
         'passed': passed
     }
-    return o
+    return o, hourly_generation
 
 
 def comparison_simulations_new(dict_output: dict, ref, greenfield=False, health=False, x_min=0, x_max=None, y_min=0, y_max=None,
@@ -3196,8 +3202,9 @@ def waterfall_chart(df, colors=None, rotation=0, save=None, format_y=lambda y, _
         y_positions['Total costs'] = df['Total costs']
 
         # Plot error bars dotted lines
-        eb = ax.errorbar(x=x_positions, y=y_positions, yerr=errors, fmt='none', ecolor='black', elinewidth=2, capsize=5,
-                    capthick=2)
+        eb = ax.errorbar(x=x_positions, y=y_positions, yerr=errors, fmt='none', ecolor='darkgrey', elinewidth=2, capsize=5,
+                    capthick=2, ls='--')
+
         eb[-1][0].set_linestyle('--')
 
     y_height = df.cumsum().shift(1).fillna(0)
@@ -3235,10 +3242,13 @@ def waterfall_chart(df, colors=None, rotation=0, save=None, format_y=lambda y, _
         loop += 1
 
     if blank.max() > 0:  # total est True quand on fait les graphes pour les coûts, et False quand on fait les graphes pour les capacités
-        if total:
-            y_max = blank.max() * 1.1
+        if df_max is not None:
+            y_max = (y_positions + errors_positive).max() * 1.1
         else:
-            y_max = (blank + df).max() * 3
+            if total:
+                y_max = blank.max() * 1.1
+            else:
+                y_max = (blank + df).max() * 3
     else:
         y_max = 5 * 1.1
     if total:

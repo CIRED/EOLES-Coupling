@@ -78,7 +78,7 @@ def parse_outputs(folderpath, features):
             dict_output[path.name.split('_')[1]] = path
 
     # Process outputs
-    output = get_main_outputs(dict_output)
+    output, hourly_generation = get_main_outputs(dict_output)
     output['passed'] = output['passed'].to_frame().T.rename(index={0: 'passed'})
     output = pd.concat([output[k] for k in output.keys()], axis=0)
     new_index = ['passed', 'Total costs']
@@ -116,7 +116,7 @@ def parse_outputs(folderpath, features):
     output.to_csv(folderpath / Path('scenarios_comparison.csv'))
 
 
-    return scenarios_complete, output
+    return scenarios_complete, output, hourly_generation
 
 
 def waterfall_analysis(scenarios_complete, reference='S0', save_path=None, wood=True):
@@ -540,4 +540,4 @@ if __name__ == '__main__':
     folderpath = Path('/mnt/beegfs/workdir/celia.escribe/eoles2/eoles/outputs/exhaustive_20240226_202408')  # for cluster use
     features = ['policy_heater', 'policy_insulation', 'learning', 'elasticity', 'cop', 'biogas', 'capacity_ren',
                 'demand', 'carbon_budget', 'gasprices']
-    scenarios_complete, output = parse_outputs(folderpath, features=features)
+    scenarios_complete, output, hourly_generation = parse_outputs(folderpath, features=features)

@@ -1,7 +1,6 @@
 {
     "supply" : {
-      "carbon_constraint": ["reference", "NoCarbonConstraint"],
-      "biogas": ["reference", "Biogas-"]
+      "carbon_constraint": ["reference", "NoCarbonConstraint"]
     },
     "demand" : {},
    "prices": {}
