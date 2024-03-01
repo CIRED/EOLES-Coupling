@@ -130,12 +130,12 @@ def get_distributional_data(df):
     tmp = df[df.columns[df.columns.to_series().apply(lambda x: isinstance(x, tuple))]]
     return tmp
 
-def waterfall_analysis(scenarios_complete, reference='S0', save_path=None, wood=True):
+def waterfall_analysis(scenarios_complete, reference='S0', save_path=None, wood=True, neg_offset_dict=None, pos_offset_dict=None):
     """Plots the waterfall chart to compare reference with Ban scenario."""
     list_costs = ['Investment heater costs', 'Investment insulation costs', 'Investment electricity costs','Functionment costs', 'Total costs']
     if len(scenarios_complete) == 2:
         costs_diff = scenarios_complete[list_costs].diff()
-        costs_diff = costs_diff.loc[1]
+        costs_diff = costs_diff.iloc[-1]
     else:
         scenarios_complete = scenarios_complete.sort_index()  # order for estimating the difference
         costs_diff = - scenarios_complete.xs(reference, level='Scenario')[list_costs].diff()
@@ -145,14 +145,20 @@ def waterfall_analysis(scenarios_complete, reference='S0', save_path=None, wood=
         save_path_costs = save_path / Path('waterfall_costs.pdf')
     else:
         save_path_costs = None
+
+    neg_offset, pos_offset = None, None
+    if (neg_offset_dict is not None) and ('costs' in neg_offset_dict.keys()):
+        neg_offset = neg_offset_dict['costs']
+    if (pos_offset_dict is not None) and ('costs' in pos_offset_dict.keys()):
+        pos_offset = pos_offset_dict['costs']
     waterfall_chart(costs_diff, colors=resources_data["colors_eoles"], rotation=0, save= save_path_costs, format_y=lambda y, _: '{:.0f} B€'.format(y),
                     title="Additional system costs when Ban is implemented (B€)", y_label=None, hline=True, dict_legend=DICT_LEGEND_WATERFALL,
-                    df_max=None, df_min=None)
+                    df_max=None, df_min=None, neg_offset=neg_offset, pos_offset=pos_offset)
 
     list_capacity = ['offshore', 'onshore', 'pv', 'battery', 'hydro', 'peaking plants', 'methanization', 'pyrogazification']
     if len(scenarios_complete) == 2:
         capacity_diff = scenarios_complete[list_capacity].diff()
-        capacity_diff = capacity_diff.loc[1]
+        capacity_diff = capacity_diff.iloc[-1]
     else:
         capacity_diff = - scenarios_complete.xs(reference, level='Scenario')[list_capacity].diff()
         capacity_diff = capacity_diff.xs('reference')
@@ -183,7 +189,7 @@ def waterfall_analysis(scenarios_complete, reference='S0', save_path=None, wood=
 
     if len(scenarios_complete) == 2:
         generation_diff = generation_diff.diff()
-        generation_diff = generation_diff.loc[1]
+        generation_diff = generation_diff.iloc[-1]
     else:
         generation_diff = - generation_diff.diff()
         generation_diff = generation_diff.xs('reference')

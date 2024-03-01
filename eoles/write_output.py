@@ -3241,8 +3241,10 @@ def waterfall_chart(df, colors=None, rotation=0, save=None, format_y=lambda y, _
 
     y_height = df.cumsum().shift(1).fillna(0)
     max = df.max()
-    if (neg_offset is None) or (pos_offset is None):
-        neg_offset, pos_offset = max / 20, max / 50
+    if neg_offset is None:
+        neg_offset = max / 20
+    if pos_offset is None:
+        pos_offset =  max / 50
 
     # Start label loop
     loop = 0
