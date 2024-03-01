@@ -64,7 +64,7 @@ LIST_FEATURES = ['policy_heater', 'policy_insulation', 'learning', 'elasticity',
             'demand', 'carbon_budget', 'gasprices']
 
 
-def parse_outputs(folderpath, features):
+def parse_outputs(folderpath, features, emissions=False):
     """Parses the outputs of the simulations and creates a csv file with the results.
     Return scenarios_complete, and output which has been processed to only include information on the difference between the Ban and the reference scenario."""
 
@@ -78,7 +78,7 @@ def parse_outputs(folderpath, features):
             dict_output[path.name.split('_')[1]] = path
 
     # Process outputs
-    output, hourly_generation = get_main_outputs(dict_output)
+    output, hourly_generation = get_main_outputs(dict_output, emissions=emissions)
     output['passed'] = output['passed'].to_frame().T.rename(index={0: 'passed'})
     output = pd.concat([output[k] for k in output.keys()], axis=0)
     new_index = ['passed', 'Total costs']
@@ -95,6 +95,12 @@ def parse_outputs(folderpath, features):
     scenarios_complete = scenarios_complete.sort_index()  # sort so that Ban and reference are always displayed in the same direction
 
     scenarios_complete.to_csv(folderpath / Path('scenarios_complete.csv'))
+    # create a dataframe from hourly_generation, which includes a dataframe for each of its keys. Each dataframe has the same index and columns for each key.
+    # you should take that into account when concatenating
+
+    hourly_generation = pd.concat(hourly_generation.values(), axis=1, keys=hourly_generation.keys())
+    hourly_generation.columns.names = ['Scenario', 'Hourly Data']
+    hourly_generation.to_csv(folderpath / Path('hourly_generation.csv'))
 
     def determine_value(group):
         # Extract 'passed' values for 'reference' and 'ban' within the group
@@ -119,12 +125,21 @@ def parse_outputs(folderpath, features):
     return scenarios_complete, output, hourly_generation
 
 
+def get_distributional_data(df):
+    """Extracts detailed distributional data"""
+    tmp = df[df.columns[df.columns.to_series().apply(lambda x: isinstance(x, tuple))]]
+    return tmp
+
 def waterfall_analysis(scenarios_complete, reference='S0', save_path=None, wood=True):
     """Plots the waterfall chart to compare reference with Ban scenario."""
     list_costs = ['Investment heater costs', 'Investment insulation costs', 'Investment electricity costs','Functionment costs', 'Total costs']
-    scenarios_complete = scenarios_complete.sort_index()  # order for estimating the difference
-    costs_diff = - scenarios_complete.xs(reference, level='Scenario')[list_costs].diff()
-    costs_diff = costs_diff.xs('reference')
+    if len(scenarios_complete) == 2:
+        costs_diff = scenarios_complete[list_costs].diff()
+        costs_diff = costs_diff.loc[1]
+    else:
+        scenarios_complete = scenarios_complete.sort_index()  # order for estimating the difference
+        costs_diff = - scenarios_complete.xs(reference, level='Scenario')[list_costs].diff()
+        costs_diff = costs_diff.xs('reference')
     costs_diff['Total costs'] = costs_diff['Total costs'] * 25  # we had divided total costs by 25 to have the value per year, so here we need to multiply again
     if save_path is not None:
         save_path_costs = save_path / Path('waterfall_costs.pdf')
@@ -135,9 +150,13 @@ def waterfall_analysis(scenarios_complete, reference='S0', save_path=None, wood=
                     df_max=None, df_min=None)
 
     list_capacity = ['offshore', 'onshore', 'pv', 'battery', 'hydro', 'peaking plants', 'methanization', 'pyrogazification']
-    capacity_diff = - scenarios_complete.xs(reference, level='Scenario')[list_capacity].diff()
+    if len(scenarios_complete) == 2:
+        capacity_diff = scenarios_complete[list_capacity].diff()
+        capacity_diff = capacity_diff.loc[1]
+    else:
+        capacity_diff = - scenarios_complete.xs(reference, level='Scenario')[list_capacity].diff()
+        capacity_diff = capacity_diff.xs('reference')
     # drop values equal to 0
-    capacity_diff = capacity_diff.xs('reference')
     capacity_diff = capacity_diff[abs(capacity_diff) > 0.1]
     if save_path is not None:
         save_path_capacity = save_path / Path('waterfall_capacity.pdf')
@@ -153,12 +172,21 @@ def waterfall_analysis(scenarios_complete, reference='S0', save_path=None, wood=
          list_generation = list_generation + ['Consumption Wood (TWh)']
     else:
         list_generation = list_generation + ['Consumption Wood (TWh)', 'Generation central wood boiler (TWh)']
-    generation_diff = scenarios_complete.xs(reference, level='Scenario')[list_generation]
+
+    if len(scenarios_complete) == 2:
+        generation_diff = scenarios_complete[list_generation]
+    else:
+        generation_diff = scenarios_complete.xs(reference, level='Scenario')[list_generation]
     if not wood:
         generation_diff['Consumption Wood (TWh)'] = generation_diff['Consumption Wood (TWh)'] + generation_diff['Generation central wood boiler (TWh)']  # we sum overall consumption
         generation_diff = generation_diff.drop(columns='Generation central wood boiler (TWh)')
-    generation_diff = - generation_diff.diff()
-    generation_diff = generation_diff.xs('reference')
+
+    if len(scenarios_complete) == 2:
+        generation_diff = generation_diff.diff()
+        generation_diff = generation_diff.loc[1]
+    else:
+        generation_diff = - generation_diff.diff()
+        generation_diff = generation_diff.xs('reference')
     generation_diff = generation_diff[abs(generation_diff) > 0.1]
     if save_path is not None:
         save_path_generation = save_path / Path('waterfall_generation.pdf')
@@ -538,6 +566,5 @@ def histogram_plot(df, variable, binrange=None, title=None, save_path=None, xlab
 
 if __name__ == '__main__':
     folderpath = Path('/mnt/beegfs/workdir/celia.escribe/eoles2/eoles/outputs/exhaustive_20240226_202408')  # for cluster use
-    features = ['policy_heater', 'policy_insulation', 'learning', 'elasticity', 'cop', 'biogas', 'capacity_ren',
-                'demand', 'carbon_budget', 'gasprices']
+    features = ['policy_heater', 'policy_insulation', 'learning', 'elasticity', 'cop', 'biogas', 'capacity_ren', 'demand', 'carbon_budget', 'gasprices']
     scenarios_complete, output, hourly_generation = parse_outputs(folderpath, features=features)

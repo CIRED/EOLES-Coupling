@@ -243,13 +243,14 @@ def colormap_simulations(overall_folder, config_ref, save_path=None, pdf=False, 
     return total_system_costs_2050_df
 
 
-def get_main_outputs(dict_output, carbon_constraint=True, eoles=True, health=False):
+def get_main_outputs(dict_output, carbon_constraint=True, eoles=True, health=False, emissions=False):
     total_system_costs_2050_df, total_system_costs_2030_df, total_operational_costs_2050_df = pd.DataFrame(dtype=float), pd.DataFrame(dtype=float), pd.DataFrame(dtype=float)
     stock_df, consumption_df = pd.DataFrame(dtype=float), pd.DataFrame(dtype=float)
     capacities_df, generation_df = pd.DataFrame(dtype=float), pd.DataFrame(dtype=float)
     passed = pd.Series(dtype=float)
     hourly_generation = dict()  # to save hourly generation for the two reference scenarios
-    distributional_df = pd.DataFrame()
+    distributional_df, distributional_income_df = pd.DataFrame(), pd.DataFrame()
+    emissions_df = pd.DataFrame()
     for path, name_config in zip(dict_output.values(), [n for n in dict_output.keys()]):
         with open(os.path.join(path, 'coupling_results.pkl'), "rb") as file:
             output = load(file)
@@ -293,17 +294,28 @@ def get_main_outputs(dict_output, carbon_constraint=True, eoles=True, health=Fal
                     product(['Single-family', 'Multi-family'], ['Owner-occupied', 'Privately rented', 'Social-housing'],
                             ['C1', 'C2', 'C3', 'C4', 'C5']))
                 temp = {}
+                stock_temp = {}
+                annuities_temp = {}
                 for i in l:
                     t = (output_resirf.loc['Annuities {} - {} - {} (euro)'.format(*i), :] + output_resirf.loc[
                                                                                      'Energy expenditures {} - {} - {} (euro)'.format(
                                                                                          *i), :])
-                    temp.update({i: t.sum()})
+                    stock = output_resirf.loc['Stock {} - {} - {}'.format(*i), :]
+                    t = t.loc[2025:2050]
+                    stock = stock.loc[2025:2050]
+                    temp.update({i: (t / stock).mean()})  # we average the cost per household over the period
+                    stock_temp.update({i: stock})
+                    annuities_temp.update({i: t})
                 temp = pd.Series(temp)
+                stock_temp = pd.DataFrame(stock_temp)
+                annuities_temp = pd.DataFrame(annuities_temp)
+                stock_temp.columns.names = ['Type', 'Status', 'Income']
+                annuities_temp.columns.names = ['Type', 'Status', 'Income']
                 temp.index.names = ['Type', 'Status', 'Income']
-                temp = temp.groupby('Income').sum()
-                temp = temp / 25
+                temp_income = (annuities_temp.groupby('Income', axis=1).sum() / stock_temp.groupby('Income', axis=1).sum()).mean()
 
-                distributional_df = pd.concat([distributional_df,temp.to_frame().rename(columns={0: name_config})], axis=1)
+                distributional_df = pd.concat([distributional_df,temp.rename(name_config)], axis=1)
+                distributional_income_df = pd.concat([distributional_income_df,temp_income.rename(name_config)], axis=1)
 
                 capacities = output["Capacities (GW)"]
                 capacities.loc["offshore"] = capacities.loc["offshore_f"] + capacities.loc["offshore_g"]
@@ -342,6 +354,10 @@ def get_main_outputs(dict_output, carbon_constraint=True, eoles=True, health=Fal
                     'Wood fuel': 'Consumption Wood (TWh)'
                 })
                 generation_df = pd.concat([generation_df, generation], axis=1)
+
+                if emissions:
+                    emissionsC02 = output["Emissions (MtCO2)"]
+                    emissions_df = pd.concat([emissions_df, emissionsC02.sum().rename(name_config)], axis=1)
             else:
                 passed = pd.concat([passed, pd.Series(0, index=[name_config])])
                 pass
@@ -353,11 +369,14 @@ def get_main_outputs(dict_output, carbon_constraint=True, eoles=True, health=Fal
         'costs': total_system_costs_2050_df,
         'stock': stock_df,
         'consumption': consumption_df,
-        'distributive': distributional_df,
+        'distributional': distributional_df,
+        'distributional_income': distributional_income_df,
         'capacity': capacities_df,
         'generation': generation_df,
         'passed': passed
     }
+    if emissions:
+        o['emissions'] = emissions_df
     return o, hourly_generation
 
 
