@@ -2,6 +2,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 import matplotlib.patches as mpatches
 import seaborn as sns
+from itertools import product
 from pickle import load
 import os
 import pandas as pd
@@ -128,6 +129,7 @@ def parse_outputs(folderpath, features, emissions=False):
 def get_distributional_data(df):
     """Extracts detailed distributional data"""
     tmp = df[df.columns[df.columns.to_series().apply(lambda x: isinstance(x, tuple))]]
+    tmp.columns = pd.MultiIndex.from_tuples(tmp.columns)
     return tmp
 
 def waterfall_analysis(scenarios_complete, reference='S0', save_path=None, wood=True, neg_offset_dict=None, pos_offset_dict=None):
@@ -568,6 +570,52 @@ def histogram_plot(df, variable, binrange=None, title=None, save_path=None, xlab
     if save_path:
         fig.savefig(save_path, bbox_inches='tight')
         plt.close(fig)
+
+
+def distributional_plot(df, folder_name=None):
+    """
+    Plots a bar plot of the difference of distributional index.
+
+    Examples:
+        distributional_data = get_distributional_data(scenarios_complete)
+        df = distributional_data.loc[ [('S0', 'Ban'), ('S0', 'reference')]].diff().iloc[-1]
+        df = df.unstack(-1)
+        distributional_plot(df)
+    """
+
+    level0_values = df.index.get_level_values(0).unique()
+    level1_values = df.index.get_level_values(1).unique()
+
+    # Create the figure and axes for the subplots
+    fig, axes = plt.subplots(nrows=2, ncols=3, figsize=(15, 10), sharey=True)
+
+    # Flatten the axes for easy iteration
+    axes_flat = axes.flatten()
+
+    # Iterate over the combinations of the first two levels
+    for idx, (level0, level1) in enumerate(product(level0_values, level1_values)):
+        ax = axes_flat[idx]
+        # Select the data for the current combination of level 0 and level 1
+        data = df.loc[(level0, level1)]
+        data.plot(kind='bar', ax=ax)
+        ax.set_title(f'{level0} | {level1}')
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.spines['left'].set_visible(False)
+        ax.spines['bottom'].set_visible(False)
+        ax.axhline(color='black')
+        ax.set_xticklabels(data.index, rotation=0, ha='right')
+
+    # Adjust the layout
+    plt.tight_layout()
+    plt.axhline(color='black')
+
+    if folder_name is not None:
+        fig.savefig(folder_name / Path('distributional_plot.png'), bbox_inches='tight')
+        plt.close(fig)
+    else:
+        plt.show()
+
 
 
 if __name__ == '__main__':

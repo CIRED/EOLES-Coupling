@@ -303,18 +303,19 @@ def get_main_outputs(dict_output, carbon_constraint=True, eoles=True, health=Fal
                     stock = output_resirf.loc['Stock {} - {} - {}'.format(*i), :]
                     t = t.loc[2025:2050]
                     stock = stock.loc[2025:2050]
-                    temp.update({i: (t / stock).mean()})  # we average the cost per household over the period
+                    temp.update({i: (t.sum() / stock.sum())})  # we average the cost per household over the period, and we compute the weighted mean based on the stock
                     stock_temp.update({i: stock})
                     annuities_temp.update({i: t})
                 temp = pd.Series(temp)
+                temp.index.names = ['Type', 'Status', 'Income']
+                distributional_df = pd.concat([distributional_df, temp.rename(name_config)], axis=1)  # distributional index by type of household
+
                 stock_temp = pd.DataFrame(stock_temp)
                 annuities_temp = pd.DataFrame(annuities_temp)
                 stock_temp.columns.names = ['Type', 'Status', 'Income']
                 annuities_temp.columns.names = ['Type', 'Status', 'Income']
-                temp.index.names = ['Type', 'Status', 'Income']
-                temp_income = (annuities_temp.groupby('Income', axis=1).sum() / stock_temp.groupby('Income', axis=1).sum()).mean()
+                temp_income = annuities_temp.groupby('Income', axis=1).sum().sum(axis=0) / stock_temp.groupby('Income', axis=1).sum().sum(axis=0)  # distributional index by income
 
-                distributional_df = pd.concat([distributional_df,temp.rename(name_config)], axis=1)
                 distributional_income_df = pd.concat([distributional_income_df,temp_income.rename(name_config)], axis=1)
 
                 capacities = output["Capacities (GW)"]
