@@ -2,6 +2,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 import matplotlib.patches as mpatches
 import seaborn as sns
+from itertools import product
 from pickle import load
 import os
 import pandas as pd
@@ -64,13 +65,13 @@ LIST_FEATURES = ['policy_heater', 'policy_insulation', 'learning', 'elasticity',
             'demand', 'carbon_budget', 'gasprices']
 
 
-def parse_outputs(folderpath, features):
+def parse_outputs(folderpath, features, emissions=False):
     """Parses the outputs of the simulations and creates a csv file with the results.
     Return scenarios_complete, and output which has been processed to only include information on the difference between the Ban and the reference scenario."""
 
     # Load scenarios names
     scenarios = pd.read_csv(folderpath / Path('scenarios.csv'), index_col=0)
-
+    scenarios = scenarios.fillna('reference')  # when using marginal method, some scenarios are NaNs, and need to be replaced with reference
     dict_output = {}
     # list all files in a folder with path folderpath
     for path in folderpath.iterdir():
@@ -78,7 +79,7 @@ def parse_outputs(folderpath, features):
             dict_output[path.name.split('_')[1]] = path
 
     # Process outputs
-    output, hourly_generation = get_main_outputs(dict_output)
+    output, hourly_generation = get_main_outputs(dict_output, emissions=emissions)
     output['passed'] = output['passed'].to_frame().T.rename(index={0: 'passed'})
     output = pd.concat([output[k] for k in output.keys()], axis=0)
     new_index = ['passed', 'Total costs']
@@ -95,6 +96,12 @@ def parse_outputs(folderpath, features):
     scenarios_complete = scenarios_complete.sort_index()  # sort so that Ban and reference are always displayed in the same direction
 
     scenarios_complete.to_csv(folderpath / Path('scenarios_complete.csv'))
+    # create a dataframe from hourly_generation, which includes a dataframe for each of its keys. Each dataframe has the same index and columns for each key.
+    # you should take that into account when concatenating
+
+    hourly_generation = pd.concat(hourly_generation.values(), axis=1, keys=hourly_generation.keys())
+    hourly_generation.columns.names = ['Scenario', 'Hourly Data']
+    hourly_generation.to_csv(folderpath / Path('hourly_generation.csv'))
 
     def determine_value(group):
         # Extract 'passed' values for 'reference' and 'ban' within the group
@@ -119,25 +126,45 @@ def parse_outputs(folderpath, features):
     return scenarios_complete, output, hourly_generation
 
 
-def waterfall_analysis(scenarios_complete, reference='S0', save_path=None, wood=True):
+def get_distributional_data(df):
+    """Extracts detailed distributional data"""
+    tmp = df[df.columns[df.columns.to_series().apply(lambda x: isinstance(x, tuple))]]
+    tmp.columns = pd.MultiIndex.from_tuples(tmp.columns)
+    return tmp
+
+def waterfall_analysis(scenarios_complete, reference='S0', save_path=None, wood=True, neg_offset_dict=None, pos_offset_dict=None):
     """Plots the waterfall chart to compare reference with Ban scenario."""
     list_costs = ['Investment heater costs', 'Investment insulation costs', 'Investment electricity costs','Functionment costs', 'Total costs']
-    scenarios_complete = scenarios_complete.sort_index()  # order for estimating the difference
-    costs_diff = - scenarios_complete.xs(reference, level='Scenario')[list_costs].diff()
-    costs_diff = costs_diff.xs('reference')
+    if len(scenarios_complete) == 2:
+        costs_diff = scenarios_complete[list_costs].diff()
+        costs_diff = costs_diff.iloc[-1]
+    else:
+        scenarios_complete = scenarios_complete.sort_index()  # order for estimating the difference
+        costs_diff = - scenarios_complete.xs(reference, level='Scenario')[list_costs].diff()
+        costs_diff = costs_diff.xs('reference')
     costs_diff['Total costs'] = costs_diff['Total costs'] * 25  # we had divided total costs by 25 to have the value per year, so here we need to multiply again
     if save_path is not None:
         save_path_costs = save_path / Path('waterfall_costs.pdf')
     else:
         save_path_costs = None
+
+    neg_offset, pos_offset = None, None
+    if (neg_offset_dict is not None) and ('costs' in neg_offset_dict.keys()):
+        neg_offset = neg_offset_dict['costs']
+    if (pos_offset_dict is not None) and ('costs' in pos_offset_dict.keys()):
+        pos_offset = pos_offset_dict['costs']
     waterfall_chart(costs_diff, colors=resources_data["colors_eoles"], rotation=0, save= save_path_costs, format_y=lambda y, _: '{:.0f} B€'.format(y),
                     title="Additional system costs when Ban is implemented (B€)", y_label=None, hline=True, dict_legend=DICT_LEGEND_WATERFALL,
-                    df_max=None, df_min=None)
+                    df_max=None, df_min=None, neg_offset=neg_offset, pos_offset=pos_offset)
 
     list_capacity = ['offshore', 'onshore', 'pv', 'battery', 'hydro', 'peaking plants', 'methanization', 'pyrogazification']
-    capacity_diff = - scenarios_complete.xs(reference, level='Scenario')[list_capacity].diff()
+    if len(scenarios_complete) == 2:
+        capacity_diff = scenarios_complete[list_capacity].diff()
+        capacity_diff = capacity_diff.iloc[-1]
+    else:
+        capacity_diff = - scenarios_complete.xs(reference, level='Scenario')[list_capacity].diff()
+        capacity_diff = capacity_diff.xs('reference')
     # drop values equal to 0
-    capacity_diff = capacity_diff.xs('reference')
     capacity_diff = capacity_diff[abs(capacity_diff) > 0.1]
     if save_path is not None:
         save_path_capacity = save_path / Path('waterfall_capacity.pdf')
@@ -153,12 +180,21 @@ def waterfall_analysis(scenarios_complete, reference='S0', save_path=None, wood=
          list_generation = list_generation + ['Consumption Wood (TWh)']
     else:
         list_generation = list_generation + ['Consumption Wood (TWh)', 'Generation central wood boiler (TWh)']
-    generation_diff = scenarios_complete.xs(reference, level='Scenario')[list_generation]
+
+    if len(scenarios_complete) == 2:
+        generation_diff = scenarios_complete[list_generation]
+    else:
+        generation_diff = scenarios_complete.xs(reference, level='Scenario')[list_generation]
     if not wood:
         generation_diff['Consumption Wood (TWh)'] = generation_diff['Consumption Wood (TWh)'] + generation_diff['Generation central wood boiler (TWh)']  # we sum overall consumption
         generation_diff = generation_diff.drop(columns='Generation central wood boiler (TWh)')
-    generation_diff = - generation_diff.diff()
-    generation_diff = generation_diff.xs('reference')
+
+    if len(scenarios_complete) == 2:
+        generation_diff = generation_diff.diff()
+        generation_diff = generation_diff.iloc[-1]
+    else:
+        generation_diff = - generation_diff.diff()
+        generation_diff = generation_diff.xs('reference')
     generation_diff = generation_diff[abs(generation_diff) > 0.1]
     if save_path is not None:
         save_path_generation = save_path / Path('waterfall_generation.pdf')
@@ -536,8 +572,53 @@ def histogram_plot(df, variable, binrange=None, title=None, save_path=None, xlab
         plt.close(fig)
 
 
+def distributional_plot(df, folder_name=None):
+    """
+    Plots a bar plot of the difference of distributional index.
+
+    Examples:
+        distributional_data = get_distributional_data(scenarios_complete)
+        df = distributional_data.loc[ [('S0', 'Ban'), ('S0', 'reference')]].diff().iloc[-1]
+        df = df.unstack(-1)
+        distributional_plot(df)
+    """
+
+    level0_values = df.index.get_level_values(0).unique()
+    level1_values = df.index.get_level_values(1).unique()
+
+    # Create the figure and axes for the subplots
+    fig, axes = plt.subplots(nrows=2, ncols=3, figsize=(15, 10), sharey=True)
+
+    # Flatten the axes for easy iteration
+    axes_flat = axes.flatten()
+
+    # Iterate over the combinations of the first two levels
+    for idx, (level0, level1) in enumerate(product(level0_values, level1_values)):
+        ax = axes_flat[idx]
+        # Select the data for the current combination of level 0 and level 1
+        data = df.loc[(level0, level1)]
+        data.plot(kind='bar', ax=ax)
+        ax.set_title(f'{level0} | {level1}')
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.spines['left'].set_visible(False)
+        ax.spines['bottom'].set_visible(False)
+        ax.axhline(color='black')
+        ax.set_xticklabels(data.index, rotation=0, ha='right')
+
+    # Adjust the layout
+    plt.tight_layout()
+    plt.axhline(color='black')
+
+    if folder_name is not None:
+        fig.savefig(folder_name / Path('distributional_plot.png'), bbox_inches='tight')
+        plt.close(fig)
+    else:
+        plt.show()
+
+
+
 if __name__ == '__main__':
     folderpath = Path('/mnt/beegfs/workdir/celia.escribe/eoles2/eoles/outputs/exhaustive_20240226_202408')  # for cluster use
-    features = ['policy_heater', 'policy_insulation', 'learning', 'elasticity', 'cop', 'biogas', 'capacity_ren',
-                'demand', 'carbon_budget', 'gasprices']
+    features = ['policy_heater', 'policy_insulation', 'learning', 'elasticity', 'cop', 'biogas', 'capacity_ren', 'demand', 'carbon_budget', 'gasprices']
     scenarios_complete, output, hourly_generation = parse_outputs(folderpath, features=features)
