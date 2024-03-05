@@ -3,6 +3,7 @@ from matplotlib import pyplot as plt
 import matplotlib.patches as mpatches
 import seaborn as sns
 from itertools import product
+import ast
 from pickle import load
 import os
 import pandas as pd
@@ -127,7 +128,24 @@ def parse_outputs(folderpath, features, emissions=False):
 
 
 def get_distributional_data(df):
-    """Extracts detailed distributional data"""
+    """Extracts detailed distributional data, using the knowledge that those distributional data are tuples."""
+
+    # Update column names to correctly display tuples
+    new_column_names = []
+    for name in df.columns:
+        try:
+            # Try to evaluate the name as a tuple
+            evaluated_name = ast.literal_eval(name)
+            if isinstance(evaluated_name, tuple):
+                new_column_names.append(evaluated_name)
+            else:
+                new_column_names.append(name)
+        except:
+            # If it's not a tuple, just use the name as is
+            new_column_names.append(name)
+
+    df.columns = new_column_names
+
     tmp = df[df.columns[df.columns.to_series().apply(lambda x: isinstance(x, tuple))]]
     tmp.columns = pd.MultiIndex.from_tuples(tmp.columns)
     return tmp
