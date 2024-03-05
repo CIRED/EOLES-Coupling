@@ -522,7 +522,7 @@ def horizontal_stack_bar_plot(df, columns=None, title=None, order=None, save_pat
         plt.close(fig)
 
 
-def histogram_plot(df, variable, binrange=None, title=None, save_path=None, xlabel=None):
+def histogram_plot(df, variable, binrange=None, title=None, save_path=None, xlabel=None, bins=5):
     """
     Plots a histogram of the 'total_costs' column in 'df', adjusting values outside a specified range.
 
@@ -546,7 +546,7 @@ def histogram_plot(df, variable, binrange=None, title=None, save_path=None, xlab
     fig, ax = plt.subplots(1, 1, figsize=(14, 9.6), sharey=True)  # Share Y axis
 
     # Plotting
-    sns.histplot(data=temp, x=variable, stat="proportion", binrange=binrange, ax=ax, color='grey')
+    sns.histplot(data=temp, x=variable, stat="proportion", binrange=binrange, ax=ax, color='grey', bins=bins)
 
     # Set title if provided
     if title:
