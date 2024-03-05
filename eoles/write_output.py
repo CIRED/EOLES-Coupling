@@ -3228,11 +3228,13 @@ def waterfall_chart(df, colors=None, rotation=0, save=None, format_y=lambda y, _
         # Calculate error margins
         errors_positive = (df_max.squeeze() - df).dropna()
         errors_negative = (df - df_min.squeeze()).dropna()
-        errors = [errors_negative, errors_positive]
 
         # The x positions for the error bars
         x_positions = range(len(df))
         y_positions = df.cumsum()
+        errors_positive = errors_positive.reindex(y_positions.index)
+        errors_negative = errors_negative.reindex(y_positions.index)
+        errors = [errors_negative, errors_positive]
         if total:
             y_positions['Total costs'] = df['Total costs']
 
