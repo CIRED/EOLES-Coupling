@@ -98,15 +98,23 @@ def creation_scenarios(file=Path('eoles/inputs/config/scenarios/scenarios.json')
             # Additional scenarios to distribute if n is not divisible by n_cluster
             additional_scenarios = n % n_cluster
 
+            cluster_list = []
+            for i in range(n_cluster):
+                cluster_list += [f'Cluster{i + 1}'] * (scenarios_per_cluster + (1 if i < additional_scenarios else 0))
+            random.shuffle(cluster_list)  # to allocate randomly the scenarios to the clusters
+
             # Assign scenarios to clusters
             cluster_assignments = {}
-            start = 0
-            for i in range(n_cluster):
-                # Calculate end index for slicing; distribute additional scenarios among the first few clusters
-                end = start + scenarios_per_cluster + (1 if i < additional_scenarios else 0)
-                for key in list(scenarios.keys())[start:end]:
-                    cluster_assignments[key] = f'Cluster{i + 1}'
-                start = end
+            for key, cluster in zip(scenarios.keys(), cluster_list):
+                cluster_assignments[key] = cluster
+
+            # start = 0
+            # for i in range(n_cluster):
+            #     # Calculate end index for slicing; distribute additional scenarios among the first few clusters
+            #     end = start + scenarios_per_cluster + (1 if i < additional_scenarios else 0)
+            #     for key in list(scenarios.keys())[start:end]:
+            #         cluster_assignments[key] = f'Cluster{i + 1}'
+            #     start = end
 
             # Create DataFrame from cluster assignments
             cluster_assignments_df = pd.DataFrame(list(cluster_assignments.items()), columns=['Scenario', 'Cluster'])
@@ -178,4 +186,5 @@ if __name__ == '__main__':
     n_cluster = None
     if args.ncluster is not None:
         n_cluster = int(args.ncluster)
-    folder_simu = creation_scenarios(file=Path('eoles/inputs/config/scenarios/scenarios_carbonconstraint.json'), method=method, N=N, n_cluster=n_cluster)
+    # folder_simu = creation_scenarios(file=Path('eoles/inputs/config/scenarios/scenarios_carbonconstraint.json'), method=method, N=N, n_cluster=n_cluster)
+    folder_simu = creation_scenarios(method=method, N=N, n_cluster=n_cluster)

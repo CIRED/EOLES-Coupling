@@ -2,12 +2,15 @@
 
 map_values_eoles = {
     'Biogas-': 'S2',
+    'Biogas+': 'S3',
     'Nuc-': 'N1nuc',
     'Ren-': 'N1ren',
+    'Ren+': 'N1ren+',
     'Offshore-': 'N1offshore',
     'Onshore-': 'N1onshore',
     'PV-': 'N1pv',
     'CarbonBudget-': 'carbon_budget_low',
+    'CarbonBudget+': 'carbon_budget_high',
     'Sufficiency': 'Sobriete',
     'Reindustrialisation': 'Reindustrialisation',
     'cold': {'load_factors': 'vre_profiles_2012',
@@ -31,7 +34,7 @@ map_maxi_capacity_scenario = {
     'N1onshorepvoffshore': 'N1ren',
     'N1pvonshoreoffshore': 'N1ren',
     'N1ren': 'N1ren',
-    'Opt': 'Opt',
+    'N1ren+': 'N1ren+',
     'N1nuc': 'N1nuc',
     'N1ren2': 'N1ren2',
     'N1offshore': 'N1offshore',
@@ -104,6 +107,17 @@ map_values_resirf = {
                 "Natural gas": 0.0104 * 2,
             }
       }},
+    'PriceGas-': {
+        "eoles": {
+            "rate": {
+                "natural_gas": 0.0158 * 0.5,
+            }
+        },
+        "resirf": {
+            "rate": {
+                "Natural gas": 0.0104 * 0.5,
+            }
+        }},
     'PriceWood+': {
         "eoles": {
             "rate": {
