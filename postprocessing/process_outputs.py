@@ -564,7 +564,7 @@ def histogram_plot(df, variable, binrange=None, title=None, save_path=None, xlab
     fig, ax = plt.subplots(1, 1, figsize=(14, 9.6), sharey=True)  # Share Y axis
 
     # Plotting
-    sns.histplot(data=temp, x=variable, stat="proportion", binrange=binrange, ax=ax)
+    sns.histplot(data=temp, x=variable, stat="proportion", binrange=binrange, ax=ax, color='grey')
 
     # Set title if provided
     if title:
