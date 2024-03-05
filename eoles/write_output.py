@@ -268,7 +268,7 @@ def get_main_outputs(dict_output, carbon_constraint=True, eoles=True, health=Fal
 
             if 2050 in annualized_new_investment_df.columns:  # scenario passed the constraint
 
-                if name_config in ['S0', 'S0-ban']:
+                if name_config in ['S0', 'S0-ban']:  # we only save hourly generation for reference configurations
                     hourly_generation[name_config] = output["Hourly generation 2050 (GWh)"]
 
                 passed = pd.concat([passed, pd.Series(1, index=[name_config])])
@@ -2465,6 +2465,7 @@ def plot_load_profile(hourly_generation1, hourly_generation2, date_start, date_e
     if x_max is not None:
         ax.set_xlim(xmax=x_max)
 
+    format_legend(ax)
     # format_legend(ax)
     # ax.get_legend().remove()
 
@@ -3225,14 +3226,15 @@ def waterfall_chart(df, colors=None, rotation=0, save=None, format_y=lambda y, _
     # Calculate and plot error bars if df_min and df_max are provided
     if df_min is not None and df_max is not None:
         # Calculate error margins
-        errors_positive = df_max.squeeze() - df
-        errors_negative = df - df_min.squeeze()
+        errors_positive = (df_max.squeeze() - df).dropna()
+        errors_negative = (df - df_min.squeeze()).dropna()
         errors = [errors_negative, errors_positive]
 
         # The x positions for the error bars
         x_positions = range(len(df))
         y_positions = df.cumsum()
-        y_positions['Total costs'] = df['Total costs']
+        if total:
+            y_positions['Total costs'] = df['Total costs']
 
         # Plot error bars dotted lines
         eb = ax.errorbar(x=x_positions, y=y_positions, yerr=errors, fmt='none', ecolor='darkgrey', elinewidth=2, capsize=5,
@@ -3286,10 +3288,13 @@ def waterfall_chart(df, colors=None, rotation=0, save=None, format_y=lambda y, _
                 y_max = (blank + df).max() * 3
     else:
         y_max = 5 * 1.1
-    if total:
-        y_min = blank.min() * 2
+    if df_min is not None:
+        y_min = (y_positions - errors_negative).min() * 1.1
     else:
-        y_min = blank.min() * 1.2
+        if total:
+            y_min = blank.min() * 2
+        else:
+            y_min = blank.min() * 1.2
     ax.spines['left'].set_visible(False)
     ax.set_ylim(ymax=y_max)
     ax.set_ylim(ymin=y_min)
