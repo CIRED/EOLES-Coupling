@@ -245,12 +245,13 @@ def colormap_simulations(overall_folder, config_ref, save_path=None, pdf=False, 
 
 def get_main_outputs(dict_output, carbon_constraint=True, eoles=True, health=False, emissions=False):
     total_system_costs_2050_df, total_system_costs_2030_df, total_operational_costs_2050_df = pd.DataFrame(dtype=float), pd.DataFrame(dtype=float), pd.DataFrame(dtype=float)
-    stock_df, consumption_df = pd.DataFrame(dtype=float), pd.DataFrame(dtype=float)
+    stock_df, consumption_df = dict(), dict()
     capacities_df, generation_df = pd.DataFrame(dtype=float), pd.DataFrame(dtype=float)
     passed = pd.Series(dtype=float)
     hourly_generation = dict()  # to save hourly generation for the two reference scenarios
     distributional_df, distributional_income_df = pd.DataFrame(), pd.DataFrame()
     emissions_df = pd.DataFrame()
+    subsidies_df = dict()
     for path, name_config in zip(dict_output.values(), [n for n in dict_output.keys()]):
         with open(os.path.join(path, 'coupling_results.pkl'), "rb") as file:
             output = load(file)
@@ -284,11 +285,15 @@ def get_main_outputs(dict_output, carbon_constraint=True, eoles=True, health=Fal
                 total_system_costs_2050_df = pd.concat([total_system_costs_2050_df, total_system_costs_2050], axis=1)
 
                 output_resirf = output["Output global ResIRF ()"]
-                stock = pd.Series(output_resirf.loc[['Stock Heat pump (Million)', 'Stock Direct electric (Million)', 'Stock Natural gas (Million)', 'Stock Wood fuel (Million)']][2049]).to_frame().rename(columns={2049: name_config})
-                stock_df = pd.concat([stock_df, stock], axis=1)
+                stock = pd.Series(output_resirf.loc[['Stock Heat pump (Million)', 'Stock Direct electric (Million)', 'Stock Natural gas (Million)', 'Stock Wood fuel (Million)']][2049])
+                stock_df[name_config] = stock
 
-                consumption = pd.Series(output_resirf.loc[["Consumption Electricity (TWh)", "Consumption Natural gas (TWh)", "Consumption Wood fuel (TWh)"]][2049]).to_frame().rename(columns={2049: name_config})
-                consumption_df = pd.concat([consumption_df, consumption], axis=1)
+                consumption = pd.Series(output_resirf.loc[["Consumption Electricity (TWh)", "Consumption Natural gas (TWh)", "Consumption Wood fuel (TWh)"]][2049])
+                consumption_df[name_config] = consumption
+
+                subsidies = output_resirf.loc[['Subsidies insulation (Billion euro)', 'Subsidies heater (Billion euro)']]
+                subsidies = subsidies.sum(axis=1)
+                subsidies_df[name_config] = subsidies
 
                 l = list(
                     product(['Single-family', 'Multi-family'], ['Owner-occupied', 'Privately rented', 'Social-housing'],
@@ -366,9 +371,13 @@ def get_main_outputs(dict_output, carbon_constraint=True, eoles=True, health=Fal
                 # # create a series with this index and only np.nan values
                 # total_system_costs_2050 = pd.Series(index=index, data=[np.nan]*len(index)).to_frame().rename(columns={0: name_config})
 
+    subsidies_df = pd.DataFrame(subsidies_df)
+    consumption_df = pd.DataFrame(consumption_df)
+    stock_df = pd.DataFrame(stock_df)
     o = {
         'costs': total_system_costs_2050_df,
         'stock': stock_df,
+        'subsidies': subsidies_df,
         'consumption': consumption_df,
         'distributional': distributional_df,
         'distributional_income': distributional_income_df,

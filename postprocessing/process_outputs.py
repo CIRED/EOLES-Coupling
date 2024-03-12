@@ -132,6 +132,8 @@ def make_table_summary(data):
                    'Stock Direct electric (Million)': 'Number of direct electric',
                    'Stock Natural gas (Million)': 'Number of gas boilers',
                    'Stock Wood fuel (Million)': 'Number of wood boilers',
+                   'Subsidies insulation (Billion euro)': 'Subsidies insulation',
+                   'Subsidies heater (Billion euro)': 'Subsidies heater',
                    'Investment heater costs': 'Investment heating system',
                    'Investment insulation costs': 'Investment insulation',
                    'Consumption Electricity (TWh)': 'Consumption Electricity',
