@@ -127,6 +127,43 @@ def parse_outputs(folderpath, features, emissions=False):
     return scenarios_complete, output, hourly_generation
 
 
+def make_table_summary(data):
+    output_dict = {'Stock Heat pump (Million)': 'Number of heat pumps',
+                   'Stock Direct electric (Million)': 'Number of direct electric',
+                   'Stock Natural gas (Million)': 'Number of gas boilers',
+                   'Stock Wood fuel (Million)': 'Number of wood boilers',
+                   'Investment heater costs': 'Investment heating system',
+                   'Investment insulation costs': 'Investment insulation',
+                   'Consumption Electricity (TWh)': 'Consumption Electricity',
+                   'Consumption Natural gas (TWh)': 'Consumption Gas',
+                   'Consumption Wood fuel (TWh)': 'Consumption Wood',
+                   'offshore': 'Offshore capacity',
+                   'onshore': 'Onshore capacity',
+                   'pv': 'Solar PV',
+                   'battery': 'Battery',
+                   'peaking plants': 'Peaking plants capacity',
+                   'methanization': 'Methanization capacity',
+                   'pyrogazification': 'Pyrogazification capacity',
+                   'hydro': 'Hydroelectricity capacity',
+                   'Generation offshore (TWh)': 'Offshore production',
+                   'Generation onshore (TWh)': 'Onshore production',
+                   'Generation pv (TWh)': 'Solar PV production',
+                   'Generation battery (TWh)': 'Battery production',
+                   'Generation hydro (TWh)': 'Hydroelectricity production',
+                   'Generation peaking plants (TWh)': 'Peaking plants production',
+                   'Generation nuclear (TWh)': 'Nuclear production',
+                   'Generation methanization (TWh)': 'Methanization production',
+                   'Generation pyrogazification (TWh)': 'Pyrogazification production'
+                   }
+
+    scenarios = {('S0', 'reference'): 'Counterfactual', ('S0', 'Ban'): 'Ban'}
+    df = data.loc[scenarios.keys(), output_dict.keys()].T
+    df.rename(index=output_dict, inplace=True)
+    df.columns = scenarios.values()
+    df = df.astype('int')
+    return df
+
+
 def get_distributional_data(df):
     """Extracts detailed distributional data, using the knowledge that those distributional data are tuples."""
 
