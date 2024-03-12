@@ -25,11 +25,7 @@
         0,
         0
     ],
-    "eoles": {
-        "biomass_potential_scenario": "S3",
-        "aggregated_potential": true,
-        "maximum_capacity_scenario": "N1"
-    },
+    "eoles": {},
     "subsidy": {
         "proportional_uniform": null,
         "heater": {
