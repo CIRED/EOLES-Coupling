@@ -244,9 +244,10 @@ def colormap_simulations(overall_folder, config_ref, save_path=None, pdf=False, 
 
 
 def get_main_outputs(dict_output, carbon_constraint=True, eoles=True, health=False, emissions=False):
+    """Extracts information of interest from the different simulations."""
     total_system_costs_2050_df, total_system_costs_2030_df, total_operational_costs_2050_df = pd.DataFrame(dtype=float), pd.DataFrame(dtype=float), pd.DataFrame(dtype=float)
     stock_df, consumption_df = dict(), dict()
-    capacities_df, generation_df = pd.DataFrame(dtype=float), pd.DataFrame(dtype=float)
+    capacities_df, generation_df, curtailment_df = pd.DataFrame(dtype=float), pd.DataFrame(dtype=float), pd.DataFrame(dtype=float)
     passed = pd.Series(dtype=float)
     hourly_generation = dict()  # to save hourly generation for the two reference scenarios
     distributional_df, distributional_income_df = pd.DataFrame(), pd.DataFrame()
@@ -361,6 +362,9 @@ def get_main_outputs(dict_output, carbon_constraint=True, eoles=True, health=Fal
                 })
                 generation_df = pd.concat([generation_df, generation], axis=1)
 
+                curtailment = output["Curtailment information (TWh)"]
+                curtailment_df = pd.concat([curtailment_df, pd.Series(curtailment[2050]).to_frame().rename(columns={2050: name_config})], axis=1)
+
                 if emissions:
                     emissionsC02 = output["Emissions (MtCO2)"]
                     emissions_df = pd.concat([emissions_df, emissionsC02.sum().rename(name_config)], axis=1)
@@ -383,6 +387,7 @@ def get_main_outputs(dict_output, carbon_constraint=True, eoles=True, health=Fal
         'distributional_income': distributional_income_df,
         'capacity': capacities_df,
         'generation': generation_df,
+        'curtailment': curtailment_df,
         'passed': passed
     }
     if emissions:
@@ -666,7 +671,7 @@ def comparison_simulations_new(dict_output: dict, ref, greenfield=False, health=
         make_clusterstackedbar_plot(total_system_costs_2050_df, groupby='Costs', subset=subset_annualized_costs,
                                     y_label="Total system costs (Md€)",
                                     colors=resources_data["colors_eoles"], format_y=lambda y, _: '{:.0f}'.format(y),
-                                    dict_legend=DICT_TRANSFORM_LEGEND, save=save_path_plot, rotation=90,
+                                    dict_legend=DICT_TRANSFORM_LEGEND, save=save_path_plot, rotation=0,
                                     ranking_exogenous_scenario=ranking_exogenous_scenario, ranking_policy_scenario=ranking_policy_scenario
                                     )
 

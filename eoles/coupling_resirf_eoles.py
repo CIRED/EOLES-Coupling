@@ -1303,6 +1303,7 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
                      "Conversion generation (TWh)": output_dynamics['conversion_generation_df'],
                      "Charging capacity (GW)": output_dynamics['charging_capacity_df'],
                      "Energy capacity (GW)": output_dynamics['energy_capacity_df'],
+                     "Curtailment information (TWh)": output_dynamics['curtailment_df'],
                      "Annualized new investments (1e9€/yr)": output_dynamics['annualized_new_investment_df'],
                      "Annualized costs new energy capacity (1e9€/yr)": output_dynamics['annualized_new_energy_capacity_df'],
                     "Annualized costs historical capacity (1e9€/yr)": output_dynamics['annualized_historical_capacity_df'],
@@ -1394,6 +1395,7 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
             "Conversion generation (TWh)": output_dynamics['conversion_generation_df'],
             "Charging capacity (GW)": output_dynamics['charging_capacity_df'],
             "Energy capacity (GW)": output_dynamics['energy_capacity_df'],
+            "Curtailment information (TWh)": output_dynamics['curtailment_df'],
             "Annualized new investments (1e9€/yr)": output_dynamics['annualized_new_investment_df'],
             "Annualized costs new energy capacity (1e9€/yr)": output_dynamics['annualized_new_energy_capacity_df'],
             "Annualized costs historical capacity (1e9€/yr)": output_dynamics['annualized_historical_capacity_df'],
@@ -1839,6 +1841,7 @@ def initialize_output_dynamics(config_eoles):
     output_dynamics['spot_price_df'], output_dynamics['hourly_generation_2050'], output_dynamics['hourly_generation_init'] = pd.DataFrame(dtype=float), pd.DataFrame(), pd.DataFrame()
     output_dynamics['peak_electricity_load_df'], output_dynamics['peak_heat_load_df'] = pd.DataFrame(dtype=float), pd.DataFrame(dtype=float)
     output_dynamics['carbon_content_df'] = pd.DataFrame(dtype=float)
+    output_dynamics['curtailment_df'] = pd.DataFrame(dtype=float)
 
     output_dynamics['weighted_average_elec_price'], output_dynamics['weighted_average_CH4_price'], output_dynamics['weighted_average_H2_price'] = [], [], []
     output_dynamics['list_lcoe_elec'], output_dynamics['list_lcoe_elec_volume'], output_dynamics['list_lcoe_elec_value'], output_dynamics['list_lcoe_CH4'], output_dynamics['list_lcoe_CH4_volume'], output_dynamics['list_lcoe_CH4_value'], output_dynamics['list_lcoe_CH4_noSCC'], output_dynamics['list_lcoe_CH4_volume_noSCC'] = [], [], [], [], [], [], [], []
@@ -2103,6 +2106,7 @@ def post_processing_eoles_output(output_dynamics, m_eoles: ModelEOLES, anticipat
                                        m_eoles.power_to_H2_generation.to_frame()], axis=0)
     output_dynamics['conversion_generation_df'] = pd.concat(
         [output_dynamics['conversion_generation_df'], conversion_generation.rename(columns={0: anticipated_year})], axis=1)
+    output_dynamics['curtailment_df'] = pd.concat([output_dynamics['curtailment_df'], m_eoles.curtailment_info.to_frame().rename(columns={0: anticipated_year})], axis=1)
 
     output_dynamics['list_elec_annualized'].append(m_eoles.objective)
     output_dynamics['list_transport_distrib_annualized'].append(m_eoles.transport_distribution_cost)

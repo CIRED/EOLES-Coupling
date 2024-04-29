@@ -452,6 +452,26 @@ def extract_hourly_generation(model, elec_demand, CH4_demand, H2_demand, convers
     return hourly_generation  # GWh
 
 
+def extract_curtailment_and_storage_losses(model, elec_demand, conversion_efficiency):
+    """Extracts curtailment and storage losses in GWh and in percent."""
+    elec_gene_tec = list(model.elec_gene)
+    str_elec_tec = list(model.str_elec)
+    elec_gene = sum(value(model.gene[tec, hour]) for tec in elec_gene_tec for hour in model.h)  # GWh
+    elec_gene += sum(value(model.gene[tec, hour]) for tec in ['ocgt', 'ccgt', 'h2_ccgt'] for hour in model.h) # we add peaking plants, initiall not included in elec_gene_tec
+    str_losses = sum(value(model.storage[str, hour]) - value(model.gene[str, hour]) for str in str_elec_tec for hour in model.h) # GWh, storage losses
+    demand_from_other_vectors = sum(value(model.gene['electrolysis', hour]) / conversion_efficiency['electrolysis'] + value(model.gene['methanation', hour]) / conversion_efficiency['methanation'] for hour in model.h)
+    ren_curtailment = elec_gene - sum(elec_demand[hour] for hour in model.h) - demand_from_other_vectors - str_losses  # GWh
+    ren_curtailment_percent = ren_curtailment / (elec_gene - demand_from_other_vectors) * 100
+    str_losses_percent = str_losses / (elec_gene - demand_from_other_vectors) * 100
+    r = {
+        'electricity_storage_losses': str_losses / 1000,  # TWh
+        'renewable_curtailment': ren_curtailment / 1000,  # TWh
+        'electricity_storage_losses_percent': str_losses_percent,
+        'renewable_curtailment_percent': ren_curtailment_percent,
+    }
+    return pd.Series(r)
+
+
 def get_carbon_content(hourly_generation, conversion, carbon_content, climate=2006, nb_years=1):
     """Estimates the carbon content of gas and of electric heating, based on methodology by ADEME and RTE (méthode moyenne horaire).
     Returns the result in gCO2/kWh"""

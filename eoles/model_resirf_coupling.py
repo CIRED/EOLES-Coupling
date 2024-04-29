@@ -9,7 +9,7 @@ import json
 import os
 import math
 from eoles.utils import get_pandas, process_RTE_demand, calculate_annuities_capex, calculate_annuities_storage_capex, \
-    update_vom_costs_scc, define_month_hours, calculate_annuities_renovation, get_technical_cost, extract_hourly_generation, \
+    update_vom_costs_scc, define_month_hours, calculate_annuities_renovation, get_technical_cost, extract_hourly_generation, extract_curtailment_and_storage_losses, \
     extract_spot_price, extract_capacities, extract_energy_capacity, extract_supply_elec, extract_primary_gene, \
     extract_use_elec, extract_renovation_rates, extract_heat_gene, calculate_LCOE_gene_tec, calculate_LCOE_conv_tec, \
     extract_charging_capacity, extract_annualized_costs_investment_new_capa, extract_CH4_to_power, extract_power_to_CH4, \
@@ -582,7 +582,7 @@ class ModelEOLES():
                     self.oil_consumption * self.carbon_content['oil'] / 1000 <= self.carbon_budget
             else:
                 return sum(model.gene["natural_gas", h] for h in range(8760 * y, 8760 * (y + 1) - 1)) * self.carbon_content['natural_gas'] / 1000 + \
-                    self.oil_consumption * self.carbon_content['oil'] / 1000 + self.wood_consumption * self.carbon_content['wood'] / 1000 <= self.carbon_budget
+                    self.oil_consumption * self.carbon_content['oil'] / 1000 + (self.wood_consumption + sum(model.gene["central_wood_boiler", h] for h in range(8760 * y, 8760 * (y + 1) - 1))) * self.carbon_content['wood'] / 1000 <= self.carbon_budget
 
 
         self.model.generation_vre_constraint = \
@@ -732,6 +732,9 @@ class ModelEOLES():
         self.hourly_generation = extract_hourly_generation(self.model, elec_demand=self.elec_demand,  CH4_demand=list(self.CH4_demand.values()),
                                                            H2_demand=list(self.H2_demand.values()), conversion_efficiency=self.conversion_efficiency,
                                                            hourly_heat_elec=self.hourly_heat_elec, hourly_heat_gas=self.hourly_heat_gas)
+        self.curtailment_info = extract_curtailment_and_storage_losses(self.model, self.elec_demand, self.conversion_efficiency)
+        # self.electricity_storage_losses, self.renewable_curtailment = curtailment_info['electricity_storage_losses'], curtailment_info['renewable_curtailment']
+        # self.electricity_storage_losses_percent, self.renewable_curtailment_percent = curtailment_info['electricity_storage_losses_percent'], curtailment_info['renewable_curtailment_percent']
         self.gas_carbon_content, self.dh_carbon_content, self.heat_elec_carbon_content, self.heat_elec_carbon_content_day = \
             get_carbon_content(self.hourly_generation, self.conversion_efficiency, self.carbon_content)
         self.peak_electricity_load_info = extract_peak_load(self.hourly_generation, self.conversion_efficiency, self.input_years)

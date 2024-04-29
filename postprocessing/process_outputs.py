@@ -127,7 +127,7 @@ def parse_outputs(folderpath, features, emissions=False):
     return scenarios_complete, output, hourly_generation
 
 
-def make_table_summary(data):
+def make_table_summary(data, folderpath):
     output_dict = {'Stock Heat pump (Million)': 'Number of heat pumps',
                    'Stock Direct electric (Million)': 'Number of direct electric',
                    'Stock Natural gas (Million)': 'Number of gas boilers',
@@ -163,6 +163,8 @@ def make_table_summary(data):
     df.rename(index=output_dict, inplace=True)
     df.columns = scenarios.values()
     df = df.astype('int')
+
+    df.to_csv(folderpath / Path('summary_table.csv'))
     return df
 
 
