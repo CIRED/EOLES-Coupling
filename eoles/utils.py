@@ -1318,6 +1318,18 @@ def modif_config_eoles(config_eoles, config_coupling):
     assert config_coupling["eoles"]["demand_scenario"] in ["Reference", "Reindustrialisation", "Sobriete", "Electrification+"], "Demand scenario is not specified correctly in config_coupling."
     config_eoles_update["demand_scenario"] = config_coupling["eoles"]["demand_scenario"]
 
+    if 'fix_capacities' in config_coupling["eoles"].keys():
+        new_fix_capacities = config_coupling["eoles"]["fix_capacities"]
+        config_eoles_update["fix_capacities"] = f"eoles/inputs/{new_fix_capacities}.csv"
+
+    if 'fix_charging_capacities' in config_coupling["eoles"].keys():
+        new_fix_charging_capacities = config_coupling["eoles"]["fix_charging_capacities"]
+        config_eoles_update["fix_charging_capacities"] = f"eoles/inputs/{new_fix_charging_capacities}.csv"
+
+    if 'fix_energy_capacities' in config_coupling["eoles"].keys():
+        new_fix_energy_capacities = config_coupling["eoles"]["fix_energy_capacities"]
+        config_eoles_update["fix_energy_capacities"] = f"eoles/inputs/{new_fix_energy_capacities}.csv"
+
     if 'prices' in config_coupling['eoles'].keys():
         config_eoles_update['energy_prices']['rate'].update(config_coupling['eoles']['prices']['rate'])
 
@@ -1602,6 +1614,14 @@ def create_configs_coupling(list_design, config_coupling: dict, config_additiona
         config_coupling_update['eoles']['input_years'] = config_additional['weather']['input_years']
         config_coupling_update['weather_year'] = config_additional['weather']['input_years'][0]  # we specify the weather year for thermosensible demand in ResIRF.
         # For now, only accomodates a single year as a stress test, not multiple years.
+
+    if 'methane' in config_additional.keys():
+        assert 'fix_capacities' in config_additional['methane'].keys(), 'Modification of methane is specified, but missing specification for fixed capacities'
+        config_coupling_update['eoles']['fix_capacities'] = config_additional['methane']['fix_capacities']
+        assert 'fix_charging_capacities' in config_additional['methane'].keys(), 'Modification of methane is specified, but missing specification for fixed charging capacities'
+        config_coupling_update['eoles']['fix_charging_capacities'] = config_additional['methane']['fix_charging_capacities']
+        assert 'fix_energy_capacities' in config_additional['methane'].keys(), 'Modification of methane is specified, but missing specification for fixed energy capacities'
+        config_coupling_update['eoles']['fix_energy_capacities'] = config_additional['methane']['fix_energy_capacities']
 
     if dict_configs is None:
         dict_configs = {}

@@ -303,7 +303,7 @@ def get_main_outputs(dict_output, carbon_constraint=True, eoles=True, health=Fal
                 stock_temp = {}
                 annuities_temp = {}
                 for i in l:
-                    t = (output_resirf.loc['Annuities {} - {} - {} (euro)'.format(*i), :] + output_resirf.loc[
+                    t = (output_resirf.loc['Annuities {} - {} - {}'.format(*i), :] + output_resirf.loc[
                                                                                      'Energy expenditures {} - {} - {} (euro)'.format(
                                                                                          *i), :])
                     stock = output_resirf.loc['Stock {} - {} - {}'.format(*i), :]

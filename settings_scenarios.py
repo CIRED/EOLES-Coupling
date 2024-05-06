@@ -17,6 +17,11 @@ map_values_eoles = {
               'lake_inflows': 'lake_2012',
               'nb_years': 1,
               'input_years': [2012]},
+    'Methane+': {
+        'fix_capacities': 'fix_capacities_methanehigh',
+        'fix_charging_capacities': 'fix_charging_capacities_methanehigh',
+        'fix_energy_capacities': 'fix_energy_capacities_methanehigh'
+    },
     'NoCarbonConstraint': False
 }
 
@@ -143,6 +148,7 @@ map_scenarios_to_configs = {
     'capacity_pv': ['supply', 'maximum_capacity_scenario'],
     'carbon_budget': ['supply', 'carbon_budget'],
     'weather': ['supply', 'weather'],
+    'methane': ['supply', 'methane'],
     'carbon_constraint': ['supply', 'carbon_constraint'],
     'ban': ['policies'],
     'policy_mix': ['policies'],

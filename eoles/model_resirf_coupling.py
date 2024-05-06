@@ -727,7 +727,7 @@ class ModelEOLES():
         """
         # get value of objective function
         self.objective = self.solver_results["Problem"][0]["Upper bound"]
-        total_wood_consumption = self.wood_consumption + sum(self.model.gene["central_wood_boiler", h] for h in self.model.h)
+        total_wood_consumption = self.wood_consumption + sum(value(self.model.gene["central_wood_boiler", h]) for h in self.model.h)
         self.technical_cost, self.emissions = get_technical_cost(self.model, self.objective, self.anticipated_scc, self.oil_consumption,
                                                                  total_wood_consumption, self.nb_years, self.carbon_content, self.wood_carbon_neutral)
         self.hourly_generation = extract_hourly_generation(self.model, elec_demand=self.elec_demand,  CH4_demand=list(self.CH4_demand.values()),
