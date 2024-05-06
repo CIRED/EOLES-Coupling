@@ -66,7 +66,7 @@ map_values_resirf = {
               "activated": True,
               "start": 2019,
               "end": 2035,
-              "value_end": -0.5
+              "value_end": -0.4
             }
           }
         },

@@ -1309,7 +1309,7 @@ def modif_config_eoles(config_eoles, config_coupling):
         config_eoles_update["maximum_capacity_evolution"] = "eoles/inputs/technology_potential/maximum_capacity_greenfield.csv"
 
     # Choice of scenario for available potential
-    assert config_coupling["eoles"]['maximum_capacity_scenario'] in ['N1', 'Opt', 'N1nuc', 'N1ren', 'N1ren2', 'N1offshore', 'N1pv', 'N1onshore', 'N1offshorepv', 'N1offshoreonshore', 'N1onshorepv'], "Scenario for capacity evolution is not correctly specified"
+    assert config_coupling["eoles"]['maximum_capacity_scenario'] in ['N1', 'Opt', 'N1nuc', 'N1ren', 'N1ren+', 'N1ren2', 'N1offshore', 'N1pv', 'N1onshore', 'N1offshorepv', 'N1offshoreonshore', 'N1onshorepv'], "Scenario for capacity evolution is not correctly specified"
     config_eoles_update["maximum_capacity_evolution_scenario"] = config_coupling["eoles"]['maximum_capacity_scenario']
 
     assert config_coupling["eoles"]["biomass_potential_scenario"] in ["S3", "S2", "S2p", "S0"], "Biomass potential scenario is not specified correctly in config_coupling."

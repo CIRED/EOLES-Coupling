@@ -14,7 +14,7 @@ import shutil
 from project.coupling import ini_res_irf, simu_res_irf
 from project.utils import get_json
 from project.write_output import plot_scenario, plot_compare_scenarios, indicator_policies
-from project.model import get_inputs, social_planner
+from project.model import get_inputs
 
 from project.model import create_logger, get_config, get_inputs
 from eoles.model_resirf_coupling import ModelEOLES

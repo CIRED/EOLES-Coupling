@@ -21,6 +21,6 @@
       "policy_insulation": ["reference", "NoPolicyInsulation"]
     },
    "prices": {
-        "gasprices": ["reference", "PriceGas+"]
+        "gasprices": ["reference", "PriceGas+", "PriceGas-"]
   }
 }

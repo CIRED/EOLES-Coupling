@@ -113,8 +113,8 @@ def resirf_eoles_coupling_static(subsidy, subsidy_policy_heater, subsidy_policy_
 
     buildings_copy = deepcopy(buildings)
     energy_prices, taxes, cost_heater, cost_insulation, demolition_rate, flow_district_heating = deepcopy(inputs_dynamics['energy_prices']), deepcopy(inputs_dynamics['taxes']), deepcopy(inputs_dynamics['cost_heater']), deepcopy(inputs_dynamics['cost_insulation']), deepcopy(inputs_dynamics['demolition_rate']), deepcopy(inputs_dynamics['flow_district_heating'])
-    lifetime_heater, lifetime_insulation = deepcopy(inputs_dynamics["lifetime_heater"]), deepcopy(inputs_dynamics["lifetime_insulation"])
-    flow_built, post_inputs, policies_heater_copy, policies_insulation_copy = deepcopy(inputs_dynamics['flow_built']), deepcopy(inputs_dynamics['post_inputs']), deepcopy(policies_heater), deepcopy(policies_insulation)
+    lifetime_heater = deepcopy(inputs_dynamics["lifetime_heater"])
+    frequency_insulation, flow_built, post_inputs, policies_heater_copy, policies_insulation_copy = deepcopy(inputs_dynamics['frequency_insulation']), deepcopy(inputs_dynamics['flow_built']), deepcopy(inputs_dynamics['post_inputs']), deepcopy(policies_heater), deepcopy(policies_insulation)
     technical_progress, financing_cost, premature_replacement, carbon_content, hourly_profile = deepcopy(inputs_dynamics['technical_progress']), deepcopy(inputs_dynamics['financing_cost']), deepcopy(inputs_dynamics['premature_replacement']), deepcopy(inputs_dynamics['post_inputs']['carbon_emission']), deepcopy(inputs_dynamics['hourly_profile'])
 
     # simulation between start and end - flow output represents annual values for year "end"
@@ -124,8 +124,7 @@ def resirf_eoles_coupling_static(subsidy, subsidy_policy_heater, subsidy_policy_
     # print(sub_heater['value'])
 
     output, stock, heating_consumption = simu_res_irf(buildings=buildings_copy, start=start_year_resirf, end=endyear_resirf, energy_prices=energy_prices,
-                                                      taxes=taxes, cost_heater=cost_heater, cost_insulation=cost_insulation,
-                                                      lifetime_insulation=lifetime_insulation,
+                                                      taxes=taxes, cost_heater=cost_heater, cost_insulation=cost_insulation, frequency_insulation=frequency_insulation,
                                                       flow_built=flow_built, post_inputs=post_inputs, policies_heater=policies_heater_copy,
                                                       policies_insulation=policies_insulation_copy,
                                                       financing_cost=financing_cost, sub_heater=sub_heater, sub_insulation=sub_insulation,
@@ -476,8 +475,7 @@ def resirf_eoles_coupling_greenfield(buildings, inputs_dynamics, policies_heater
                                                               energy_prices=inputs_dynamics['energy_prices'],
                                                               taxes=inputs_dynamics['taxes'],
                                                               cost_heater=inputs_dynamics['cost_heater'], cost_insulation=inputs_dynamics['cost_insulation'],
-                                                              lifetime_insulation=inputs_dynamics['lifetime_insulation'],
-                                                              flow_built=inputs_dynamics['flow_built'],
+                                                              frequency_insulation=inputs_dynamics['frequency_insulation'], flow_built=inputs_dynamics['flow_built'],
                                                               post_inputs=inputs_dynamics['post_inputs'], policies_heater=policies_heater,
                                                               policies_insulation=policies_insulation, financing_cost=inputs_dynamics['financing_cost'],
                                                               sub_heater=None, sub_insulation=None,
@@ -597,8 +595,7 @@ def resirf_eoles_coupling_greenfield(buildings, inputs_dynamics, policies_heater
                                                               end=endyear_resirf, energy_prices=inputs_dynamics['energy_prices'],
                                                               taxes=inputs_dynamics['taxes'],
                                                               cost_heater=inputs_dynamics['cost_heater'], cost_insulation=inputs_dynamics['cost_insulation'],
-                                                              lifetime_insulation=inputs_dynamics['lifetime_insulation'],
-                                                              flow_built=inputs_dynamics['flow_built'],
+                                                              frequency_insulation=inputs_dynamics['frequency_insulation'], flow_built=inputs_dynamics['flow_built'],
                                                               post_inputs=inputs_dynamics['post_inputs'], policies_heater=policies_heater,
                                                               policies_insulation=policies_insulation, financing_cost=inputs_dynamics['financing_cost'],
                                                               sub_heater=opt_sub_heater,
@@ -1019,8 +1016,7 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
                                                               energy_prices=inputs_dynamics['energy_prices'],
                                                               taxes=inputs_dynamics['taxes'],
                                                               cost_heater=inputs_dynamics['cost_heater'], cost_insulation=inputs_dynamics['cost_insulation'],
-                                                              lifetime_insulation=inputs_dynamics['lifetime_insulation'],
-                                                              flow_built=inputs_dynamics['flow_built'],
+                                                              frequency_insulation=inputs_dynamics['frequency_insulation'], flow_built=inputs_dynamics['flow_built'],
                                                               post_inputs=inputs_dynamics['post_inputs'], policies_heater=policies_heater,
                                                               policies_insulation=policies_insulation, financing_cost=inputs_dynamics['financing_cost'],
                                                               sub_heater=None, sub_insulation=None,
@@ -1235,7 +1231,7 @@ def resirf_eoles_coupling_dynamic(buildings, inputs_dynamics, policies_heater, p
                                                                   taxes=inputs_dynamics['taxes'],
                                                                   cost_heater=inputs_dynamics['cost_heater'],
                                                                   cost_insulation=inputs_dynamics['cost_insulation'],
-                                                                  lifetime_insulation=inputs_dynamics['lifetime_insulation'],
+                                                                  frequency_insulation=inputs_dynamics['frequency_insulation'],
                                                                   flow_built=inputs_dynamics['flow_built'],
                                                                   post_inputs=inputs_dynamics['post_inputs'],
                                                                   policies_heater=policies_heater,
