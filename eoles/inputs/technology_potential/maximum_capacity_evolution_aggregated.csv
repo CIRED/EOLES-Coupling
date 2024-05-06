@@ -95,3 +95,11 @@ N1onshorepv,pv_g,0,15.8,15.8,35.8,55.8,75.8,95.8
 N1onshorepv,pv_c,0,0,0,0,0,0,0
 N1onshorepv,nuclear,0,0,0,3.5,6.5,10,13.5
 N1onshorepv,coal,0,0,0,0,0,0,0
+N1RenTest,phs,0,0.5,1,1.5,2,2.5,3
+N1RenTest,offshore_f,0,1000,1000,1000,1000,1000,1000
+N1RenTest,offshore_g,0,1000,1000,1000,1000,1000,1000
+N1RenTest,onshore,0,1000,1000,1000,1000,1000,1000
+N1RenTest,pv_g,0,1000,1000,1000,1000,1000,1000
+N1RenTest,pv_c,0,1000,1000,1000,1000,1000,1000
+N1RenTest,nuclear,0,0,0,3.5,6.5,10,13.5
+N1RenTest,coal,0,0,0,0,0,0,0

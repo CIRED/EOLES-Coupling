@@ -6,7 +6,7 @@
     "greenfield": false,
     "prices_constant": false,
     "price_feedback": true,
-    "biomass_potential_scenario": "S2p",
+    "biomass_potential_scenario": "S3",
     "aggregated_potential": true,
     "maximum_capacity_scenario": "N1",
     "lifetime_insulation": 5,

@@ -9,3 +9,5 @@ S2p,methanization,0,0,16.5,22.5,28.5,34.5,40.5
 S2p,pyrogazification,0,0,0,2.4,4.8,7.2,9.6
 S3,methanization,0,0,19,25.75,32.5,39.25,46
 S3,pyrogazification,0,0,0,4.8,9.6,14.4,19.2
+S3+,methanization,0,0,24,30,40,49,56
+S3+,pyrogazification,0,0,0,9,18,28,38

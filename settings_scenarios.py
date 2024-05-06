@@ -2,10 +2,11 @@
 
 map_values_eoles = {
     'Biogas-': 'S2',
-    'Biogas+': 'S3',
+    'Biogas+': 'S3+',
     'Nuc-': 'N1nuc',
     'Ren-': 'N1ren',
     'Ren+': 'N1ren+',
+    'RenTest': 'N1RenTest',
     'Offshore-': 'N1offshore',
     'Onshore-': 'N1onshore',
     'PV-': 'N1pv',
@@ -40,6 +41,7 @@ map_maxi_capacity_scenario = {
     'N1pvonshoreoffshore': 'N1ren',
     'N1ren': 'N1ren',
     'N1ren+': 'N1ren+',
+    'N1RenTest': 'N1RenTest',
     'N1nuc': 'N1nuc',
     'N1ren2': 'N1ren2',
     'N1offshore': 'N1offshore',

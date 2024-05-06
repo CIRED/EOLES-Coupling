@@ -684,6 +684,6 @@ if __name__ == '__main__':
     # scenarios_complete, output, hourly_generation = parse_outputs(folderpath, features=features)
 
     # LOCAL
-    folderpath = Path('assessing_ban/simulations/exhaustive_20240506_163310')  # for cluster use
+    folderpath = Path('assessing_ban/simulations/exhaustive_20240506_195738')  # for cluster use
     features = ['policy_heater', 'policy_insulation', 'learning', 'elasticity', 'biogas', 'capacity_ren', 'demand', 'carbon_budget', 'gasprices']
     scenarios_complete, output, hourly_generation = parse_outputs(folderpath, features=features)
