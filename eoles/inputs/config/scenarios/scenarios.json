@@ -12,7 +12,7 @@
         "biogas": ["reference", "Biogas-", "Biogas+"],
         "capacity_ren": ["reference", "Ren-", "Ren+"],
         "demand": ["reference", "Sufficiency", "Reindustrialisation"],
-        "carbon_budget": ["reference", "CarbonBudget-", "CarbonBudget+"]
+        "carbon_budget": ["reference", "CarbonBudget-"]
     },
     "demand" : {
       "learning": ["reference", "Learning+", "Learning-"],
