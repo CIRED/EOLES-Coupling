@@ -76,7 +76,7 @@ DICT_LEGEND_WATERFALL = {
     'pv': 'Solar PV',
     'battery': 'Battery',
     'hydro': 'Hydroelectricity',
-    'peaking plants': 'Peaking Plants',
+    'peaking plants': 'Peaking \nPlants',
     'Generation offshore (TWh)': 'Offshore',
     'Generation onshore (TWh)': 'Onshore',
     'Generation pv (TWh)': 'Solar PV',
@@ -2671,7 +2671,7 @@ def format_ax(ax: plt.Axes, title=None, y_label=None, x_label=None, x_ticks=None
 
 def format_ax_new(ax, y_label=None, title=None, format_x=None,
                   format_y=lambda y, _: y, ymin=None, ymax=None, xinteger=True, xmin=None, x_max=None, loc_title=None,
-                  c_title=None):
+                  c_title=None, y_fontsize=20, x_fontsize=20):
     """
 
     Parameters
@@ -2700,7 +2700,7 @@ def format_ax_new(ax, y_label=None, title=None, format_x=None,
         ax.xaxis.set_major_formatter(plt.FuncFormatter(format_x))
 
     if y_label is not None:
-        ax.set_ylabel(y_label)
+        ax.set_ylabel(y_label, fontsize=y_fontsize)
 
     if title is not None:
         if loc_title is not None:
@@ -3216,7 +3216,7 @@ def plot_blackbox_optimization(dict_optimizer, save_path, two_stage_optim=False)
 
 def waterfall_chart(df, colors=None, rotation=0, save=None, format_y=lambda y, _: '{:.0f}'.format(y), title=None,
                     y_label=None, hline=False, dict_legend=None, total=True, unit='B€', float_precision=0, neg_offset=None,
-                    pos_offset=None, df_max=None, df_min=None):
+                    pos_offset=None, df_max=None, df_min=None, x_fontsize=24, y_fontsize=24, annotate_fontsize=20):
     if isinstance(df, pd.DataFrame):
         df = df.squeeze()
     if dict_legend is not None:
@@ -3289,9 +3289,9 @@ def waterfall_chart(df, colors=None, rotation=0, save=None, format_y=lambda y, _
                 y -= neg_offset
         # if loop > 0:
         if float_precision == 0:
-            ax.annotate("{:+,.0f} {}".format(val, unit), (loop, y), ha="center")
+            ax.annotate("{:+,.0f} {}".format(val, unit), (loop, y), ha="center", fontsize=annotate_fontsize)
         else:
-            ax.annotate("{:+,.1f} {}".format(val, unit), (loop, y), ha="center")
+            ax.annotate("{:+,.1f} {}".format(val, unit), (loop, y), ha="center", fontsize=annotate_fontsize)
         loop += 1
 
     if blank.max() > 0:  # total est True quand on fait les graphes pour les coûts, et False quand on fait les graphes pour les capacités
@@ -3315,7 +3315,7 @@ def waterfall_chart(df, colors=None, rotation=0, save=None, format_y=lambda y, _
     ax.set_ylim(ymax=y_max)
     ax.set_ylim(ymin=y_min)
     ax.set_xlabel('')
-    ax = format_ax_new(ax, format_y=format_y, xinteger=True)
+    ax = format_ax_new(ax, format_y=format_y, xinteger=True, x_fontsize=x_fontsize)
 
     if title is not None:
         if total:
@@ -3336,8 +3336,8 @@ def waterfall_chart(df, colors=None, rotation=0, save=None, format_y=lambda y, _
     #     fig.legend(handles, labels, loc='center left', frameon=False, ncol=1,
     #                bbox_to_anchor=(1, 0.5))
 
-    plt.setp(ax.xaxis.get_majorticklabels(), rotation=rotation)
-    ax.tick_params(axis='both', which='major', labelsize=18)
+    plt.setp(ax.xaxis.get_majorticklabels(), rotation=rotation, fontsize=x_fontsize)
+    ax.tick_params(axis='both', which='major', labelsize=x_fontsize)
 
     save_fig(fig, save=save)
 

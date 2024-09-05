@@ -33,8 +33,8 @@ from SALib.analyze import sobol
 MAPPING = {'Learning+': 'High', 'Learning-': 'Low',
            'Elasticity+': 'High', 'Elasticity-': 'Low',
            'Biogas+': 'High', 'Biogas-': 'Low',
-           'Capacity_ren+': 'High', 'Ren-': 'Low',
-           'Demand+': 'High', 'Sufficiency': 'Low',
+           'Capacity_ren+': 'High', 'Ren-': 'Low', 'Ren+': 'High',
+           'Demand+': 'High', 'Sufficiency': 'Low', 'Reindustrialisation': 'High',
            'PriceGas+': 'High', 'PriceGas-': 'Low',
            'PriceWood+': 'High', 'PriceWood-': 'Low',
            'Policy_mix+': 'High', 'Policy_mix-': 'Low',
@@ -49,7 +49,7 @@ NAME_COLUMNS = {
     'learning': 'Technical progress heat-pumps',
     'elasticity': 'Heat-pump price elasticity',
     'biogas': 'Biogas potential',
-    'capacity_ren': 'Renewable capacity',
+    'capacity_ren': 'Renewable potential',
     'demand': 'Other electricity demand',
     'gasprices': 'Gas prices',
     'woodprices': 'Wood prices',
@@ -64,6 +64,7 @@ ORDER_COLUMNS = ['policy_mix', 'policy_heater', 'policy_insulation', 'learning',
 
 LIST_FEATURES = ['policy_heater', 'policy_insulation', 'learning', 'elasticity', 'cop', 'biogas', 'capacity_ren',
             'demand', 'carbon_budget', 'gasprices']
+
 
 
 def parse_outputs(folderpath, features, emissions=False):
@@ -141,8 +142,8 @@ def make_table_summary(data, folderpath):
                    'Consumption Wood fuel (TWh)': 'Consumption Wood',
                    'offshore': 'Offshore capacity',
                    'onshore': 'Onshore capacity',
-                   'pv': 'Solar PV',
-                   'battery': 'Battery',
+                   'pv': 'Solar PV capacity',
+                   'battery': 'Battery capacity',
                    'peaking plants': 'Peaking plants capacity',
                    'methanization': 'Methanization capacity',
                    'pyrogazification': 'Pyrogazification capacity',
@@ -166,6 +167,49 @@ def make_table_summary(data, folderpath):
 
     df.to_csv(folderpath / Path('summary_table.csv'))
     return df
+
+
+def make_table_summary_resirf(data1, data2, folderpath):
+    scenarios = {('S0', 'reference'): 'Counterfactual', ('S0', 'Ban'): 'Ban'}
+    selected_keys = [
+    'Stock (Million)',
+    'Surface (Million m2)',
+    'Consumption (TWh)',
+    'Consumption (kWh/m2)',
+    'Consumption PE (TWh)',
+    'Consumption Electricity (TWh)',
+    'Consumption Natural gas (TWh)',
+    'Consumption Oil fuel (TWh)',
+    'Consumption Wood fuel (TWh)',
+    'Consumption Heating (TWh)',
+    'Energy poverty (Million)',
+    'Emission (MtCO2)',
+    'Stock G (Million)',
+    'Stock F (Million)',
+    'Stock E (Million)',
+    'Stock D (Million)',
+    'Stock C (Million)',
+    'Stock B (Million)',
+    'Stock A (Million)',
+    'Stock Heat pump (Million)',
+    'Stock Direct electric (Million)',
+    'Stock Natural gas (Million)',
+    'Stock Oil fuel (Million)',
+    'Stock Wood fuel (Million)',
+    'Stock District heating (Million)',
+    'Energy poverty (Million)'
+]
+    df1 = data1.loc[selected_keys, '2049'].rename({'2049': 2050})
+    df1 = df1.astype('int')
+
+    df2 = data2.loc[selected_keys, '2049'].rename({'2049': 2050})
+    df2 = df2.astype('int')
+
+    df = pd.concat([df1, df2], axis=1)
+    df.to_csv(folderpath / Path('summary_table_resirf.csv'))
+
+    return df
+
 
 
 def get_distributional_data(df):
@@ -512,7 +556,7 @@ def frequency_chart_subplot(results1, results2, category_names=None, save_path=N
 
     plt.tight_layout()
 
-def horizontal_stack_bar_plot(df, columns=None, title=None, order=None, save_path=None):
+def horizontal_stack_bar_plot(df, columns=None, title=None, order=None, save_path=None, fontsize=20):
     """
     Create a horizontal stacked bar plot from a DataFrame.
 
@@ -561,7 +605,7 @@ def horizontal_stack_bar_plot(df, columns=None, title=None, order=None, save_pat
     ax.spines['left'].set_visible(False)
 
     # size of x-axis and y-axis ticks
-    ax.tick_params(axis='both', which='major', labelsize=18)
+    ax.tick_params(axis='both', which='major', labelsize=fontsize)
     # size of title
 
     # Remove the x-axis and y-axis titles
@@ -684,6 +728,7 @@ if __name__ == '__main__':
     # scenarios_complete, output, hourly_generation = parse_outputs(folderpath, features=features)
 
     # LOCAL
-    folderpath = Path('assessing_ban/simulations/exhaustive_20240506_195738')  # for cluster use
+    folderpath = Path('assessing_ban/simulations/exhaustive_20240826_120338')  # for cluster use
     features = ['policy_heater', 'policy_insulation', 'learning', 'elasticity', 'biogas', 'capacity_ren', 'demand', 'carbon_budget', 'gasprices']
+    features = ['discount_rate']
     scenarios_complete, output, hourly_generation = parse_outputs(folderpath, features=features)

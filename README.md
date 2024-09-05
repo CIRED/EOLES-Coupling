@@ -6,6 +6,8 @@ The EOLES-ResIRF Coupling model is a tool for studying integrated decarbonizatio
 
 ## Installation
 
+The current version of the code should be run on Unix.
+
 ### Step 1: Git clone the folder in your computer.
 
 ```bash

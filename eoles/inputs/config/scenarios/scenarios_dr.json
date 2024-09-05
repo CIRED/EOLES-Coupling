@@ -1,0 +1,24 @@
+{ "trash": {
+    "profile": ["reference", "ProfileFlat"],
+    "capacity_nuc": ["reference", "Nuc-"],
+    "capacity_pv": ["reference", "PV-"],
+    "capacity_offshore": ["reference", "Offshore-"],
+    "woodprices": ["reference", "PriceWood+"],
+    "weather": ["reference", "cold"],
+    "policy_mix": ["reference", "NoPolicy"],
+    "cop": ["reference", "COP+"],
+    "biogas": ["reference", "Biogas-", "Biogas+"],
+    "capacity_ren": ["reference", "Ren-", "Ren+"],
+    "demand": ["reference", "Sufficiency", "Reindustrialisation"],
+    "carbon_budget": ["reference", "CarbonBudget-"]
+},
+      "supply" : {
+        "discount_rate": ["reference", "DiscountRate-", "DiscountRate--", "DiscountRate+", "DiscountRate++"]
+    },
+    "demand" : {
+
+    },
+   "prices": {
+
+  }
+}

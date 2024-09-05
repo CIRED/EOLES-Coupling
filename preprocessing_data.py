@@ -7,33 +7,33 @@ from matplotlib import pyplot as plt
 
 ####### Demand profile #########
 
-# Process csv file to get the demand profile
-# First column is the type of vehicule, second is the hour, last is the demand value in MW
-demand_ev = pd.read_csv('eoles/inputs/demand_data_other/demand_transport2050.csv', index_col=0, header=None).reset_index().rename(columns={0: 'vehicule', 1: 'hour', 2: 'demand'})
-demand_rte = pd.read_csv("eoles/inputs/demand/demand2050_RTE.csv", index_col=0, header=None).squeeze("columns")
-
-adjust_demand = (530 * 1e3 - 580 * 1e3) / 8760  # 580TWh is the total of the profile we use as basis for electricity hourly demand (from RTE), c'est bien vérifié
-demand_rte_rescaled_1 = demand_rte + adjust_demand
-demand_rte_rescaled_2 = demand_rte * (530 / 580)
-
-plt.plot(demand_rte_rescaled_1[0:150], c='red')
-plt.plot(demand_rte_rescaled_2[0:150], c='blue')
-# plt.plot(demand_rte[0:1000], c='green')
-plt.show()
-
-# plot the demand profile for vehicule = 'light'
-
-demand_ev_light = demand_ev.loc[demand_ev.vehicule == 'light']
-demand_ev_light = demand_ev_light.drop(columns=['vehicule'])
-demand_ev_light = demand_ev_light.set_index('hour')
-
-demand_ev_heavy = demand_ev.loc[demand_ev.vehicule == 'heavy']
-demand_ev_heavy = demand_ev_heavy.drop(columns=['vehicule'])
-demand_ev_heavy = demand_ev_heavy.set_index('hour')
-
-demand_ev_bus = demand_ev.loc[demand_ev.vehicule == 'bus']
-demand_ev_bus = demand_ev_bus.drop(columns=['vehicule'])
-demand_ev_bus = demand_ev_bus.set_index('hour')
+# # Process csv file to get the demand profile
+# # First column is the type of vehicule, second is the hour, last is the demand value in MW
+# demand_ev = pd.read_csv('eoles/inputs/demand_data_other/demand_transport2050.csv', index_col=0, header=None).reset_index().rename(columns={0: 'vehicule', 1: 'hour', 2: 'demand'})
+# demand_rte = pd.read_csv("eoles/inputs/demand/demand2050_RTE.csv", index_col=0, header=None).squeeze("columns")
+#
+# adjust_demand = (530 * 1e3 - 580 * 1e3) / 8760  # 580TWh is the total of the profile we use as basis for electricity hourly demand (from RTE), c'est bien vérifié
+# demand_rte_rescaled_1 = demand_rte + adjust_demand
+# demand_rte_rescaled_2 = demand_rte * (530 / 580)
+#
+# plt.plot(demand_rte_rescaled_1[0:150], c='red')
+# plt.plot(demand_rte_rescaled_2[0:150], c='blue')
+# # plt.plot(demand_rte[0:1000], c='green')
+# plt.show()
+#
+# # plot the demand profile for vehicule = 'light'
+#
+# demand_ev_light = demand_ev.loc[demand_ev.vehicule == 'light']
+# demand_ev_light = demand_ev_light.drop(columns=['vehicule'])
+# demand_ev_light = demand_ev_light.set_index('hour')
+#
+# demand_ev_heavy = demand_ev.loc[demand_ev.vehicule == 'heavy']
+# demand_ev_heavy = demand_ev_heavy.drop(columns=['vehicule'])
+# demand_ev_heavy = demand_ev_heavy.set_index('hour')
+#
+# demand_ev_bus = demand_ev.loc[demand_ev.vehicule == 'bus']
+# demand_ev_bus = demand_ev_bus.drop(columns=['vehicule'])
+# demand_ev_bus = demand_ev_bus.set_index('hour')
 # plot only for a subset of hours
 # demand_ev_light.loc[0:100].plot()
 # plt.show()
@@ -179,7 +179,8 @@ vre_profiles_quentin = vre_profiles_quentin.loc[vre_profiles_quentin.tec.isin(['
 lake_inflows = pd.read_csv('eoles/inputs/hourly_profiles/lake_2000-2019.csv', index_col=0, header=None).reset_index()
 lake_inflows.columns = ["month", "capacity_factor"]
 #
-list_year = [2012]
+year = 2016
+list_year = [year]
 vre_profiles_subset = pd.DataFrame()
 lake_inflows_subset = pd.DataFrame()
 
@@ -203,8 +204,8 @@ vre_profiles_subset = vre_profiles_subset.set_index("tec")
 
 lake_inflows_subset = lake_inflows_subset.set_index('month')
 #
-vre_profiles_subset.to_csv('eoles/inputs/hourly_profiles/vre_profiles_2012.csv', header=False)
-lake_inflows_subset.to_csv('eoles/inputs/hourly_profiles/lake_2012.csv', header=False)
+vre_profiles_subset.to_csv(f'eoles/inputs/hourly_profiles/vre_profiles_{year}.csv', header=False)
+lake_inflows_subset.to_csv(f'eoles/inputs/hourly_profiles/lake_{year}.csv', header=False)
 #
 # ############## Estimate run of river values for different years  ######################
 #

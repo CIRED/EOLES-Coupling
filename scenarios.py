@@ -162,6 +162,11 @@ def creation_scenarios(file=Path('eoles/inputs/config/scenarios/scenarios.json')
                     temp = deepcopy(new_config['policies'])
                     temp.update(deepcopy(map_values[value_variable]))  # we add new policy information to the existing one
                     new_config['policies'] = deepcopy(temp)
+                elif map_scenarios_to_configs[name_variable][0] == 'coupling':
+                    if map_scenarios_to_configs[name_variable][1] in new_config.keys():
+                        new_config[map_scenarios_to_configs[name_variable][1]].update(deepcopy(map_values[value_variable]))
+                    else:
+                        new_config[map_scenarios_to_configs[name_variable][1]] = deepcopy(map_values[value_variable])
                 else:
                     raise KeyError('Key not found')
         folder_additional = folder_simu / Path(name_scenario + '.json')
@@ -176,6 +181,45 @@ def creation_scenarios(file=Path('eoles/inputs/config/scenarios/scenarios.json')
     return folder_simu
 
 
+def get_scenarios_not_run(folderpath, foldersave, n_cluster):
+
+    scenarios = pd.read_csv(folderpath / Path('scenarios.csv'), index_col=0)
+    scenarios = scenarios.fillna('reference')  # when using marginal method, some scenarios are NaNs, and need to be replaced with reference
+    dict_output = {}
+    # list all files in a folder with path folderpath
+    for path in folderpath.iterdir():
+        if path.is_dir():
+            dict_output[path.name.split('_')[1]] = path
+    scenarios_run = list(dict_output.keys())
+
+    # get subset of scenarios, where elements of index are included only if not in the list scenarios_run
+    scenarios_rerun = scenarios.copy()
+    scenarios_rerun = scenarios_rerun.loc[~scenarios_rerun.index.isin(scenarios_run)]
+
+    n = len(scenarios_rerun)
+    scenarios_per_cluster = n // n_cluster
+
+    # Additional scenarios to distribute if n is not divisible by n_cluster
+    additional_scenarios = n % n_cluster
+
+    cluster_list = []
+    for i in range(n_cluster):
+        cluster_list += [f'Cluster{i + 1}'] * (scenarios_per_cluster + (1 if i < additional_scenarios else 0))
+    random.shuffle(cluster_list)  # to allocate randomly the scenarios to the clusters
+
+    # Assign scenarios to clusters
+    cluster_assignments = {}
+    for key, cluster in zip(scenarios_rerun.index, cluster_list):
+        cluster_assignments[key] = cluster
+
+
+    # Create DataFrame from cluster assignments
+    cluster_assignments_df = pd.DataFrame(list(cluster_assignments.items()), columns=['Scenario', 'Cluster'])
+    cluster_assignments_df.set_index('Scenario', inplace=True)
+    assert set(cluster_assignments_df.index) == set(scenarios_rerun.index), "Problem when assigning scenarios to clusters"
+    cluster_assignments_df.to_csv(foldersave / Path('cluster_assignments.csv'))
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Create scenarios.')
     parser.add_argument("--N", type=int, default=100, help="Number of scenarios if created here.")
@@ -183,10 +227,13 @@ if __name__ == '__main__':
     parser.add_argument("--ncluster", type=int, default=None, help="Number of clusters to process the Montecarlo")
     args = parser.parse_args()
 
+    # folderpath = Path('postprocessing/assessing_ban/simulations/exhaustive_20240506_195738')
+    # get_scenarios_not_run(folderpath)
+
     N = int(args.N)
     method = str(args.method)
     n_cluster = None
     if args.ncluster is not None:
         n_cluster = int(args.ncluster)
-    # folder_simu = creation_scenarios(file=Path('eoles/inputs/config/scenarios/scenarios_carbonconstraint.json'), method=method, N=N, n_cluster=n_cluster)
-    folder_simu = creation_scenarios(method=method, N=N, n_cluster=n_cluster)
+    folder_simu = creation_scenarios(file=Path('eoles/inputs/config/scenarios/scenarios_dr.json'), method=method, N=N, n_cluster=n_cluster)
+    # folder_simu = creation_scenarios(method=method, N=N, n_cluster=n_cluster)

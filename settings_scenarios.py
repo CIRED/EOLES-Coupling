@@ -18,6 +18,46 @@ map_values_eoles = {
               'lake_inflows': 'lake_2012',
               'nb_years': 1,
               'input_years': [2012]},
+    '2007': {'load_factors': 'vre_profiles_2007',
+             'lake_inflows': 'lake_2007',
+             'nb_years': 1,
+             'input_years': [2007]},
+    '2008': {'load_factors': 'vre_profiles_2008',
+             'lake_inflows': 'lake_2008',
+             'nb_years': 1,
+             'input_years': [2008]},
+    '2009': {'load_factors': 'vre_profiles_2009',
+             'lake_inflows': 'lake_2009',
+             'nb_years': 1,
+             'input_years': [2009]},
+    '2010': {'load_factors': 'vre_profiles_2010',
+             'lake_inflows': 'lake_2010',
+             'nb_years': 1,
+             'input_years': [2010]},
+    '2011': {'load_factors': 'vre_profiles_2011',
+             'lake_inflows': 'lake_2011',
+             'nb_years': 1,
+             'input_years': [2011]},
+    '2012': {'load_factors': 'vre_profiles_2012',
+             'lake_inflows': 'lake_2012',
+             'nb_years': 1,
+             'input_years': [2012]},
+    '2013': {'load_factors': 'vre_profiles_2013',
+             'lake_inflows': 'lake_2013',
+             'nb_years': 1,
+             'input_years': [2013]},
+    '2014': {'load_factors': 'vre_profiles_2014',
+             'lake_inflows': 'lake_2014',
+             'nb_years': 1,
+             'input_years': [2014]},
+    '2015': {'load_factors': 'vre_profiles_2015',
+             'lake_inflows': 'lake_2015',
+             'nb_years': 1,
+             'input_years': [2015]},
+    '2016': {'load_factors': 'vre_profiles_2016',
+             'lake_inflows': 'lake_2016',
+             'nb_years': 1,
+             'input_years': [2016]},
     'Methane+': {
         'fix_capacities': 'fix_capacities_methanehigh',
         'fix_charging_capacities': 'fix_charging_capacities_methanehigh',
@@ -138,8 +178,16 @@ map_values_resirf = {
         }}
 
 }
+
+map_values_coupling = {
+    'DiscountRate++': 0.05,
+    'DiscountRate+': 0.04,
+    'DiscountRate-': 0.02,
+    'DiscountRate--': 0.01
+}
+
 # concatenate the two dictionaries
-map_values = {**map_values_eoles, **map_values_resirf}
+map_values = {**map_values_eoles, **map_values_resirf, **map_values_coupling}
 
 map_scenarios_to_configs = {
     'biogas': ['supply', 'biomass_potential_scenario'],
@@ -164,6 +212,7 @@ map_scenarios_to_configs = {
     'profile': ['demand', 'technical'],
     'elasticity': ['demand', 'switch_heater'],
     'gasprices': ['prices', 'prices'],
-    'woodprices': ['prices', 'prices']
+    'woodprices': ['prices', 'prices'],
+    'discount_rate': ['coupling', 'discount_rate']
 }
 

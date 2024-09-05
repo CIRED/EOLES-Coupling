@@ -1556,6 +1556,9 @@ def create_configs_coupling(list_design, config_coupling: dict, config_additiona
 
     config_coupling_update['resirf'] = {}  # we create a dictionary for the ResIRF configuration specs
 
+    if 'discount_rate' in config_additional.keys():
+        config_coupling_update['discount_rate'] = config_additional['discount_rate']
+
     if 'prices' in config_additional.keys():
         config_coupling_update['resirf']['prices'] = config_additional['prices']['resirf']
         config_coupling_update['resirf']['energy'] = config_additional['energy']  # information necessary to update prices afterwards in modif_config_resirf

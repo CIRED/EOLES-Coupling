@@ -200,6 +200,7 @@ new_colors_eoles = {
     'Solar PV': color_palette[8],
     'peaking plants': color_palette[5],
     'Peaking Plants': color_palette[5],
+    'Peaking \nPlants': color_palette[5],
     'nuclear': color_palette[7],
     'Nuclear': color_palette[7],
     'natural gas': color_palette[10],
